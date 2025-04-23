@@ -5,8 +5,6 @@
 <div align="center">
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-<!-- [![GitHub Issues](https://img.shields.io/github/issues/vercel/ofnil-agentic-rag-open.svg)](https://github.com/vercel/ofnil-agentic-rag-open/issues)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/vercel/ofnil-agentic-rag-open/pulls) -->
 
 </div>
 
@@ -20,7 +18,7 @@ Sagi is a production-ready, open-source LLM agent framework that combines advanc
 
 ## 📰 News
 
-- [2025/04] 🔥 Sigi is publicly released!
+- [2025/04] 🔥 Sagi is publicly released!
 
 ## 🔜 Coming Soon
 - Interactive Web UI
@@ -36,8 +34,8 @@ Sagi is a production-ready, open-source LLM agent framework that combines advanc
 
 2. **Clone the Repository**
    ```bash
-   git clone https://github.com/vercel/ofnil-agentic-rag-open.git
-   cd ofnil-agentic-rag-open
+   git clone https://github.com/Kasma-Inc/Sagi.git
+   cd Sagi
    git submodule update --init --recursive  # Download MCP servers and Markify(MinerU)
    ```
 
@@ -54,6 +52,7 @@ Sagi is a production-ready, open-source LLM agent framework that combines advanc
 
 1. **Build the Docker Container**
    ```bash
+   chmod +x dev/setup_dc.sh
    ./dev/setup_dc.sh
    ```
 
@@ -61,7 +60,7 @@ Sagi is a production-ready, open-source LLM agent framework that combines advanc
    - **Option A:** Use [VSCode Remote Container](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) (Recommended). You can run `bash dev/install_vscode_extensions.sh` to install the basic plugins for the development.
    - **Option B:** Access via terminal:
      ```bash
-     docker exec -it "$(whoami)_chatbot_open" /bin/bash
+     docker exec -it "$(whoami)_chatbot_python" /bin/bash
      ```
 
 3. **Install Dependencies**

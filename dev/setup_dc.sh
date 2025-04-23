@@ -17,12 +17,12 @@ start_docker_compose() {
 
     # start docker-compose
     echo "Starting docker-compose with project name: ${PROJECT_NAME}..."
-    docker-compose -p ${PROJECT_NAME} up -d --build
+    docker compose -p ${PROJECT_NAME} up -d --build
     if [ $? -ne 0 ]; then
-        echo "docker-compose failed to start. Please check the logs for more information."
+        echo "docker compose failed to start. Please check the logs for more information."
         exit 1
     fi
-    echo "docker-compose started successfully."
+    echo "docker compose started successfully."
 
     # print container names
     echo "You may run \"docker exec -it ${CONTAINER_NAME_1} /bin/bash\" to enter the main app container"

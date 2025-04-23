@@ -492,7 +492,7 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
             await self._log_message(
                 f"Plan '{current_step}' has been in progress for 5 iterations. Marking as completed."
             )
-            self._plan_manager.set_set_status(current_step, PLAN_STATE.FAILED)
+            self._plan_manager.set_status(current_step, PLAN_STATE.FAILED)
             # Log the forced completion
             stop_message = TextMessage(
                 content=json.dumps(
