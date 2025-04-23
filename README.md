@@ -78,7 +78,7 @@ Sagi is a production-ready, open-source LLM agent framework that combines advanc
 We welcome contributions! Please feel free to submit a pull request. We also welcome any questions via Github Issues or via the community group, please join us.
 
 <div align="center" style="display: flex; gap: 20px;">
-    <img src="assets/lark_group.jpg" alt="Sagi Open Source" width="150" />
+    <img src="assets/lark_group.jpg" alt="Sagi Open Source" width="200" />
 </div>
 
 ## 📄 License
