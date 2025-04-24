@@ -16,3 +16,9 @@
     base_url = "${OPENAI_BASE_URL}"
     api_key = "${OPENAI_API_KEY}"
     max_tokens = 16000
+  
+  [model_clients.code_client]
+    model = "gpt-4.1-2025-04-14"
+    base_url = "${OPENAI_BASE_URL}"
+    api_key = "${OPENAI_API_KEY}"
+    max_tokens = 16000

@@ -110,6 +110,30 @@ class PlanningWorkflow:
                 max_tokens=config_reflection_client["max_tokens"],
             )
 
+        config_code_client = config["model_clients"]["code_client"]
+        if "model_info" in config_code_client:
+            model_info = config_code_client["model_info"]
+            model_info["family"] = ModelFamily.UNKNOWN
+            model_info = ModelInfo(**model_info)
+        else:
+            model_info = None
+
+        if model_info is not None:
+            self.code_model_client = OpenAIChatCompletionClient(
+                model=config_code_client["model"],
+                base_url=config_code_client["base_url"],
+                api_key=config_code_client["api_key"],
+                model_info=model_info,
+                max_tokens=config_reflection_client["max_tokens"],
+            )
+        else:
+            self.code_model_client = OpenAIChatCompletionClient(
+                model=config_code_client["model"],
+                base_url=config_code_client["base_url"],
+                api_key=config_code_client["api_key"],
+                max_tokens=config_reflection_client["max_tokens"],
+            )
+
     @classmethod
     async def create(
         cls,
@@ -155,7 +179,8 @@ class PlanningWorkflow:
         code_executor = CodeExecutorAgent(
             name="CodeExecutor",
             code_executor=LocalCommandLineCodeExecutor(work_dir=work_dir),
-            model_client=self.model_client,
+            model_client=self.code_model_client,
+            max_retries_on_error=3,
         )
 
         # Pass prompt_template_agent as a separate parameter
