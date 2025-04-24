@@ -72,11 +72,10 @@ Each plan step should contain the following elements:
 1. name: A short title for this step
 2. description: Detailed explanation of the step objective and financial content
 3. data_collection_task: Specific instructions for gathering financial data needed for this step (optional)
-4. code_executor_task: Description of what code should do to process data and generate slides (optional)
+4. code_executor_task: Description of what code should do to process data, GENERATE slide, APPEND it to PPT and SAVE PPT (optional)
 
 Plan requirements:
-- Each step should generate one slide in the financial PowerPoint presentation
-- All slides should ultimately be combined into a complete financial PPT
+- Each step should GENERATE one slide, APPEND it to the PPT and SAVE PPT.
 - Include common financial PPT elements such as titles, financial metrics, bullet point lists, visual elements (charts, graphs, financial tables, etc.)
 - Code sections should primarily use Python (with visualization libraries like matplotlib, seaborn, plotly, pandas_datareader, etc.) or bash to install dependencies
 - Ensure code is practical and executable, capable of completing financial data processing and slide generation tasks
@@ -96,31 +95,33 @@ Please output in JSON format, conforming to the following structure:
 Example for a Tesla stock analysis presentation:
   steps: [
       name: Company Overview,
-      description: Create a title slide with company logo and brief overview of Tesla, including its ticker symbol, industry, and founding date.,
-      data_collection_task: Find Tesla company logo, ticker symbol (TSLA), founding date, headquarters location, and CEO information.,
-      code_executor_task: Create a PowerPoint presentation object and add a title slide with Tesla name, ticker symbol, and basic company information. Add the company logo to the slide and format appropriately. Save the presentation for further additions.
+      description: Create a title slide with brief overview of Tesla, including its ticker symbol, industry, and founding date.,
+      data_collection_task: Find Tesla ticker symbol (TSLA), founding date, headquarters location, and CEO information.,
+      code_executor_task: Create a PPT and add a title slide with Tesla name, ticker symbol, and basic company information. Save the PPT for further additions.
     ,
     
       name: Stock Price Performance,
       description: Create a slide showing Tesla stock price performance over the past 5 years with key milestones highlighted.,
       data_collection_task: Retrieve Tesla 5-year historical stock price data from Yahoo Finance API and identify key corporate milestones.,
-      code_executor_task: Use yfinance to download Tesla 5-year stock price data. Create a line chart showing the closing price over time. Mark significant company milestones on the chart. Add the chart to a new slide in the presentation with an appropriate title and axis labels.
+      code_executor_task: Use yfinance to download Tesla 5-year stock price data. Create a line chart showing the closing price over time. Mark significant company milestones on the chart. Add the chart to a new slide in the presentation with an appropriate title and axis labels. Remember to append the slide to PPT and save PPT.
     ,
       name: Financial Metrics,
       description: Create a slide analyzing Tesla key financial metrics including revenue growth, profit margins, P/E ratio, and EPS.,
       data_collection_task: Gather Tesla income statements, balance sheets, and key financial ratios for the past 3 years.,
-      code_executor_task: Extract financial metrics from Tesla financial statements using yfinance. Create a formatted table showing Revenue, Net Income, Profit Margin, P/E Ratio, and EPS data for the past 3 years. Add the table to a new slide with an appropriate title and brief analysis text.
+      code_executor_task: Extract financial metrics from Tesla financial statements using yfinance. Create a formatted table showing Revenue, Net Income, Profit Margin, P/E Ratio, and EPS data for the past 3 years. Add the table to a new slide with an appropriate title and brief analysis text. Remember to append the slide to PPT and save PPT.
     ,
       name: Market Position & Competition,
       description: Create a slide analyzing Tesla market position, market share, and key competitors in the EV industry.,
       data_collection_task: Research Tesla market share in the EV industry and identify key competitors with their market shares.,
-      code_executor_task: Create a pie chart showing the global EV market share distribution among Tesla and its key competitors. Add the chart to a new slide. Include a text box highlighting Tesla competitive advantages in the industry, such as brand recognition, battery technology, charging infrastructure, and software capabilities.
+      code_executor_task: Create a pie chart showing the global EV market share distribution among Tesla and its key competitors. Add the chart to a new slide. Include a text box highlighting Tesla competitive advantages in the industry, such as brand recognition, battery technology, charging infrastructure, and software capabilities. Remember to append the slide to PPT and save PPT.
     ,
       name: Investment Recommendation,
       description: Create a slide with investment recommendation, target price, and key investment thesis points.,
       data_collection_task: Analyze current valuation metrics, growth projections, and risk factors to formulate an investment recommendation.,
-      code_executor_task: Create a final slide with a clear investment recommendation (Buy/Hold/Sell) in large, colored text. Include a target price with potential upside percentage. Add bullet points outlining the key investment thesis including growth potential, technological advantages, and potential risks. Format the slide professionally with consistent fonts and colors.
+      code_executor_task: Create a final slide with a clear investment recommendation (Buy/Hold/Sell) in large, colored text. Include a target price with potential upside percentage. Add bullet points outlining the key investment thesis including growth potential, technological advantages, and potential risks. Format the slide professionally with consistent fonts and colors. Remember to append the slide to PPT and save PPT.
   ]
+
+REMEMBER: EACH STEP MUST SAVE THE PPT AFTER APPENDING THE SLIDE.
 """
 
 GENERAL_PPT_PLAN_PROMPT = """Excellent. To create the presentation outlined in the request, we have assembled the following team:
@@ -136,11 +137,10 @@ Each plan step should contain the following elements:
 1. name: A short title for this step
 2. description: Detailed explanation of the step objective and content
 3. data_collection_task: Specific instructions for gathering data needed for this step (optional)
-4. code_executor_task: Description of what code should do to process data and generate slides (optional)
+4. code_executor_task: Description of what code should do to process data, GENERATE slide, APPEND it to PPT and SAVE PPT (optional)
 
 Plan requirements:
-- Each step should generate one slide in the PowerPoint presentation
-- All slides should ultimately be combined into a complete PPT
+- Each step should GENERATE one slide, APPEND it to the PPT and SAVE PPT.
 - Include common PPT elements such as titles, body text, bullet point lists, visual elements (charts, images, etc.)
 - Code tasks should describe operations to be performed using Python (with visualization libraries like matplotlib, seaborn, plotly, etc.) or bash to install dependencies
 - Code task descriptions should be clear enough to guide future code generation based on the collected data
@@ -155,4 +155,6 @@ Please output in JSON format, conforming to the following structure:
     ,
     ...more steps
   ]
+
+REMEMBER: EACH STEP MUST SAVE THE PPT AFTER APPENDING THE SLIDE.
 """
