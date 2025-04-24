@@ -42,19 +42,25 @@ load_dotenv()
 async def main_cmd(args: argparse.Namespace):
     workflow = await PlanningWorkflow.create(args.config)
 
-    while True:
-        try:
-            user_input = input("User: ")
-            if user_input.lower() in ["quit", "exit", "q"]:
-                break
-            run_task = asyncio.create_task(Console(workflow.run_workflow(user_input)))
-            await run_task
+    try:
+        while True:
+            try:
+                user_input = input("User: ")
+                if user_input.lower() in ["quit", "exit", "q"]:
+                    break
+                run_task = asyncio.create_task(
+                    Console(workflow.run_workflow(user_input))
+                )
+                await run_task
 
-        except KeyboardInterrupt:
-            break
-        except Exception as e:
-            print(f"Error: {e}")
-            break
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                logging.error(f"Error: {e}")
+                break
+    finally:
+        await workflow.cleanup()
+        logging.info("Workflow cleaned up.")
 
 
 if __name__ == "__main__":
