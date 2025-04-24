@@ -72,7 +72,7 @@ pandas==2.2.3
 gdown==5.2.0
 
 mem0ai==0.1.70
-autogen-agentchat==0.5.3
-autogen-core==0.5.3
-autogen-ext==0.5.3
+autogen-agentchat==0.5.4
+autogen-core==0.5.4
+autogen-ext==0.5.4
 json-schema-to-pydantic==0.2.4
