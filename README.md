@@ -24,6 +24,7 @@ Sagi is a production-ready, open-source LLM agent framework that combines advanc
 - Interactive Web UI
 - Advanced file chunking & indexing supports
 - Improved documentation with more demos
+- Chat history & workflow state management
 
 ## 🚀 Quick Start
 
