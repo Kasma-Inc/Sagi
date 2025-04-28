@@ -13,6 +13,7 @@ from autogen_agentchat.messages import (
     AgentEvent,
     ChatMessage,
     MessageFactory,
+    ModelClientStreamingChunkEvent,
     StopMessage,
     TextMessage,
 )
@@ -269,6 +270,58 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
         else:
             await self._human_in_the_loop(message, ctx)
 
+    async def _stream_from_model(
+        self,
+        model_client,
+        messages,
+        source_name,
+        cancellation_token,
+        json_output=False,
+    ):
+        """Stream response from a model and collect the full content.
+
+        Args:
+            model_client: The model client to use for streaming
+            messages: The messages to send to the model
+            source_name: The source name for the streaming events
+            cancellation_token: Cancellation token for the request
+
+        Returns:
+            The complete streamed content
+        """
+        content = ""
+        if json_output:
+            stream = model_client.create_stream(
+                messages=self._get_compatible_context(messages),
+                cancellation_token=cancellation_token,
+                json_output=json_output,
+            )
+        else:
+            stream = model_client.create_stream(
+                messages=self._get_compatible_context(messages),
+                cancellation_token=cancellation_token,
+            )
+
+        async for response in stream:
+            if isinstance(response, str):
+                chunk_event = ModelClientStreamingChunkEvent(
+                    content=response, source=source_name
+                )
+                # Add to message queue
+                await self._output_message_queue.put(chunk_event)
+                content += response
+            else:
+                content = response.content
+
+        stream_end_message = TextMessage(
+            content=f"{source_name} stream ended.",
+            source=source_name,
+        )
+        await self._output_message_queue.put(stream_end_message)
+
+        assert isinstance(content, str)
+        return content
+
     async def _get_initial_plan(
         self, message: UserInputMessage, ctx: MessageContext
     ) -> None:
@@ -321,13 +374,15 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
                 content="CODE GENERATION and CODE EXECUTION MUST be combined into ONE STEP for each sub-task, DO NOT separated CODE GENERATION and CODE EXECUTION into two steps.",
             )
         )
-        response = await self._planning_model_client.create(
-            self._get_compatible_context(planning_conversation),
-            cancellation_token=ctx.cancellation_token,
+
+        plan_content = await self._stream_from_model(
+            self._planning_model_client,
+            planning_conversation,
+            "PlannerAgent",
+            ctx.cancellation_token,
         )
 
-        assert isinstance(response.content, str)
-        self._plan_manager.set_plan(response.content)
+        self._plan_manager.set_plan(plan_content)
 
         # Request human's feedback
         await self._get_user_feedback_on_plan(self._user_proxy, ctx.cancellation_token)
@@ -362,13 +417,14 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
             )
         )
 
-        response = await self._planning_model_client.create(
-            self._get_compatible_context(planning_conversation),
-            cancellation_token=ctx.cancellation_token,
+        appended_plan_content = await self._stream_from_model(
+            self._planning_model_client,
+            planning_conversation,
+            "PlannerAgent",
+            ctx.cancellation_token,
         )
 
-        assert isinstance(response.content, str)
-        self._plan_manager.set_plan(response.content)
+        self._plan_manager.set_plan(appended_plan_content)
 
         # Request human's feedback
         await self._get_user_feedback_on_plan(self._user_proxy, ctx.cancellation_token)
@@ -534,10 +590,15 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
         assert self._max_json_retries > 0
         key_error: bool = False
         for _ in range(self._max_json_retries):
-            response = await self._model_client.create(
-                self._get_compatible_context(context), json_output=True
+
+            ledger_str = await self._stream_from_model(
+                self._model_client,
+                context,
+                "PlannerAgent",
+                cancellation_token,
+                json_output=True,
             )
-            ledger_str = response.content
+
             try:
                 assert isinstance(ledger_str, str)
                 progress_ledger = json.loads(ledger_str)
@@ -667,12 +728,13 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
                 source=self._name,
             )
         )
-        response = await self._planning_model_client.create(
-            self._get_compatible_context(planning_conversation),
-            cancellation_token=cancellation_token,
+        updated_plan = await self._stream_from_model(
+            self._planning_model_client,
+            planning_conversation,
+            "PlannerAgent",
+            cancellation_token,
         )
-        assert isinstance(response.content, str)
-        self._plan_manager.set_plan(response.content)
+        self._plan_manager.set_plan(updated_plan)
 
     def _format_context_for_reflection(self, messages: List[LLMMessage]) -> str:
         """Format the context messages to be more readable for the LLM."""
@@ -708,13 +770,14 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
 
         reflection_context = [UserMessage(content=reflection_prompt, source=self._name)]
 
-        response = await self._reflection_model_client.create(
-            self._get_compatible_context(reflection_context),
-            cancellation_token=cancellation_token,
+        reflection_content = await self._stream_from_model(
+            self._reflection_model_client,
+            reflection_context,
+            "ReflectionAgent",
+            cancellation_token,
         )
 
-        assert isinstance(response.content, str)
-        reflection = json.loads(response.content)
+        reflection = json.loads(reflection_content)
 
         reason = reflection.get("reason", "No reason provided")
         return reflection.get("is_complete", "false") == "true", reason
@@ -762,11 +825,13 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
         final_answer_prompt = self._get_final_answer_prompt(self._task)
         context.append(UserMessage(content=final_answer_prompt, source=self._name))
 
-        response = await self._model_client.create(
-            self._get_compatible_context(context), cancellation_token=cancellation_token
+        final_anwser = await self._stream_from_model(
+            self._model_client,
+            context,
+            "PlanningOrchestrator",
+            cancellation_token,
         )
-        assert isinstance(response.content, str)
-        message = TextMessage(content=response.content, source=self._name)
+        message = TextMessage(content=final_anwser, source=self._name)
 
         self._message_thread.append(message)  # My copy
 
