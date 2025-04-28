@@ -146,14 +146,14 @@ class PlanningWorkflow:
                 base_url=config_code_client["base_url"],
                 api_key=config_code_client["api_key"],
                 model_info=model_info,
-                max_tokens=config_reflection_client["max_tokens"],
+                max_tokens=config_code_client["max_tokens"],
             )
         else:
             self.code_model_client = OpenAIChatCompletionClient(
                 model=config_code_client["model"],
                 base_url=config_code_client["base_url"],
                 api_key=config_code_client["api_key"],
-                max_tokens=config_reflection_client["max_tokens"],
+                max_tokens=config_code_client["max_tokens"],
             )
 
     @classmethod
