@@ -4,9 +4,15 @@ import logging
 import os
 from datetime import datetime
 
+from autogen_agentchat import TRACE_LOGGER_NAME
 from autogen_agentchat.ui import Console
-from autogen_core import TRACE_LOGGER_NAME
 from dotenv import load_dotenv
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.semconv.resource import ResourceAttributes
 
 from utils.logging import format_json_string_factory
 from workflows.planning import PlanningWorkflow
@@ -23,20 +29,55 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
 )
 
-logger = logging.getLogger(TRACE_LOGGER_NAME)
-logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.INFO)
+# For trace logging.
+trace_logger = logging.getLogger(TRACE_LOGGER_NAME)
+trace_logger.addHandler(logging.StreamHandler())
+trace_logger.setLevel(logging.INFO)
 
 
 def parse_args():
-    parser = argparse.ArgumentParser("Ofnil Agentic RAG CLI")
+    parser = argparse.ArgumentParser("Sagi CLI")
     parser.add_argument("--env", type=str, choices=["dev", "prod"], default="dev")
     parser.add_argument("--config", type=str, default="workflows/planning.toml")
+    parser.add_argument(
+        "--trace", action="store_true", help="Enable OpenTelemetry tracing"
+    )
+    parser.add_argument(
+        "--trace_endpoint",
+        type=str,
+        default="http://localhost:4317",
+        help="OpenTelemetry collector endpoint",
+    )
+    parser.add_argument(
+        "--trace_service_name",
+        type=str,
+        default="sagi_tracer",
+        help="Service name for OpenTelemetry tracing",
+    )
     return parser.parse_args()
 
 
 # load env variables
 load_dotenv()
+
+
+def setup_tracing(endpoint: str = None, service_name: str = None):
+    """Setup OpenTelemetry tracing based on args."""
+
+    try:
+        otel_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
+        tracer_provider = TracerProvider(
+            resource=Resource.create({ResourceAttributes.SERVICE_NAME: service_name})
+        )
+        span_processor = BatchSpanProcessor(otel_exporter)
+        tracer_provider.add_span_processor(span_processor)
+        trace.set_tracer_provider(tracer_provider)
+        tracer = trace.get_tracer(service_name)
+        logging.info(f"OpenTelemetry tracing enabled, exporting to {endpoint}")
+        return tracer
+    except Exception as e:
+        logging.error(f"Failed to setup tracing: {e}")
+        return None
 
 
 async def main_cmd(args: argparse.Namespace):
@@ -64,12 +105,13 @@ async def main_cmd(args: argparse.Namespace):
 
 
 if __name__ == "__main__":
-    from autogen_agentchat import TRACE_LOGGER_NAME
-
-    # For trace logging.
-    trace_logger = logging.getLogger(TRACE_LOGGER_NAME)
-    trace_logger.addHandler(logging.StreamHandler())
-    trace_logger.setLevel(logging.INFO)
     logging.info("------------- run main async---------------------------------------")
     args = parse_args()
-    asyncio.run(main_cmd(args))
+    if args.trace:
+        tracer = setup_tracing(
+            endpoint=args.trace_endpoint, service_name=args.trace_service_name
+        )
+        with tracer.start_as_current_span("runtime"):
+            asyncio.run(main_cmd(args))
+    else:
+        asyncio.run(main_cmd(args))
