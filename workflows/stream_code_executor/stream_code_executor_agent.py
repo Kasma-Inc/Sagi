@@ -1,22 +1,33 @@
-import asyncio
 import json
-from typing import Sequence, AsyncGenerator, List
+from typing import AsyncGenerator, List, Sequence
 
 from autogen_agentchat.agents import CodeExecutorAgent
 from autogen_agentchat.agents._code_executor_agent import RetryDecision
 from autogen_agentchat.base import Response
-from autogen_agentchat.messages import BaseChatMessage, BaseAgentEvent, \
-    TextMessage, ThoughtEvent, CodeGenerationEvent, CodeExecutionEvent
+from autogen_agentchat.messages import (
+    BaseAgentEvent,
+    BaseChatMessage,
+    CodeExecutionEvent,
+    CodeGenerationEvent,
+    ModelClientStreamingChunkEvent,
+    TextMessage,
+    ThoughtEvent,
+)
 from autogen_core import CancellationToken
-from autogen_core.code_executor import CodeExecutor, CodeResult, CodeBlock
+from autogen_core.code_executor import CodeBlock, CodeResult
 from autogen_core.model_context import ChatCompletionContext
-from autogen_core.models import ChatCompletionClient, CreateResult, \
-    AssistantMessage, UserMessage
+from autogen_core.models import (
+    AssistantMessage,
+    ChatCompletionClient,
+    CreateResult,
+    UserMessage,
+)
+from autogen_ext.code_executors._common import CommandLineCodeResult
 
-from workflows.stream_code_executor.stream_code_executor import \
-    StreamCodeExecutor, CodeResultBlock
-from workflows.stream_code_executor.stream_local_command_line_code_executor import \
-    StreamLocalCommandLineCodeExecutor
+from workflows.stream_code_executor.stream_code_executor import (
+    CodeResultBlock,
+    StreamCodeExecutor,
+)
 
 
 class StreamCodeExecutorAgent(CodeExecutorAgent):
@@ -61,10 +72,11 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
         model_client_stream = self._model_client_stream
         max_retries_on_error = self._max_retries_on_error
 
-        execution_result: CodeResult | None = None
         if model_client is None:  # default behaviour for backward compatibility
             # execute generated code if present
-            code_blocks: List[CodeBlock] = await self.extract_code_blocks_from_messages(messages)
+            code_blocks: List[CodeBlock] = await self.extract_code_blocks_from_messages(
+                messages
+            )
             if not code_blocks:
                 yield Response(
                     chat_message=TextMessage(
@@ -74,21 +86,33 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                 )
                 return
 
-            result_messages: List[BaseAgentEvent | BaseChatMessage] = []
-            async for result in self.execute_code_block(code_blocks, cancellation_token):
+            async for result in self.execute_code_block(
+                code_blocks, cancellation_token
+            ):
                 if isinstance(result, CodeResultBlock):
-                    message: TextMessage = TextMessage(content=json.dumps({"type": result.type, "result": result.result}), source=self.name)
+                    yield ModelClientStreamingChunkEvent(
+                        content=json.dumps(
+                            {"type": result.type, "result": result.output}
+                        ),
+                        source=self.name,
+                    )
                 else:
-                    execution_result = result
-                    message: TextMessage = TextMessage(content=json.dumps({"type": "full_result", "result": result.output}), source=self.name)
-                result_messages.append(message)
-                yield message
-            yield Response(chat_message=TextMessage(content=execution_result.output, source=self.name), inner_messages=result_messages)
+                    yield Response(
+                        chat_message=TextMessage(
+                            content=json.dumps(
+                                {"type": "full_result", "result": result.output}
+                            ),
+                            source=self.name,
+                        )
+                    )
             return
 
+        execution_result: CodeResult | None = None
         inner_messages: List[BaseAgentEvent | BaseChatMessage] = []
 
-        for nth_try in range(max_retries_on_error + 1):  # Do one default generation, execution and inference loop
+        for nth_try in range(
+            max_retries_on_error + 1
+        ):  # Do one default generation, execution and inference loop
             # Step 1: Add new user/handoff messages to the model context
             await self._add_messages_to_context(
                 model_context=model_context,
@@ -115,7 +139,9 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
 
             # Step 3: [NEW] If the model produced a hidden "thought," yield it as an event
             if model_result.thought:
-                thought_event = ThoughtEvent(content=model_result.thought, source=agent_name)
+                thought_event = ThoughtEvent(
+                    content=model_result.thought, source=agent_name
+                )
                 yield thought_event
                 inner_messages.append(thought_event)
 
@@ -129,7 +155,9 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             )
 
             # Step 5: Extract the code blocks from inferred text
-            assert isinstance(model_result.content, str), "Expected inferred model_result.content to be of type str."
+            assert isinstance(
+                model_result.content, str
+            ), "Expected inferred model_result.content to be of type str."
             code_blocks = self._extract_markdown_code_blocks(str(model_result.content))
 
             # Step 6: Exit the loop if no code blocks found
@@ -153,12 +181,16 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             yield inferred_text_message
 
             # Step 8: Execute the extracted code blocks
-            async for result in self.execute_code_block(code_blocks, cancellation_token):
+            async for result in self.execute_code_block(
+                code_blocks, cancellation_token
+            ):
                 if isinstance(result, CodeResultBlock):
-                    yield TextMessage(content=json.dumps({"type": result.type, "result": result.result}), source=self.name)
-                else:
-                    execution_result = result
-                    yield TextMessage(content=json.dumps({"type": "full_result", "result": result.output}), source=self.name)
+                    yield ModelClientStreamingChunkEvent(
+                        content=json.dumps(
+                            {"type": result.type, "result": result.output}
+                        ),
+                        source=self.name,
+                    )
 
             # Step 9: Update model context with the code execution result
             await model_context.add_message(
@@ -169,7 +201,9 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             )
 
             # Step 10: Yield a CodeExecutionEvent
-            yield CodeExecutionEvent(retry_attempt=nth_try, result=execution_result, source=self.name)
+            yield CodeExecutionEvent(
+                retry_attempt=nth_try, result=execution_result, source=self.name
+            )
 
             # If execution was successful or last retry, then exit
             if execution_result.exit_code == 0 or nth_try == max_retries_on_error:
@@ -193,12 +227,16 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                 )
             ]
 
-            response = await model_client.create(messages=chat_context, json_output=RetryDecision)
+            response = await model_client.create(
+                messages=chat_context, json_output=RetryDecision
+            )
 
             assert isinstance(
                 response.content, str
             ), "Expected structured response for retry decision to be of type str."
-            should_retry_generation = RetryDecision.model_validate_json(str(response.content))
+            should_retry_generation = RetryDecision.model_validate_json(
+                str(response.content)
+            )
 
             # Exit if no-retry is needed
             if not should_retry_generation.retry:
@@ -212,7 +250,9 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             )
 
         # Always reflect on the execution result
-        async for reflection_response in CodeExecutorAgent._reflect_on_code_block_results_flow(
+        async for (
+            reflection_response
+        ) in CodeExecutorAgent._reflect_on_code_block_results_flow(
             system_messages=system_messages,
             model_client=model_client,
             model_client_stream=model_client_stream,
@@ -222,13 +262,14 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
         ):
             yield reflection_response  # Last reflection_response is of type Response so it will finish the routine
 
-
     async def execute_code_block(
         self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
     ) -> AsyncGenerator[CodeResultBlock | CodeResult, None]:
         # Execute the code blocks.
-        async for result in self._code_executor.execute_code_blocks_stream(code_blocks, cancellation_token=cancellation_token):
-            if isinstance(result, CodeResult):
+        async for result in self._code_executor.execute_code_blocks_stream(
+            code_blocks, cancellation_token=cancellation_token
+        ):
+            if isinstance(result, CommandLineCodeResult):
                 if result.output.strip() == "":
                     # No output
                     result.output = f"The script ran but produced no output to console. The POSIX exit code was: {result.exit_code}. If you were expecting output, consider revising the script to ensure content is printed to stdout."

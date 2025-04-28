@@ -4,21 +4,41 @@ import sys
 from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Union, Optional, Sequence, Any, Callable, List, \
-    AsyncGenerator
+from typing import (
+    Any,
+    AsyncGenerator,
+    Callable,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Union,
+)
 
 from autogen_core import CancellationToken
-from autogen_core.code_executor import FunctionWithRequirements, \
-    FunctionWithRequirementsStr, CodeBlock
-from autogen_ext.code_executors._common import CommandLineCodeResult, \
-    silence_pip, PYTHON_VARIANTS, get_file_name_from_content, lang_to_cmd
-from autogen_ext.code_executors.local import LocalCommandLineCodeExecutor, A
+from autogen_core.code_executor import (
+    CodeBlock,
+    FunctionWithRequirements,
+    FunctionWithRequirementsStr,
+)
+from autogen_ext.code_executors._common import (
+    PYTHON_VARIANTS,
+    CommandLineCodeResult,
+    get_file_name_from_content,
+    lang_to_cmd,
+    silence_pip,
+)
+from autogen_ext.code_executors.local import A, LocalCommandLineCodeExecutor
 
-from workflows.stream_code_executor.stream_code_executor import \
-    StreamCodeExecutor, CodeResultBlock
+from workflows.stream_code_executor.stream_code_executor import (
+    CodeResultBlock,
+    StreamCodeExecutor,
+)
 
 
-class StreamLocalCommandLineCodeExecutor(LocalCommandLineCodeExecutor, StreamCodeExecutor):
+class StreamLocalCommandLineCodeExecutor(
+    LocalCommandLineCodeExecutor, StreamCodeExecutor
+):
     def __init__(
         self,
         timeout: int = 60,
@@ -42,13 +62,14 @@ class StreamLocalCommandLineCodeExecutor(LocalCommandLineCodeExecutor, StreamCod
         )
 
     async def execute_code_blocks_stream(
-        self, code_blocks: List[CodeBlock],
-        cancellation_token: CancellationToken
+        self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
     ) -> AsyncGenerator[CodeResultBlock | CommandLineCodeResult, None]:
         if not self._setup_functions_complete:
             await self._setup_functions(cancellation_token)
 
-        async for result in self._execute_code_dont_check_setup_stream(code_blocks, cancellation_token):
+        async for result in self._execute_code_dont_check_setup_stream(
+            code_blocks, cancellation_token
+        ):
             yield result
 
     async def _execute_code_dont_check_setup_stream(
@@ -78,7 +99,7 @@ class StreamLocalCommandLineCodeExecutor(LocalCommandLineCodeExecutor, StreamCod
             # Try extracting a filename (if present)
             try:
                 filename = get_file_name_from_content(code, self.work_dir)
-                yield CodeResultBlock(type="filename", result=filename)
+                yield CodeResultBlock(type="filename", output=filename)
             except ValueError:
                 yield CommandLineCodeResult(
                     exit_code=1,
@@ -107,13 +128,17 @@ class StreamLocalCommandLineCodeExecutor(LocalCommandLineCodeExecutor, StreamCod
             # Build environment
             env = os.environ.copy()
             if self._virtual_env_context:
-                virtual_env_bin_abs_path = os.path.abspath(self._virtual_env_context.bin_path)
+                virtual_env_bin_abs_path = os.path.abspath(
+                    self._virtual_env_context.bin_path
+                )
                 env["PATH"] = f"{virtual_env_bin_abs_path}{os.pathsep}{env['PATH']}"
 
             # Decide how to invoke the script
             if lang == "python":
                 program = (
-                    os.path.abspath(self._virtual_env_context.env_exe) if self._virtual_env_context else sys.executable
+                    os.path.abspath(self._virtual_env_context.env_exe)
+                    if self._virtual_env_context
+                    else sys.executable
                 )
                 extra_args = [str(written_file.absolute())]
             else:
@@ -152,22 +177,24 @@ class StreamLocalCommandLineCodeExecutor(LocalCommandLineCodeExecutor, StreamCod
                 stderr: str = ""
                 stdout: str = ""
 
-                async def read_stream(stream, stream_type: str):
+                async def read_stream(stream, stream_type: Literal["stderr", "stdout"]):
                     while True:
                         line = await stream.readline()
                         if not line:
                             break
-                        yield CodeResultBlock(type=stream_type, result=line.decode().strip())
+                        yield CodeResultBlock(
+                            type=stream_type, output=line.decode().strip()
+                        )
 
                 async for result in read_stream(proc.stdout, "stdout"):
-                    stdout += result.result
+                    stdout += result.output
                     yield result
                 async for result in read_stream(proc.stderr, "stderr"):
-                    stderr += result.result
+                    stderr += result.output
                     yield result
 
                 await proc.wait()
-                exitcode = proc.returncode or 0
+                exitcode: int = proc.returncode or 0
             except asyncio.TimeoutError:
                 logs_all += "\nTimeout"
                 exitcode = 124
@@ -190,4 +217,6 @@ class StreamLocalCommandLineCodeExecutor(LocalCommandLineCodeExecutor, StreamCod
                 break
 
         code_file = str(file_names[0]) if file_names else None
-        yield CommandLineCodeResult(exit_code=exitcode, output=logs_all, code_file=code_file)
+        yield CommandLineCodeResult(
+            exit_code=exitcode, output=logs_all, code_file=code_file
+        )

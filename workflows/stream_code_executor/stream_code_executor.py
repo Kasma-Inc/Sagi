@@ -1,15 +1,15 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass
-from typing import AsyncGenerator, List
+from typing import AsyncGenerator, List, Literal
 
 from autogen_core import CancellationToken
-from autogen_core.code_executor import CodeExecutor, CodeResult, CodeBlock
+from autogen_core.code_executor import CodeBlock, CodeExecutor, CodeResult
 
 
 @dataclass
 class CodeResultBlock:
-    type: str
-    result: str
+    type: Literal["filename", "stderr", "stdout"]
+    output: str
 
 
 class StreamCodeExecutor(CodeExecutor):

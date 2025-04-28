@@ -13,6 +13,7 @@ services:
     container_name: "${USER}_chatbot_python"
     volumes:
       - .:/chatbot
+      - ${DOCKER_SOCKET_PATH}:/var/run/docker.sock
     cap_add:
       - SYS_ADMIN
     depends_on:

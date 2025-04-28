@@ -2,23 +2,43 @@ import asyncio
 from asyncio import Event
 from hashlib import sha256
 from pathlib import Path
-from typing import Optional, Union, List, Sequence, Callable, Any, Dict, \
-    AsyncGenerator, Tuple
+from typing import (
+    Any,
+    AsyncGenerator,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Union,
+)
 
 from autogen_core import CancellationToken
-from autogen_core.code_executor import FunctionWithRequirements, \
-    FunctionWithRequirementsStr, CodeBlock
-from autogen_ext.code_executors._common import CommandLineCodeResult, \
-    lang_to_cmd, get_file_name_from_content, silence_pip
+from autogen_core.code_executor import (
+    CodeBlock,
+    CodeResult,
+    FunctionWithRequirements,
+    FunctionWithRequirementsStr,
+)
+from autogen_ext.code_executors._common import (
+    CommandLineCodeResult,
+    get_file_name_from_content,
+    lang_to_cmd,
+    silence_pip,
+)
 from autogen_ext.code_executors.docker import DockerCommandLineCodeExecutor
 from autogen_ext.code_executors.local import A
-from docker.types import DeviceRequest, CancellableStream
+from docker.types import CancellableStream, DeviceRequest
 
-from workflows.stream_code_executor.stream_code_executor import CodeResultBlock, \
-    StreamCodeExecutor
+from workflows.stream_code_executor.stream_code_executor import (
+    CodeResultBlock,
+    StreamCodeExecutor,
+)
 
 
-class StreamDockerCommandLineCodeExecutor(DockerCommandLineCodeExecutor, StreamCodeExecutor):
+class StreamDockerCommandLineCodeExecutor(
+    DockerCommandLineCodeExecutor, StreamCodeExecutor
+):
     def __init__(
         self,
         image: str = "python:3-slim",
@@ -61,20 +81,23 @@ class StreamDockerCommandLineCodeExecutor(DockerCommandLineCodeExecutor, StreamC
         )
 
     async def execute_code_blocks_stream(
-        self, code_blocks: List[CodeBlock],
-        cancellation_token: CancellationToken
+        self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
     ) -> AsyncGenerator[CodeResultBlock | CommandLineCodeResult, None]:
         if not self._setup_functions_complete:
             await self._setup_functions(cancellation_token)
 
-        async for result in self._execute_code_dont_check_setup_stream(code_blocks, cancellation_token):
+        async for result in self._execute_code_dont_check_setup_stream(
+            code_blocks, cancellation_token
+        ):
             yield result
 
     async def _execute_code_dont_check_setup_stream(
         self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
     ) -> AsyncGenerator[CodeResultBlock | CommandLineCodeResult, None]:
         if self._container is None or not self._running:
-            raise ValueError("Container is not running. Must first be started with either start or a context manager.")
+            raise ValueError(
+                "Container is not running. Must first be started with either start or a context manager."
+            )
 
         if len(code_blocks) == 0:
             raise ValueError("No code blocks to execute.")
@@ -90,7 +113,7 @@ class StreamDockerCommandLineCodeExecutor(DockerCommandLineCodeExecutor, StreamC
                 # Check if there is a filename comment
                 try:
                     filename = get_file_name_from_content(code, self.work_dir)
-                    yield CodeResultBlock(type="filename", result=filename)
+                    yield CodeResultBlock(type="filename", output=filename)
                 except ValueError:
                     outputs.append("Filename is not in the workspace")
                     last_exit_code = 1
@@ -106,10 +129,12 @@ class StreamDockerCommandLineCodeExecutor(DockerCommandLineCodeExecutor, StreamC
 
                 command = ["timeout", str(self._timeout), lang_to_cmd(lang), filename]
 
-                async for result in self._execute_command_stream(command, cancellation_token):
-                    if result.type.startswith("full_result"):
-                        last_exit_code = int(result.type[12:])
-                        outputs.append(result.result)
+                async for result in self._execute_command_stream(
+                    command, cancellation_token
+                ):
+                    if isinstance(result, CodeResult):
+                        last_exit_code = int(result.exit_code)
+                        outputs.append(result.output)
                     else:
                         yield result
 
@@ -124,24 +149,41 @@ class StreamDockerCommandLineCodeExecutor(DockerCommandLineCodeExecutor, StreamC
                         pass
 
         code_file = str(files[0]) if files else None
-        yield CommandLineCodeResult(exit_code=last_exit_code, output="".join(outputs), code_file=code_file)
+        yield CommandLineCodeResult(
+            exit_code=last_exit_code, output="".join(outputs), code_file=code_file
+        )
 
-
-    async def handle_execute_command_stream_cancel(self, event: Event, command: List[str]):
+    async def handle_execute_command_stream_cancel(
+        self, event: Event, command: List[str]
+    ):
         try:
             await event.wait()
         except asyncio.CancelledError:
-            self._cancellation_tasks.append(asyncio.create_task(self._kill_running_command(command)))
+            self._cancellation_tasks.append(
+                asyncio.create_task(self._kill_running_command(command))
+            )
 
-    async def _execute_command_stream(self, command: List[str], cancellation_token: CancellationToken) -> AsyncGenerator[CodeResultBlock | CommandLineCodeResult, None]:
+    async def _execute_command_stream(
+        self, command: List[str], cancellation_token: CancellationToken
+    ) -> AsyncGenerator[CodeResultBlock | CodeResult, None]:
         if self._container is None or not self._running:
-            raise ValueError("Container is not running. Must first be started with either start or a context manager.")
+            raise ValueError(
+                "Container is not running. Must first be started with either start or a context manager."
+            )
 
-        exec_id: str = (await asyncio.to_thread(self._container.client.api.exec_create, self._container.id, command))['Id']
-        result: CancellableStream = await asyncio.to_thread(self._container.client.api.exec_start, exec_id, stream=True, demux=True)
+        exec_id: str = (
+            await asyncio.to_thread(
+                self._container.client.api.exec_create, self._container.id, command
+            )
+        )["Id"]
+        result: CancellableStream = await asyncio.to_thread(
+            self._container.client.api.exec_start, exec_id, stream=True, demux=True
+        )
 
         event: Event = asyncio.Event()
-        handle_execute_command_stream_cancel_task = asyncio.create_task(self.handle_execute_command_stream_cancel(event, command))
+        handle_execute_command_stream_cancel_task = asyncio.create_task(
+            self.handle_execute_command_stream_cancel(event, command)
+        )
         cancellation_token.link_future(handle_execute_command_stream_cancel_task)
 
         output: str = ""
@@ -154,11 +196,11 @@ class StreamDockerCommandLineCodeExecutor(DockerCommandLineCodeExecutor, StreamC
                 if stdout is not None:
                     stdout_decode: str = stdout.decode("utf-8")
                     output += stdout_decode
-                    yield CodeResultBlock(type="stdout", result=stdout_decode)
+                    yield CodeResultBlock(type="stdout", output=stdout_decode)
                 if stderr is not None:
                     stderr_decode: str = stderr.decode("utf-8")
                     output += stderr_decode
-                    yield CodeResultBlock(type="stderr", result=stderr_decode)
+                    yield CodeResultBlock(type="stderr", output=stderr_decode)
 
         event.set()
         exit_code: int = self._container.client.api.exec_inspect(exec_id)["ExitCode"]
@@ -168,4 +210,4 @@ class StreamDockerCommandLineCodeExecutor(DockerCommandLineCodeExecutor, StreamC
             output = "Code execution was cancelled."
             exit_code = 1
 
-        yield CodeResultBlock(type=f"full_result-{exit_code}", result=output)
+        yield CodeResult(exit_code=exit_code, output=output)
