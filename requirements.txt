@@ -81,3 +81,5 @@ json-schema-to-pydantic==0.2.4
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-http
 opentelemetry-exporter-otlp-proto-grpc
+
+pytest==8.3.5
