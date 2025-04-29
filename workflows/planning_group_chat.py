@@ -13,23 +13,17 @@ from autogen_agentchat.teams._group_chat._chat_agent_container import ChatAgentC
 from autogen_agentchat.teams._group_chat._events import (
     GroupChatTermination,
 )
-from autogen_agentchat.teams._group_chat._magentic_one._prompts import (
-    ORCHESTRATOR_FINAL_ANSWER_PROMPT,
-)
 from autogen_core import (
     AgentRuntime,
     AgentType,
-    Component,
-    ComponentModel,
     TypeSubscription,
 )
 from autogen_core.models import (
     ChatCompletionClient,
 )
-from pydantic import BaseModel, Field
-from typing_extensions import Self
+from pydantic import Field
 
-from workflows.planning_orchestrator import PlanningOrchestrator
+from .planning_orchestrator import PlanningOrchestrator
 
 
 class PlanningChatState(TeamState):
@@ -39,28 +33,7 @@ class PlanningChatState(TeamState):
     type: str = Field(default="PlanningChatState")
 
 
-class PlanningGroupChatConfig(BaseModel):
-    """The declarative configuration for a PlanningGroupChat."""
-
-    participants: List[ComponentModel]
-    model_client: ComponentModel
-    termination_condition: ComponentModel | None = None
-    max_turns: int | None = None
-    max_stalls: int
-    final_answer_prompt: str
-    planning_model_client: ComponentModel  # for json plan output
-    reflection_model_client: ComponentModel  # for reflection
-    user_proxy: ComponentModel | None = None  # for new feat: human in the loop
-    domain_specific_agent: ComponentModel | None = (
-        None  # for new feat: domain specific prompt
-    )
-    group_chat_manager_topic_type: str = None
-
-
-class PlanningGroupChat(BaseGroupChat, Component[PlanningGroupChatConfig]):
-    component_config_schema = PlanningGroupChatConfig
-    component_provider_override = "workflows.PlanningGroupChat"
-
+class PlanningGroupChat(BaseGroupChat):
     def __init__(
         self,
         participants: List[ChatAgent],
@@ -69,10 +42,9 @@ class PlanningGroupChat(BaseGroupChat, Component[PlanningGroupChatConfig]):
         termination_condition: TerminationCondition | None = None,
         max_turns: int | None = None,
         runtime: AgentRuntime | None = None,
-        max_stalls: int = 100,  # avoiding modifying the original plan
-        final_answer_prompt: str = ORCHESTRATOR_FINAL_ANSWER_PROMPT,
         planning_model_client: ChatCompletionClient,  # for json plan output
         reflection_model_client: ChatCompletionClient,  # for reflection
+        progress_ledger_model_client: ChatCompletionClient,
         user_proxy: UserProxyAgent | None = None,  # for new feat: human in the loop
         domain_specific_agent: (
             AssistantAgent | None
@@ -92,13 +64,13 @@ class PlanningGroupChat(BaseGroupChat, Component[PlanningGroupChatConfig]):
             raise ValueError(
                 "At least one participant is required for MagenticOneGroupChat."
             )
+        # Initialize the model clients.
         self._model_client = model_client
-        self._max_stalls = max_stalls
-        self._final_answer_prompt = final_answer_prompt
         self._planning_model_client = planning_model_client  # for json plan output
         self._reflection_model_client = (
             reflection_model_client  # for new feat: reflection
         )
+        self._progress_ledger_model_client = progress_ledger_model_client
         self._user_proxy = user_proxy  # for new feat: human in the loop
         self._domain_specific_agent = (
             domain_specific_agent  # for new feat: domain specific prompt
@@ -194,111 +166,24 @@ class PlanningGroupChat(BaseGroupChat, Component[PlanningGroupChatConfig]):
         max_turns: int | None,
     ) -> Callable[[], PlanningOrchestrator]:
         return lambda: PlanningOrchestrator(
-            name,
-            group_topic_type,
-            output_topic_type,
-            group_chat_manager_topic_type,
-            participant_topic_types,
-            participant_names,
-            participant_descriptions,
-            max_turns,
-            self._message_factory,
-            self._model_client,
-            self._max_stalls,
-            self._final_answer_prompt,
-            output_message_queue,
-            termination_condition,
-            self._emit_team_events,
-            self._planning_model_client,
-            self._reflection_model_client,  # for new feat: reflection
-            self._user_proxy,  # for new feat: human in the loop
-            self._domain_specific_agent,  # for new feat: domain specific prompt
-        )
-
-    def _to_config(self) -> PlanningGroupChatConfig:
-        participants = [
-            participant.dump_component() for participant in self._participants
-        ]
-        termination_condition = (
-            self._termination_condition.dump_component()
-            if self._termination_condition
-            else None
-        )
-        user_proxy = (
-            self._user_proxy.dump_component() if self._user_proxy else None
-        )  # for new feat: human in the loop
-        domain_specific_agent = (
-            self._domain_specific_agent.dump_component()
-            if self._domain_specific_agent
-            else None
-        )  # for new feat: domain specific prompt
-        planning_model_client = (
-            self._planning_model_client.dump_component()
-            if self._planning_model_client
-            else None
-        )
-        reflection_model_client = (
-            self._reflection_model_client.dump_component()
-            if self._reflection_model_client
-            else None
-        )
-        return PlanningGroupChatConfig(
-            participants=participants,
-            model_client=self._model_client.dump_component(),
+            name=name,
+            group_topic_type=group_topic_type,
+            output_topic_type=output_topic_type,
+            group_chat_manager_topic_type=group_chat_manager_topic_type,
+            participant_topic_types=participant_topic_types,
+            participant_names=participant_names,
+            participant_descriptions=participant_descriptions,
+            max_turns=max_turns,
+            message_factory=self._message_factory,
+            model_client=self._model_client,
+            output_message_queue=output_message_queue,
             termination_condition=termination_condition,
-            max_turns=self._max_turns,
-            max_stalls=self._max_stalls,
-            final_answer_prompt=self._final_answer_prompt,
-            planning_model_client=planning_model_client,
-            reflection_model_client=reflection_model_client,  # for new feat: reflection
-            user_proxy=user_proxy,  # for new feat: human in the loop
-            domain_specific_agent=domain_specific_agent,  # for new feat: domain specific prompt
-            group_chat_manager_topic_type=self._group_chat_manager_topic_type,
-        )
-
-    @classmethod
-    def _from_config(cls, config: PlanningGroupChatConfig) -> Self:
-        participants = [
-            ChatAgent.load_component(participant) for participant in config.participants
-        ]
-        model_client = ChatCompletionClient.load_component(config.model_client)
-        termination_condition = (
-            TerminationCondition.load_component(config.termination_condition)
-            if config.termination_condition
-            else None
-        )
-        planning_model_client = (
-            ChatCompletionClient.load_component(config.planning_model_client)
-            if config.planning_model_client
-            else None
-        )
-        reflection_model_client = (
-            ChatCompletionClient.load_component(config.reflection_model_client)
-            if config.reflection_model_client
-            else None
-        )
-        user_proxy = (
-            UserProxyAgent.load_component(config.user_proxy)
-            if config.user_proxy
-            else None
-        )
-        domain_specific_agent = (
-            AssistantAgent.load_component(config.domain_specific_agent)
-            if config.domain_specific_agent
-            else None
-        )
-        return cls(
-            participants,
-            model_client,
-            termination_condition=termination_condition,
-            max_turns=config.max_turns,
-            max_stalls=config.max_stalls,
-            final_answer_prompt=config.final_answer_prompt,
-            planning_model_client=planning_model_client,
-            reflection_model_client=reflection_model_client,
-            user_proxy=user_proxy,
-            domain_specific_agent=domain_specific_agent,
-            group_chat_manager_topic_type=config.group_chat_manager_topic_type,
+            emit_team_events=self._emit_team_events,
+            planning_model_client=self._planning_model_client,
+            reflection_model_client=self._reflection_model_client,  # for new feat: reflection
+            progress_ledger_model_client=self._progress_ledger_model_client,
+            user_proxy=self._user_proxy,  # for new feat: human in the loop
+            domain_specific_agent=self._domain_specific_agent,  # for new feat: domain specific prompt
         )
 
     async def save_state(self) -> Mapping[str, Any]:

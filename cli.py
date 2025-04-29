@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import json
 import logging
 import os
 from datetime import datetime
@@ -93,6 +94,9 @@ async def main_cmd(args: argparse.Namespace):
                     Console(workflow.run_workflow(user_input))
                 )
                 await run_task
+                state = await workflow.team.save_state()
+                with open("state.json", "w") as f:
+                    json.dump(state, f)
 
             except KeyboardInterrupt:
                 break

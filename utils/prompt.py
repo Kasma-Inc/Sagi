@@ -248,3 +248,23 @@ def appended_plan_prompt(
         contexts_history=contexts_history,
         team_composition=team_composition,
     )
+
+
+def get_final_answer_prompt(*, task: str) -> str:
+    """Generates a prompt template for final answer.
+
+    Args:
+        task: The current task
+    """
+    template = """
+We are working on the following task:
+{task}
+
+We have completed the task.
+
+The above messages contain the conversation that took place to complete the task.
+
+Based on the information gathered, provide the final answer to the original request.
+The answer should be phrased as if you were speaking to the user.
+"""
+    return template.format(task=task)

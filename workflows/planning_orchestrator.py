@@ -2,30 +2,33 @@ import asyncio
 import json
 import logging
 import re
-from collections import OrderedDict
-from dataclasses import dataclass
-from enum import Enum
 from typing import Any, Dict, List, Mapping
 
 from autogen_agentchat.agents import UserProxyAgent
 from autogen_agentchat.base import Response, TerminationCondition
 from autogen_agentchat.messages import (
     AgentEvent,
+    BaseAgentEvent,
+    BaseChatMessage,
     ChatMessage,
+    HandoffMessage,
     MessageFactory,
+    MultiModalMessage,
     StopMessage,
     TextMessage,
+    ToolCallExecutionEvent,
+    ToolCallRequestEvent,
+    ToolCallSummaryMessage,
 )
-from autogen_agentchat.state import MagenticOneOrchestratorState
+from autogen_agentchat.teams._group_chat._base_group_chat_manager import (
+    BaseGroupChatManager,
+)
 from autogen_agentchat.teams._group_chat._events import (
     GroupChatAgentResponse,
     GroupChatMessage,
     GroupChatRequestPublish,
     GroupChatStart,
     GroupChatTermination,
-)
-from autogen_agentchat.teams._group_chat._magentic_one._magentic_one_orchestrator import (
-    MagenticOneOrchestrator,
 )
 from autogen_agentchat.utils import content_to_str
 from autogen_core import (
@@ -47,134 +50,24 @@ from pydantic import BaseModel, Field
 
 from utils.prompt import (
     appended_plan_prompt,
+    get_final_answer_prompt,
     orchestrator_progress_ledger_prompt,
     reflection_step_completion_prompt,
 )
 
-
-@dataclass
-class StepContext:
-    """Stores the context of a completed step for multi-round conversations."""
-
-    step: str
-    result: List[LLMMessage]
-    reason: str
+from .plan_manager import PlanManager
 
 
 class UserInputMessage(BaseModel):
     messages: List[ChatMessage]
 
 
-class PLAN_STATE(str, Enum):
-    PENDING = "pending"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    IN_PROGRESS = "in_progress"
-
-    def __json__(self) -> str:
-        return self.value
-
-    def dict(self) -> Dict[str, Any]:
-        return {"value": self.value}
-
-
-class PlanManager:
-    """Manages plan creation, tracking, and execution for planning workflows."""
-
-    def __init__(self):
-        self._plan = None
-        self._plan_state = None
-        self._step_progress_counter = {}
-
-    def is_tbd(self) -> bool:
-        """Check if the plan is still TBD."""
-        return self._plan is None
-
-    def set_plan(self, model_response: str) -> None:
-        """Set the plan."""
-        self._plan = json.loads(model_response)["steps"]
-
-    def set_plan_state(self) -> None:
-        self._plan_state = OrderedDict()
-
-        # Handle the new Step structure with data_collection_task and code_executor_task
-        for step in self._plan:
-            step_name = step["name"]
-            step_description = step["description"]
-            # If both tasks are present, create two separate steps
-            if step.get("data_collection_task") and step.get("code_executor_task"):
-                self._plan_state[
-                    f"data collection for {step_name}: {step['data_collection_task']}"
-                ] = PLAN_STATE.PENDING
-                self._plan_state[
-                    f"code executor task for {step_name}: {step['code_executor_task']}"
-                ] = PLAN_STATE.PENDING
-            # If only data_collection_task is present
-            elif step.get("data_collection_task"):
-                self._plan_state[
-                    f"data collection for {step_name}: {step['data_collection_task']}"
-                ] = PLAN_STATE.PENDING
-            # If only code_executor_task is present
-            elif step.get("code_executor_task"):
-                self._plan_state[
-                    f"code executor task for {step_name}: {step['code_executor_task']}"
-                ] = PLAN_STATE.PENDING
-            else:
-                self._plan_state[f"{step_name}: {step_description}"] = (
-                    PLAN_STATE.PENDING
-                )
-
-    def set_status(self, step: str, status: PLAN_STATE) -> None:
-        """Set the plan state to the specified status."""
-        self._plan_state[step] = status
-
-    def get_plan(self) -> List:
-        """Get the plan."""
-        return self._plan
-
-    def get_plan_str(self) -> str:
-        """Get the plan as a string."""
-        return json.dumps(self._plan, indent=4)
-
-    def get_plan_state(self) -> OrderedDict:
-        """Get the plan state."""
-        return self._plan_state
-
-    def get_current_step(self) -> str | None:
-        """Get the current step."""
-        current_step = next(
-            (
-                step
-                for step, state in self._plan_state.items()
-                if state in [PLAN_STATE.PENDING, PLAN_STATE.IN_PROGRESS]
-            ),
-            None,
-        )
-        return current_step
-
-    def get_step_progress_counter(self, step: str) -> int:
-        """Get the progress counter for a specific step."""
-        return self._step_progress_counter.get(step, 0)
-
-    def increment_step_counter(self, step: str) -> None:
-        """Increment the counter for a step."""
-        if step not in self._step_progress_counter:
-            self._step_progress_counter[step] = 0
-        self._step_progress_counter[step] += 1
-
-    def clear(self) -> None:
-        """Clear the plan."""
-        self._plan = None
-        self._plan_state = None
-        self._step_progress_counter = {}
-
-
-class PlanningOrchestratorState(MagenticOneOrchestratorState):
+class PlanningOrchestratorState(BaseModel):
     type: str = Field(default="PlanningOrchestratorState")
-    contexts_history: List[StepContext] = Field(default=[])
+    plan_manager_state: Dict = Field(default_factory=dict)
 
 
-class PlanningOrchestrator(MagenticOneOrchestrator):
+class PlanningOrchestrator(BaseGroupChatManager):
     def __init__(
         self,
         name: str,
@@ -187,8 +80,6 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
         max_turns: int | None,
         message_factory: MessageFactory,
         model_client: ChatCompletionClient,
-        max_stalls: int,
-        final_answer_prompt: str,
         output_message_queue: asyncio.Queue[
             AgentEvent | ChatMessage | GroupChatTermination
         ],
@@ -196,11 +87,9 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
         emit_team_events: bool,
         planning_model_client: ChatCompletionClient,
         reflection_model_client: ChatCompletionClient,
-        # TODO: Use model_client_dict to assign separate model clients for different agents.
+        progress_ledger_model_client: ChatCompletionClient,
         user_proxy: Any | None = None,
-        domain_specific_agent: (
-            Any | None
-        ) = None,  # for new feat: domain specific prompt
+        domain_specific_agent: Any | None = None,
     ):
         super().__init__(
             name=name,
@@ -212,25 +101,36 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
             max_turns=max_turns,
             message_factory=message_factory,
             emit_team_events=emit_team_events,
-            model_client=model_client,
-            max_stalls=max_stalls,
-            final_answer_prompt=final_answer_prompt,
             output_message_queue=output_message_queue,
             termination_condition=termination_condition,
         )
+        self._model_client = model_client
         self._planning_model_client = planning_model_client
         self._reflection_model_client = reflection_model_client
+        self._progress_ledger_model_client = progress_ledger_model_client
         self._user_proxy = user_proxy
         self._domain_specific_agent = (
             domain_specific_agent  # for new feat: domain specific prompt
         )
         self._group_chat_manager_topic_type = group_chat_manager_topic_type
         self._prompt_templates = {}  # to store domain specific prompts
-        self._multi_round = False  # Initialize multi_round flag
-        self._contexts_history = (
-            []
-        )  # Store contexts_history for multi-round conversations
         self._plan_manager = PlanManager()  # Initialize plan manager
+
+        # Produce a team description. Each agent sould appear on a single line.
+        self._team_description = ""
+        for topic_type, description in zip(
+            self._participant_names, self._participant_descriptions, strict=True
+        ):
+            self._team_description += (
+                re.sub(r"\s+", " ", f"{topic_type}: {description}").strip() + "\n"
+            )
+        self._team_description = self._team_description.strip()
+
+    async def reset(self) -> None:
+        """Reset the group chat manager."""
+        self._plan_manager.reset()
+        if self._termination_condition is not None:
+            await self._termination_condition.reset()
 
     @rpc
     async def handle_start(self, message: GroupChatStart, ctx: MessageContext) -> None:  # type: ignore
@@ -261,143 +161,120 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
 
     @event
     async def router(self, message: UserInputMessage, ctx: MessageContext) -> None:
-        if self._plan_manager.is_tbd():
-            if self._multi_round:
+        if not self._plan_manager.is_plan_awaiting_confirmation():
+            if self._plan_manager.get_plan_count() > 1:
                 await self._get_appended_plan(message, ctx)
             else:
                 await self._get_initial_plan(message, ctx)
         else:
             await self._human_in_the_loop(message, ctx)
 
+    @event
+    async def handle_agent_response(self, message: GroupChatAgentResponse, ctx: MessageContext) -> None:  # type: ignore
+        delta: List[BaseAgentEvent | BaseChatMessage] = []
+        if message.agent_response.inner_messages is not None:
+            for inner_message in message.agent_response.inner_messages:
+                delta.append(inner_message)
+        self._plan_manager.add_message_to_step(
+            step_id=self._plan_manager.get_current_step()[0],
+            message=message.agent_response.chat_message,
+        )
+        delta.append(message.agent_response.chat_message)
+
+        if self._termination_condition is not None:
+            stop_message = await self._termination_condition(delta)
+            if stop_message is not None:
+                # Reset the termination conditions.
+                await self._termination_condition.reset()
+                # Signal termination.
+                await self._signal_termination(stop_message)
+                return
+        await self._orchestrate_step(ctx.cancellation_token)
+
+    async def _compose_task(self, message: UserInputMessage) -> str:
+        """Combine all message contents for the task."""
+        return " ".join([content_to_str(msg.content) for msg in message.messages])
+
+    async def _get_plan_and_feedback(
+        self, task: str, plan_prompt: str, client, ctx: MessageContext
+    ) -> None:
+        """Helper to send plan prompt to LLM, update plan, and request feedback."""
+        conversation = [
+            UserMessage(content=plan_prompt, source=self._name),
+            SystemMessage(
+                content=(
+                    "CODE GENERATION and CODE EXECUTION MUST be combined into ONE STEP for each sub-task. "
+                    "DO NOT separate CODE GENERATION and CODE EXECUTION into two steps."
+                )
+            ),
+        ]
+        plan_response = await self._llm_create(
+            client, conversation, ctx.cancellation_token
+        )
+        self._plan_manager.new_plan(task=task, model_response=plan_response)
+        await self._get_user_feedback_on_plan(self._user_proxy, ctx.cancellation_token)
+
     async def _get_initial_plan(
         self, message: UserInputMessage, ctx: MessageContext
     ) -> None:
-        # Create the initial task ledger
-        #################################
-        # Combine all message contents for task
-        self._task = " ".join([content_to_str(msg.content) for msg in message.messages])
+        """Create the initial plan based on user input."""
 
-        # Get appropriate prompt templates based on the task description
+        # Compose the task from message contents
+        task = await self._compose_task(message)
+        logging.info(f"Task: {task}")
+
+        # Get prompt templates for the given task
         self._prompt_templates = await self._get_prompt_templates(
-            self._task, ctx.cancellation_token
+            task, ctx.cancellation_token
         )
 
-        planning_conversation: List[LLMMessage] = []
-
-        # 1. GATHER FACTS
-        # create a closed book task and generate a response and update the chat history
-        planning_conversation.append(
-            UserMessage(
-                content=self._prompt_templates["facts_prompt"].format(task=self._task),
-                source=self._name,
-            )
-        )
-        response = await self._model_client.create(
-            self._get_compatible_context(planning_conversation),
-            cancellation_token=ctx.cancellation_token,
+        # Collect facts
+        facts_prompt = self._prompt_templates["facts_prompt"].format(task=task)
+        facts_conversation = [UserMessage(content=facts_prompt, source=self._name)]
+        facts_response = await self._llm_create(
+            self._model_client, facts_conversation, ctx.cancellation_token
         )
 
-        planning_conversation.clear()
-        assert isinstance(response.content, str)
-        self._facts = response.content
-        planning_conversation.append(
-            AssistantMessage(content=self._facts, source=self._name)
+        # Create the initial plan
+        plan_prompt = self._prompt_templates["plan_prompt"].format(
+            team=self._team_description,
+            task=task,
         )
-
-        # 2. CREATE A PLAN
-        ## plan based on available information
-        planning_conversation.append(
-            UserMessage(
-                content=self._prompt_templates["plan_prompt"].format(
-                    team=self._team_description,
-                    task=self._task,
-                ),
-                source=self._name,
-            )
+        planning_conversation = [
+            AssistantMessage(content=facts_response, source=self._name)
+        ]
+        await self._get_plan_and_feedback(
+            task, plan_prompt, self._planning_model_client, ctx
         )
-
-        planning_conversation.append(
-            SystemMessage(
-                content="CODE GENERATION and CODE EXECUTION MUST be combined into ONE STEP for each sub-task, DO NOT separated CODE GENERATION and CODE EXECUTION into two steps.",
-            )
-        )
-        response = await self._planning_model_client.create(
-            self._get_compatible_context(planning_conversation),
-            cancellation_token=ctx.cancellation_token,
-        )
-
-        assert isinstance(response.content, str)
-        self._plan_manager.set_plan(response.content)
-
-        # Request human's feedback
-        await self._get_user_feedback_on_plan(self._user_proxy, ctx.cancellation_token)
 
     async def _get_appended_plan(
         self, message: UserInputMessage, ctx: MessageContext
     ) -> None:
         """Create a new plan for multi-round conversations based on context history."""
-        # Combine all message contents for task
-        self._task = " ".join([content_to_str(msg.content) for msg in message.messages])
-        # Include context history
-        formatted_contexts_history = self._format_contexts_history()
-        _appended_plan_prompt = appended_plan_prompt(
-            current_task=self._task,
-            contexts_history=formatted_contexts_history,
+
+        task = await self._compose_task(message)
+        formatted_history = self._plan_manager.get_plan_history_str()
+        plan_prompt = appended_plan_prompt(
+            current_task=task,
+            contexts_history=formatted_history,
             team_composition=self._team_description,
         )
-
-        planning_conversation: List[LLMMessage] = []
-
-        # CREATE A PLAN that builds on context history
-        planning_conversation.append(
-            UserMessage(
-                content=_appended_plan_prompt,
-                source=self._name,
-            )
+        await self._get_plan_and_feedback(
+            task, plan_prompt, self._planning_model_client, ctx
         )
-
-        planning_conversation.append(
-            SystemMessage(
-                content="CODE GENERATION and CODE EXECUTION MUST be combined into ONE STEP for each sub-task. DO NOT separate CODE GENERATION and CODE EXECUTION into two steps. ",
-            )
-        )
-
-        response = await self._planning_model_client.create(
-            self._get_compatible_context(planning_conversation),
-            cancellation_token=ctx.cancellation_token,
-        )
-
-        assert isinstance(response.content, str)
-        self._plan_manager.set_plan(response.content)
-
-        # Request human's feedback
-        await self._get_user_feedback_on_plan(self._user_proxy, ctx.cancellation_token)
-
-    def _format_contexts_history(self) -> str:
-        """Format the context history for inclusion in prompts."""
-        if not self._contexts_history:
-            return "No context history available."
-
-        formatted_contexts = []
-        for i, context in enumerate(self._contexts_history):
-            formatted_contexts.append(f"Round {i+1}:")
-            formatted_contexts.append(f"Step: {context.step}")
-            formatted_contexts.append(f"Result: {context.result}")
-            formatted_contexts.append(f"Complete Reason: {context.reason}")
-            formatted_contexts.append("")
-
-        return "\n".join(formatted_contexts)
 
     async def _human_in_the_loop(
         self, message: UserInputMessage, ctx: MessageContext
     ) -> None:
         feedback = message.messages[-1].content
         if feedback.strip().lower() in {"ok", "yes", "y"}:
-            self._plan_manager.set_plan_state()
+            self._plan_manager.confirm_plan()
 
             # Log the plan to the output topic.
             planning_message = TextMessage(
-                content=json.dumps(self._plan_manager.get_plan_state(), indent=4),
+                content=json.dumps(
+                    self._plan_manager.get_current_plan_state(), indent=4
+                ),
                 source="Planner",
             )
             # Log the message to the output topic.
@@ -408,28 +285,44 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
             # Log the message to the output queue.
             await self._output_message_queue.put(planning_message)
             await self._orchestrate_step(cancellation_token=ctx.cancellation_token)
-            # await self._reenter_outer_loop(ctx.cancellation_token)
         else:
-            await self._update_plan_with_feedback(feedback, ctx.cancellation_token)
+            await self._update_plan_with_feedback(message, ctx.cancellation_token)
             await self._get_user_feedback_on_plan(
                 self._user_proxy, ctx.cancellation_token
             )
 
-    async def _orchestrate_step(self, cancellation_token: CancellationToken) -> None:
-        """Implements the inner loop of the orchestrator and selects next speaker."""
-        # Check if we reached the maximum number of rounds
-        if self._max_turns is not None and self._n_rounds > self._max_turns:
-            await self._prepare_final_answer("Max rounds reached.", cancellation_token)
-            return
-        self._n_rounds += 1
+    def messages_to_context(
+        self, messages: List[BaseAgentEvent | BaseChatMessage]
+    ) -> List[LLMMessage]:
+        """Convert the message thread to a context for the model."""
+        context: List[LLMMessage] = []
+        for m in messages:
+            if isinstance(m, ToolCallRequestEvent | ToolCallExecutionEvent):
+                # Ignore tool call messages.
+                continue
+            elif isinstance(m, StopMessage | HandoffMessage):
+                context.append(UserMessage(content=m.content, source=m.source))
+            elif m.source == self._name:
+                assert isinstance(m, TextMessage | ToolCallSummaryMessage)
+                context.append(AssistantMessage(content=m.content, source=m.source))
+            else:
+                assert isinstance(
+                    m, (TextMessage, MultiModalMessage, ToolCallSummaryMessage)
+                )
+                context.append(UserMessage(content=m.content, source=m.source))
+        return context
 
-        # Update the progress ledger
-        context = self._thread_to_context()
+    async def _orchestrate_step(self, cancellation_token: CancellationToken) -> None:
         current_step = self._plan_manager.get_current_step()
         if current_step is None:
             await self._prepare_final_answer("All steps completed.", cancellation_token)
             return
+        else:
+            current_step_id, current_step_content = current_step
 
+        context = self.messages_to_context(
+            self._plan_manager.get_messages_of_current_step()
+        )
         filtered_context = [
             msg
             for msg in context
@@ -437,30 +330,27 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
         ]
 
         is_complete, reason = await self._check_step_completion(
-            current_step, filtered_context, cancellation_token
+            current_step_content, filtered_context, cancellation_token
         )
 
         if is_complete:
-            self._plan_manager.set_status(current_step, PLAN_STATE.COMPLETED)
-            stop_message = TextMessage(
+            self._plan_manager.set_step_state(current_step_id, "completed")
+            step_completion_message = TextMessage(
                 content=json.dumps(
                     {
-                        "step": current_step,
-                        "reason": f"{PLAN_STATE.COMPLETED}: {reason}",
+                        "step": current_step_content,
+                        "reason": f"completed: {reason}",
                     },
                     indent=4,
                 ),
                 source="StepCompletionNotifier",
             )
-            # Add this step to _contexts_history
-            self._contexts_history.append(
-                StepContext(step=current_step, result=filtered_context, reason=reason)
-            )
+            self._plan_manager.add_reflection_to_step(current_step_id, reason)
             await self.publish_message(
-                GroupChatMessage(message=stop_message),
+                GroupChatMessage(message=step_completion_message),
                 topic_id=DefaultTopicId(type=self._output_topic_type),
             )
-            await self._output_message_queue.put(stop_message)
+            await self._output_message_queue.put(step_completion_message)
 
             # Find the next pending step after completing the current one
             current_step = self._plan_manager.get_current_step()
@@ -470,12 +360,14 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
                     "All plans completed.", cancellation_token
                 )
                 return
+            else:
+                current_step_id, current_step_content = current_step
 
-        self._plan_manager.set_status(current_step, PLAN_STATE.IN_PROGRESS)
         # Initialize or increment the counter
-        if self._plan_manager.get_step_progress_counter(current_step) == 0:
+        if self._plan_manager.get_step_progress_counter(current_step_id) == 0:
+            self._plan_manager.set_step_state(current_step_id, "in_progress")
             step_start_message = TextMessage(
-                content=current_step,
+                content=current_step_content,
                 source="NewStepNotifier",
             )
             await self.publish_message(
@@ -485,38 +377,34 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
             await self._output_message_queue.put(step_start_message)
 
         # Check if the plan has been in progress for too long
-        self._plan_manager.increment_step_counter(current_step)
+        self._plan_manager.increment_step_counter(current_step_id)
 
         # If the plan has been in progress for more than 5 iterations, mark it as completed
-        if self._plan_manager.get_step_progress_counter(current_step) >= 5:
+        if self._plan_manager.get_step_progress_counter(current_step_id) >= 5:
             await self._log_message(
                 f"Plan '{current_step}' has been in progress for 5 iterations. Marking as completed."
             )
-            self._plan_manager.set_status(current_step, PLAN_STATE.FAILED)
+            self._plan_manager.set_step_state(current_step_id, "failed")
             # Log the forced completion
-            stop_message = TextMessage(
+            step_failed_message = TextMessage(
                 content=json.dumps(
                     {
-                        "step": current_step,
-                        "reason": f"{PLAN_STATE.FAILED}: {reason}",
+                        "step": current_step_content,
+                        "reason": f"failed: {reason}",
                     },
                     indent=4,
                 ),
                 source="StepCompletionNotifier",
             )
-            # Add this step to _contexts_history
-            self._contexts_history.append(
-                StepContext(step=current_step, result=filtered_context, reason=reason)
-            )
+            self._plan_manager.add_reflection_to_step(current_step_id, reason)
             await self.publish_message(
-                GroupChatMessage(message=stop_message),
+                GroupChatMessage(message=step_failed_message),
                 topic_id=DefaultTopicId(type=self._output_topic_type),
             )
-            await self._output_message_queue.put(stop_message)
+            await self._output_message_queue.put(step_failed_message)
 
             # Find the next pending step
             current_step = self._plan_manager.get_current_step()
-            self._plan_manager.set_status(current_step, PLAN_STATE.IN_PROGRESS)
 
             # If there's no next pending step, we're done
             if current_step is None:
@@ -524,80 +412,42 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
                     "All plans completed.", cancellation_token
                 )
                 return
+            else:
+                current_step_id, current_step_content = current_step
+
+            self._plan_manager.set_step_state(current_step_id, "in_progress")
 
         progress_ledger_prompt = orchestrator_progress_ledger_prompt(
-            task=self._task, current_plan=current_step, names=self._participant_names
+            task=self._plan_manager.get_task(),
+            current_plan=current_step_content,
+            names=self._participant_names,
         )
         context.append(UserMessage(content=progress_ledger_prompt, source=self._name))
 
-        progress_ledger: Dict[str, Any] = {}
-        assert self._max_json_retries > 0
-        key_error: bool = False
-        for _ in range(self._max_json_retries):
-            response = await self._model_client.create(
-                self._get_compatible_context(context), json_output=True
-            )
-            ledger_str = response.content
-            try:
-                assert isinstance(ledger_str, str)
-                progress_ledger = json.loads(ledger_str)
-
-                # Validate the structure
-                required_keys = [
-                    "instruction_or_question",
-                    "next_speaker",
-                ]
-
-                key_error = False
-                for key in required_keys:
-                    if (
-                        key not in progress_ledger
-                        or not isinstance(progress_ledger[key], dict)
-                        or "answer" not in progress_ledger[key]
-                        or "reason" not in progress_ledger[key]
-                    ):
-                        key_error = True
-                        break
-
-                    if (
-                        progress_ledger["next_speaker"]["answer"]
-                        not in self._participant_names
-                    ):
-                        key_error = True
-                        break
-
-                if not key_error:
-                    break
-                await self._log_message(
-                    f"Failed to parse ledger information, retrying: {ledger_str}"
-                )
-            except (json.JSONDecodeError, TypeError):
-                key_error = True
-                await self._log_message(
-                    "Invalid ledger format encountered, retrying..."
-                )
-                continue
-        if key_error:
-            raise ValueError(
-                "Failed to parse ledger information after multiple retries."
-            )
-        await self._log_message(f"Progress Ledger: {progress_ledger}")
+        progress_ledger_response = await self._llm_create(
+            self._progress_ledger_model_client, context, cancellation_token
+        )
+        progress_ledger = json.loads(progress_ledger_response)
 
         # Broadcast the next step
+        instruction_or_question = progress_ledger["instruction_or_question"]["answer"]
         message = TextMessage(
-            content=progress_ledger["instruction_or_question"]["answer"],
+            content=instruction_or_question,
             source=self._name,
         )
-        self._message_thread.append(message)  # My copy
+        self._plan_manager.add_message_to_step(
+            step_id=current_step_id,
+            message=message,
+        )
 
-        # await self._log_message(f"Next Speaker: {progress_ledger['next_speaker']['answer']}")
-        logging.info(f"Next Speaker: {progress_ledger['next_speaker']['answer']}")
+        next_speaker = progress_ledger["next_speaker"]["answer"]
+        logging.info(f"Next Speaker: {next_speaker}")
 
-        step_message = TextMessage(
+        step_running_message = TextMessage(
             content=json.dumps(
                 {
-                    "tool": progress_ledger["next_speaker"]["answer"],
-                    "instruction": progress_ledger["instruction_or_question"]["answer"],
+                    "tool": next_speaker,
+                    "instruction": instruction_or_question,
                 },
                 indent=4,
             ),
@@ -605,11 +455,11 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
         )
         # Log it to the output topic.
         await self.publish_message(
-            GroupChatMessage(message=step_message),
+            GroupChatMessage(message=step_running_message),
             topic_id=DefaultTopicId(type=self._output_topic_type),
         )
         # Log it to the output queue.
-        await self._output_message_queue.put(step_message)
+        await self._output_message_queue.put(step_running_message)
 
         # Broadcast it
         await self.publish_message(  # Broadcast
@@ -618,8 +468,6 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
             cancellation_token=cancellation_token,
         )
 
-        # Request that the step be completed
-        next_speaker = progress_ledger["next_speaker"]["answer"]
         # Check if the next speaker is valid
         if next_speaker not in self._participant_name_to_topic_type:
             raise ValueError(
@@ -632,11 +480,9 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
             cancellation_token=cancellation_token,
         )
 
-    # for new feat: human in the loop
     async def _get_user_feedback_on_plan(
         self, user_proxy: UserProxyAgent, cancellation_token: CancellationToken
     ) -> None:
-        # TODO(kaili): We hack the user_proxy here.
         request_user_feedback_prompt = f"Please review the plan above and provide modification suggestions. Type 'y' if the plan is acceptable."
 
         await self.publish_message(
@@ -648,7 +494,9 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
             topic_id=DefaultTopicId(type=self._output_topic_type),
         )
         plan_to_user_dict = {}
-        plan_to_user_dict["steps"] = self._plan_manager.get_plan().copy()
+        plan_to_user_dict["steps"] = (
+            self._plan_manager.get_current_plan_contents().copy()
+        )
         plan_to_user_dict["request_user_feedback_prompt"] = request_user_feedback_prompt
         await self._output_message_queue.put(
             TextMessage(
@@ -658,63 +506,55 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
 
     # for new feat: human in the loop
     async def _update_plan_with_feedback(
-        self, feedback: str, cancellation_token: CancellationToken
+        self, message: UserInputMessage, cancellation_token: CancellationToken
     ) -> None:
+        feedback = message.messages[-1].content
         planning_conversation = []
+        current_plan_contents = json.dumps(
+            self._plan_manager.get_current_plan_contents(), indent=4
+        )
         planning_conversation.append(
             UserMessage(
-                content=f"Current Plan:\n{self._plan_manager.get_plan_str()}\n\n Update the current plan based on the following feedback:\n\nUser Feedback: {feedback}\n\n",
+                content=f"Current Plan:\n{current_plan_contents}\n\n Update the current plan based on the following feedback:\n\nUser Feedback: {feedback}\n\n",
                 source=self._name,
             )
         )
-        response = await self._planning_model_client.create(
-            self._get_compatible_context(planning_conversation),
-            cancellation_token=cancellation_token,
+        plan_response = await self._llm_create(
+            self._planning_model_client, planning_conversation, cancellation_token
         )
-        assert isinstance(response.content, str)
-        self._plan_manager.set_plan(response.content)
+        task = await self._compose_task(message)
+        self._plan_manager.new_plan(task=task, model_response=plan_response)
 
-    def _format_context_for_reflection(self, messages: List[LLMMessage]) -> str:
-        """Format the context messages to be more readable for the LLM."""
-        formatted_lines = []
-
-        for i, msg in enumerate(messages):
-            # Extract just the content
-            content = msg.content
-            # Format each message with source and content
-            formatted_lines.append(f"Message {i+1} from {msg.source}:\n{content}\n")
-
-        # If there are no messages, indicate that
-        if not formatted_lines:
-            return "No relevant messages found in the conversation context."
-
-        return "\n".join(formatted_lines)
-
-    # for new feat: reflection
     async def _check_step_completion(
         self,
-        current_plan: str,
+        current_plan_content: str,
         filtered_context: List[LLMMessage],
         cancellation_token: CancellationToken,
     ) -> bool:
         """Check if the current plan step has been completed based on conversation context."""
         # Format the context for better LLM understanding
-        formatted_context = self._format_context_for_reflection(filtered_context)
+        formatted_context = (
+            "\n".join(
+                [
+                    f"Message {i+1} from {msg.source}:\n{msg.content}"
+                    for i, msg in enumerate(filtered_context)
+                ]
+            )
+            if filtered_context
+            else "No relevant messages found in the conversation context."
+        )
 
         # Create a reflection prompt
         reflection_prompt = reflection_step_completion_prompt(
-            current_plan=current_plan, conversation_context=formatted_context
+            current_plan=current_plan_content, conversation_context=formatted_context
         )
 
         reflection_context = [UserMessage(content=reflection_prompt, source=self._name)]
 
-        response = await self._reflection_model_client.create(
-            self._get_compatible_context(reflection_context),
-            cancellation_token=cancellation_token,
+        reflection_response = await self._llm_create(
+            self._reflection_model_client, reflection_context, cancellation_token
         )
-
-        assert isinstance(response.content, str)
-        reflection = json.loads(response.content)
+        reflection = json.loads(reflection_response)
 
         reason = reflection.get("reason", "No reason provided")
         return reflection.get("is_complete", "false") == "true", reason
@@ -741,40 +581,40 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
         return prompt_dict
 
     async def load_state(self, state: Mapping[str, Any]) -> None:
-        await super().load_state(state=state)
         orchestrator_state = PlanningOrchestratorState.model_validate(state)
-        self._contexts_history = orchestrator_state.contexts_history
+        self._plan_manager = PlanManager.load(orchestrator_state.plan_manager_state)
 
     async def save_state(self) -> Mapping[str, Any]:
-        state = await super().save_state()
-        state = PlanningOrchestratorState(**state)
-        state.type = "PlanningOrchestratorState"
-        state.contexts_history = self._contexts_history
+        state = PlanningOrchestratorState(
+            plan_manager_state=self._plan_manager.dump(),
+        )
         return state.model_dump()
 
     async def _prepare_final_answer(
         self, reason: str, cancellation_token: CancellationToken
     ) -> None:
         """Prepare the final answer for the task."""
-        context = self._thread_to_context()
+        context = self.messages_to_context(
+            self._plan_manager.get_messages_of_current_plan()
+        )
 
         # Get the final answer
-        final_answer_prompt = self._get_final_answer_prompt(self._task)
+        final_answer_prompt = get_final_answer_prompt(
+            task=self._plan_manager.get_task()
+        )
         context.append(UserMessage(content=final_answer_prompt, source=self._name))
 
-        response = await self._model_client.create(
-            self._get_compatible_context(context), cancellation_token=cancellation_token
+        final_answer_response = await self._llm_create(
+            self._model_client, context, cancellation_token
         )
-        assert isinstance(response.content, str)
-        message = TextMessage(content=response.content, source=self._name)
+        message = TextMessage(content=final_answer_response, source=self._name)
 
-        self._message_thread.append(message)  # My copy
-
-        # Set multi-round flag to true for subsequent conversations
-        self._multi_round = True
+        self._plan_manager.add_summary_to_plan(
+            summary=message.content,
+        )
 
         # Clear the current plan to prepare for the next round
-        self._plan_manager.clear()
+        self._plan_manager.commit_plan()
 
         # Log it to the output topic.
         await self.publish_message(
@@ -795,3 +635,35 @@ class PlanningOrchestrator(MagenticOneOrchestrator):
             await self._termination_condition.reset()
         # Signal termination
         await self._signal_termination(StopMessage(content=reason, source=self._name))
+
+    async def _log_message(self, log_message: str) -> None:
+        trace_logger.debug(log_message)
+
+    async def validate_group_state(
+        self, messages: List[BaseChatMessage] | None
+    ) -> None:
+        pass
+
+    async def select_speaker(
+        self, thread: List[BaseAgentEvent | BaseChatMessage]
+    ) -> str:
+        """Not used in this orchestrator, we select next speaker in _orchestrate_step."""
+        return ""
+
+    def _get_compatible_context(
+        self, model_client: ChatCompletionClient, messages: List[LLMMessage]
+    ) -> List[LLMMessage]:
+        """Ensure that the messages are compatible with the underlying client, by removing images if needed."""
+        if model_client.model_info["vision"]:
+            return messages
+        else:
+            return remove_images(messages)
+
+    async def _llm_create(self, client, conversation: list, cancellation_token) -> str:
+        """Send conversation to LLM client and return the string content."""
+        response = await client.create(
+            self._get_compatible_context(client, conversation),
+            cancellation_token=cancellation_token,
+        )
+        assert isinstance(response.content, str)
+        return response.content
