@@ -135,9 +135,7 @@ def _initial_planning_system_prompt() -> str:
     """
 
 
-def step_triage_prompt(
-    *, task: str, current_plan: str, names: list[str]
-) -> str:
+def step_triage_prompt(*, task: str, current_plan: str, names: list[str]) -> str:
     """Generates a prompt template for triaging the step execution to the right team member.
 
     Args:
