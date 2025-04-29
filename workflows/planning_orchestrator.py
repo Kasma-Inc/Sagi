@@ -51,8 +51,8 @@ from pydantic import BaseModel, Field
 from utils.prompt import (
     appended_plan_prompt,
     get_final_answer_prompt,
-    orchestrator_progress_ledger_prompt,
     reflection_step_completion_prompt,
+    step_triage_prompt,
 )
 
 from .plan_manager import PlanManager
@@ -87,7 +87,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         emit_team_events: bool,
         planning_model_client: ChatCompletionClient,
         reflection_model_client: ChatCompletionClient,
-        progress_ledger_model_client: ChatCompletionClient,
+        step_triage_model_client: ChatCompletionClient,
         user_proxy: Any | None = None,
         domain_specific_agent: Any | None = None,
     ):
@@ -107,7 +107,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         self._model_client = model_client
         self._planning_model_client = planning_model_client
         self._reflection_model_client = reflection_model_client
-        self._progress_ledger_model_client = progress_ledger_model_client
+        self._step_triage_model_client = step_triage_model_client
         self._user_proxy = user_proxy
         self._domain_specific_agent = (
             domain_specific_agent  # for new feat: domain specific prompt
@@ -417,20 +417,20 @@ class PlanningOrchestrator(BaseGroupChatManager):
 
             self._plan_manager.set_step_state(current_step_id, "in_progress")
 
-        progress_ledger_prompt = orchestrator_progress_ledger_prompt(
+        step_triage_prompt = step_triage_prompt(
             task=self._plan_manager.get_task(),
             current_plan=current_step_content,
             names=self._participant_names,
         )
-        context.append(UserMessage(content=progress_ledger_prompt, source=self._name))
+        context.append(UserMessage(content=step_triage_prompt, source=self._name))
 
-        progress_ledger_response = await self._llm_create(
-            self._progress_ledger_model_client, context, cancellation_token
+        step_triage_response = await self._llm_create(
+            self._step_triage_model_client, context, cancellation_token
         )
-        progress_ledger = json.loads(progress_ledger_response)
+        step_triage = json.loads(step_triage_response)
 
         # Broadcast the next step
-        instruction_or_question = progress_ledger["instruction_or_question"]["answer"]
+        instruction_or_question = step_triage["instruction_or_question"]["answer"]
         message = TextMessage(
             content=instruction_or_question,
             source=self._name,
@@ -440,7 +440,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
             message=message,
         )
 
-        next_speaker = progress_ledger["next_speaker"]["answer"]
+        next_speaker = step_triage["next_speaker"]["answer"]
         logging.info(f"Next Speaker: {next_speaker}")
 
         step_running_message = TextMessage(
@@ -471,7 +471,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         # Check if the next speaker is valid
         if next_speaker not in self._participant_name_to_topic_type:
             raise ValueError(
-                f"Invalid next speaker: {next_speaker} from the ledger, participants are: {self._participant_names}"
+                f"Invalid next speaker: {next_speaker} from the step triage, participants are: {self._participant_names}"
             )
         participant_topic_type = self._participant_name_to_topic_type[next_speaker]
         await self.publish_message(

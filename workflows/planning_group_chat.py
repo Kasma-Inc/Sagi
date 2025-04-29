@@ -44,7 +44,7 @@ class PlanningGroupChat(BaseGroupChat):
         runtime: AgentRuntime | None = None,
         planning_model_client: ChatCompletionClient,  # for json plan output
         reflection_model_client: ChatCompletionClient,  # for reflection
-        progress_ledger_model_client: ChatCompletionClient,
+        step_triage_model_client: ChatCompletionClient,
         user_proxy: UserProxyAgent | None = None,  # for new feat: human in the loop
         domain_specific_agent: (
             AssistantAgent | None
@@ -70,7 +70,7 @@ class PlanningGroupChat(BaseGroupChat):
         self._reflection_model_client = (
             reflection_model_client  # for new feat: reflection
         )
-        self._progress_ledger_model_client = progress_ledger_model_client
+        self._step_triage_model_client = step_triage_model_client
         self._user_proxy = user_proxy  # for new feat: human in the loop
         self._domain_specific_agent = (
             domain_specific_agent  # for new feat: domain specific prompt
@@ -181,7 +181,7 @@ class PlanningGroupChat(BaseGroupChat):
             emit_team_events=self._emit_team_events,
             planning_model_client=self._planning_model_client,
             reflection_model_client=self._reflection_model_client,  # for new feat: reflection
-            progress_ledger_model_client=self._progress_ledger_model_client,
+            step_triage_model_client=self._step_triage_model_client,
             user_proxy=self._user_proxy,  # for new feat: human in the loop
             domain_specific_agent=self._domain_specific_agent,  # for new feat: domain specific prompt
         )

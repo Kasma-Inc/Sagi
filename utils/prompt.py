@@ -135,10 +135,10 @@ def _initial_planning_system_prompt() -> str:
     """
 
 
-def orchestrator_progress_ledger_prompt(
+def step_triage_prompt(
     *, task: str, current_plan: str, names: list[str]
 ) -> str:
-    """Generates a prompt template for coordinating task progress.
+    """Generates a prompt template for triaging the step execution to the right team member.
 
     Args:
         task: Description of the main task.
