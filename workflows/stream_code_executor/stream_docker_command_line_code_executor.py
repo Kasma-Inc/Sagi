@@ -127,7 +127,11 @@ class StreamDockerCommandLineCodeExecutor(
                     fout.write(code)
                 files.append(code_path)
 
-                command = ["timeout", str(self._timeout), lang_to_cmd(lang), filename]
+                lang_cmd: str = lang_to_cmd(lang)
+                if lang_cmd == "python":
+                    command = ["timeout", str(self._timeout), "python", "-u", filename]
+                else:
+                    command = ["timeout", str(self._timeout), lang_cmd, filename]
 
                 async for result in self._execute_command_stream(
                     command, cancellation_token

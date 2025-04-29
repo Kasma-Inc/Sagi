@@ -99,9 +99,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                 else:
                     yield Response(
                         chat_message=TextMessage(
-                            content=json.dumps(
-                                {"type": "full_result", "result": result.output}
-                            ),
+                            content=result.output,
                             source=self.name,
                         )
                     )

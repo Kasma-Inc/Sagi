@@ -182,9 +182,7 @@ class StreamLocalCommandLineCodeExecutor(
                         line = await stream.readline()
                         if not line:
                             break
-                        yield CodeResultBlock(
-                            type=stream_type, output=line.decode().strip()
-                        )
+                        yield CodeResultBlock(type=stream_type, output=line.decode())
 
                 async for result in read_stream(proc.stdout, "stdout"):
                     stdout += result.output
