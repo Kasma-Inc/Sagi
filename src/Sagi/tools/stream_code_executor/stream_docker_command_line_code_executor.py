@@ -30,7 +30,7 @@ from autogen_ext.code_executors.docker import DockerCommandLineCodeExecutor
 from autogen_ext.code_executors.local import A
 from docker.types import CancellableStream, DeviceRequest
 
-from workflows.stream_code_executor.stream_code_executor import (
+from Sagi.tools.stream_code_executor.stream_code_executor import (
     CodeResultBlock,
     StreamCodeExecutor,
 )
@@ -123,8 +123,12 @@ class StreamDockerCommandLineCodeExecutor(
                     filename = f"tmp_code_{sha256(code.encode()).hexdigest()}.{lang}"
 
                 code_path = self.work_dir / filename
+                print(type(self.work_dir))
+                print(filename)
+                print(type(code_path))
                 with code_path.open("w", encoding="utf-8") as fout:
                     fout.write(code)
+                print(type(code_path))
                 files.append(code_path)
 
                 lang_cmd: str = lang_to_cmd(lang)
@@ -174,7 +178,6 @@ class StreamDockerCommandLineCodeExecutor(
             raise ValueError(
                 "Container is not running. Must first be started with either start or a context manager."
             )
-
         exec_id: str = (
             await asyncio.to_thread(
                 self._container.client.api.exec_create, self._container.id, command

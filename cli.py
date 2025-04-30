@@ -15,8 +15,8 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.semconv.resource import ResourceAttributes
 
-from utils.logging import format_json_string_factory
-from workflows.planning import PlanningWorkflow
+from Sagi.utils.logging import format_json_string_factory
+from Sagi.workflows.planning import PlanningWorkflow
 
 # Create logging directory if it doesn't exist
 os.makedirs("logging", exist_ok=True)
@@ -39,7 +39,9 @@ trace_logger.setLevel(logging.INFO)
 def parse_args():
     parser = argparse.ArgumentParser("Sagi CLI")
     parser.add_argument("--env", type=str, choices=["dev", "prod"], default="dev")
-    parser.add_argument("--config", type=str, default="workflows/planning.toml")
+    parser.add_argument(
+        "--config", type=str, default="src/Sagi/workflows/planning.toml"
+    )
     parser.add_argument(
         "--trace", action="store_true", help="Enable OpenTelemetry tracing"
     )

@@ -5,12 +5,12 @@ import requests
 from langchain_core.documents import Document
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 
-from doc_db.loaders.csv_loader import CSVLoader
-from doc_db.loaders.excel_loader import ExcelLoader
-from doc_db.loaders.html_loader import HTMLLoader
-from doc_db.loaders.pdf_loader import PDFLoader
-from doc_db.loaders.ppt_loader import PowerPointLoader
-from doc_db.loaders.word_loader import WordLoader
+from Sagi.doc_db.loaders.csv_loader import CSVLoader
+from Sagi.doc_db.loaders.excel_loader import ExcelLoader
+from Sagi.doc_db.loaders.html_loader import HTMLLoader
+from Sagi.doc_db.loaders.pdf_loader import PDFLoader
+from Sagi.doc_db.loaders.ppt_loader import PowerPointLoader
+from Sagi.doc_db.loaders.word_loader import WordLoader
 
 
 class MarkifyClient:

@@ -4,7 +4,7 @@ from typing import List
 from langchain_community import document_loaders
 from langchain_core.documents import Document
 
-from doc_db.loaders.base_loader import BaseLoader
+from Sagi.doc_db.loaders.base_loader import BaseLoader
 
 # Suppress PyPDF warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="pypdf")

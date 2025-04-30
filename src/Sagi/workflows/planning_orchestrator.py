@@ -50,14 +50,13 @@ from autogen_core.models import (
 )
 from pydantic import BaseModel, Field
 
-from utils.prompt import (
+from Sagi.utils.prompt import (
     get_appended_plan_prompt,
     get_final_answer_prompt,
     get_reflection_step_completion_prompt,
     get_step_triage_prompt,
 )
-
-from .plan_manager import PlanManager
+from Sagi.workflows.plan_manager import PlanManager
 
 trace_logger = logging.getLogger(TRACE_LOGGER_NAME)
 

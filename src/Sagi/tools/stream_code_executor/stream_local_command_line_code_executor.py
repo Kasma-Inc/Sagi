@@ -30,7 +30,7 @@ from autogen_ext.code_executors._common import (
 )
 from autogen_ext.code_executors.local import A, LocalCommandLineCodeExecutor
 
-from workflows.stream_code_executor.stream_code_executor import (
+from Sagi.tools.stream_code_executor.stream_code_executor import (
     CodeResultBlock,
     StreamCodeExecutor,
 )

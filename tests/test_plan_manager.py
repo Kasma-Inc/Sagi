@@ -4,7 +4,7 @@ from collections import OrderedDict
 import pytest
 from autogen_agentchat.messages import TextMessage
 
-from workflows.plan_manager import Plan, PlanHistory, PlanManager, Step
+from Sagi.workflows.plan_manager import Plan, PlanHistory, PlanManager, Step
 
 
 def test_step_creation_and_serialization():

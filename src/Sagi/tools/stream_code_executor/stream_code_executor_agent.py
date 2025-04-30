@@ -24,7 +24,7 @@ from autogen_core.models import (
 )
 from autogen_ext.code_executors._common import CommandLineCodeResult
 
-from workflows.stream_code_executor.stream_code_executor import (
+from Sagi.tools.stream_code_executor.stream_code_executor import (
     CodeResultBlock,
     StreamCodeExecutor,
 )

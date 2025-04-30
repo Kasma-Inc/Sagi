@@ -14,8 +14,8 @@ from autogen_ext.tools.mcp import (
 )
 from pydantic import BaseModel
 
-from utils.load_config import load_toml_with_env_vars
-from workflows.planning_group_chat import PlanningGroupChat
+from Sagi.utils.load_config import load_toml_with_env_vars
+from Sagi.workflows.planning_group_chat import PlanningGroupChat
 
 
 class Step(BaseModel):
@@ -216,10 +216,10 @@ class PlanningWorkflow:
             command="uv",
             args=[
                 "--directory",
-                "mcp_server/domain_specific_mcp",
+                "src/Sagi/mcp_server/domain_specific_mcp/src/domain_specific_mcp",
                 "run",
                 "python",
-                "src/domain_specific_mcp/server.py",
+                "server.py",
             ],
         )
         domain_specific_tools = await mcp_server_tools(prompt_server_params)
@@ -228,7 +228,7 @@ class PlanningWorkflow:
             command="uv",
             args=[
                 "--directory",
-                "mcp_server/hirag_mcp",
+                "src/Sagi/mcp_server/hirag_mcp",
                 "run",
                 "python",
                 "server.py",

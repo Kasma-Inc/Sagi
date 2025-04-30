@@ -1,6 +1,6 @@
 from langchain_community import document_loaders
 
-from doc_db.loaders.base_loader import BaseLoader
+from Sagi.doc_db.loaders.base_loader import BaseLoader
 
 
 class CSVLoader(BaseLoader):
