@@ -246,6 +246,7 @@ class PlanningWorkflow:
 
         rag_agent = AssistantAgent(
             name="retrieval_agent",
+            description="a retrieval agent that provides relevant information from the internal database.",
             model_client=self.model_client,
             tools=hirag_retrival_tools,  # type: ignore
             system_message="You are a information retrieval agent that provides relevant information from the internal database.",
@@ -259,8 +260,16 @@ class PlanningWorkflow:
             system_message="You are a prompt expert that provides structured templates for different domains.",
         )
 
+        general_agent = AssistantAgent(
+            name="general_agent",
+            model_client=self.model_client,
+            description="a general agent that provides answer for simple questions.",
+            system_message="You are a general AI assistant that provides answer for simple questions.",
+        )
+
         surfer = AssistantAgent(
             name="web_search",
+            description="a web search agent that collect data and relevant information from the web.",
             model_client=self.model_client,
             reflect_on_tool_use=True,  # enable llm summary for contents web search returns
             tools=web_search_tools,  # type: ignore
@@ -270,6 +279,7 @@ class PlanningWorkflow:
         )  # the output directory for code generation execution
         code_executor = CodeExecutorAgent(
             name="CodeExecutor",
+            description="a code executor agent that handles code related tasks.",
             code_executor=LocalCommandLineCodeExecutor(work_dir=work_dir),
             model_client=self.code_model_client,
             max_retries_on_error=3,
@@ -277,7 +287,11 @@ class PlanningWorkflow:
 
         # Pass prompt_template_agent as a separate parameter
         self.team = PlanningGroupChat(
-            participants=[surfer, code_executor],  # can utilize rag_agent
+            participants=[
+                surfer,
+                code_executor,
+                general_agent,
+            ],  # can utilize rag_agent
             model_client=self.model_client,
             planning_model_client=self.planning_model_client,
             reflection_model_client=self.reflection_model_client,

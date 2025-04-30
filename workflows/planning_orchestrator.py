@@ -14,6 +14,7 @@ from autogen_agentchat.messages import (
     ChatMessage,
     HandoffMessage,
     MessageFactory,
+    ModelClientStreamingChunkEvent,
     MultiModalMessage,
     StopMessage,
     TextMessage,
@@ -171,6 +172,48 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 await self._get_initial_plan(message, ctx)
         else:
             await self._human_in_the_loop(message, ctx)
+
+    async def _stream_from_model(
+        self,
+        model_client,
+        messages,
+        cancellation_token,
+    ):
+        """Stream response from a model and collect the full content.
+        Args:
+            model_client: The model client to use for streaming
+            messages: The messages to send to the model
+            cancellation_token: Cancellation token for the request
+        Returns:
+            The complete streamed content
+        """
+        content = ""
+        stream = model_client.create_stream(
+            messages=self._get_compatible_context(
+                model_client=model_client, messages=messages
+            ),
+            cancellation_token=cancellation_token,
+        )
+
+        async for response in stream:
+            if isinstance(response, str):
+                chunk_event = ModelClientStreamingChunkEvent(
+                    content=response, source=self._name
+                )
+                # Add to message queue
+                await self._output_message_queue.put(chunk_event)
+                content += response
+            else:
+                content = response.content
+
+        stream_end_message = TextMessage(
+            content=f"{self._name} stream ended.",
+            source=self._name,
+        )
+        await self._output_message_queue.put(stream_end_message)
+
+        assert isinstance(content, str)
+        return content
 
     @event
     async def handle_agent_response(self, message: GroupChatAgentResponse, ctx: MessageContext) -> None:  # type: ignore
@@ -664,9 +707,9 @@ class PlanningOrchestrator(BaseGroupChatManager):
 
     async def _llm_create(self, client, conversation: list, cancellation_token) -> str:
         """Send conversation to LLM client and return the string content."""
-        response = await client.create(
-            self._get_compatible_context(client, conversation),
+        response = await self._stream_from_model(
+            model_client=client,
+            messages=conversation,
             cancellation_token=cancellation_token,
         )
-        assert isinstance(response.content, str)
-        return response.content
+        return response
