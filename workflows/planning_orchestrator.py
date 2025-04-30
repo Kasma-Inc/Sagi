@@ -241,11 +241,28 @@ class PlanningOrchestrator(BaseGroupChatManager):
         """Combine all message contents for the task."""
         return " ".join([content_to_str(msg.content) for msg in message.messages])
 
+    async def _get_facts_message(
+        self, task: str, ctx: MessageContext
+    ) -> AssistantMessage:
+        """Collect facts for a given task and return as an AssistantMessage."""
+        facts_prompt = self._prompt_templates["facts_prompt"].format(task=task)
+        facts_conversation = [UserMessage(content=facts_prompt, source=self._name)]
+        facts_response = await self._llm_create(
+            self._model_client, facts_conversation, ctx.cancellation_token
+        )
+        return AssistantMessage(content=facts_response, source=self._name)
+
     async def _get_plan_and_feedback(
-        self, task: str, plan_prompt: str, client, ctx: MessageContext
+        self,
+        task: str,
+        plan_prompt: str,
+        facts_message: AssistantMessage,
+        client,
+        ctx: MessageContext,
     ) -> None:
         """Helper to send plan prompt to LLM, update plan, and request feedback."""
         conversation = [
+            facts_message,
             UserMessage(content=plan_prompt, source=self._name),
             SystemMessage(
                 content=(
@@ -274,23 +291,16 @@ class PlanningOrchestrator(BaseGroupChatManager):
             task, ctx.cancellation_token
         )
 
-        # Collect facts
-        facts_prompt = self._prompt_templates["facts_prompt"].format(task=task)
-        facts_conversation = [UserMessage(content=facts_prompt, source=self._name)]
-        facts_response = await self._llm_create(
-            self._model_client, facts_conversation, ctx.cancellation_token
-        )
+        # Collect facts using the extracted method
+        facts_message = await self._get_facts_message(task, ctx)
 
         # Create the initial plan
         plan_prompt = self._prompt_templates["plan_prompt"].format(
             team=self._team_description,
             task=task,
         )
-        planning_conversation = [
-            AssistantMessage(content=facts_response, source=self._name)
-        ]
         await self._get_plan_and_feedback(
-            task, plan_prompt, self._planning_model_client, ctx
+            task, plan_prompt, facts_message, self._planning_model_client, ctx
         )
 
     async def _get_appended_plan(
@@ -300,13 +310,17 @@ class PlanningOrchestrator(BaseGroupChatManager):
 
         task = await self._compose_task(message)
         formatted_history = self._plan_manager.get_plan_history_str()
+
+        # Collect facts using the extracted method
+        facts_message = await self._get_facts_message(task, ctx)
+
         plan_prompt = get_appended_plan_prompt(
             current_task=task,
             contexts_history=formatted_history,
             team_composition=self._team_description,
         )
         await self._get_plan_and_feedback(
-            task, plan_prompt, self._planning_model_client, ctx
+            task, plan_prompt, facts_message, self._planning_model_client, ctx
         )
 
     async def _human_in_the_loop(
