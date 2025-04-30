@@ -65,8 +65,15 @@ Sagi is a production-ready, open-source LLM agent framework that combines advanc
      ```
 
 3. **Install Dependencies**
+   **Option A:** pip install
    ```bash
    pip install -r requirements.txt
+   ```
+   **Option B:** uv install
+   ```bash
+   uv venv
+   source .venv/bin/activate
+   uv pip install -e .
    ```
 
 4. **Start CLI**
