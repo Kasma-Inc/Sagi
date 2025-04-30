@@ -1,141 +1,4 @@
-# manage prompts
-def _get_tools_prompt(tools_description: str, date) -> str:
-    return f"""
-        YOU SHOULD USE AT LEAST THREE DIFFERENT tools.
-        YOU SHOULD STRICTLY FOLLOW the required JSON format.
-
-        You are a versatile assistant with strategic tool-chaining capabilities, designed to handle a wide range of tasks by combining and sequencing tools effectively.
-
-        **Available Tools:**
-        {tools_description}
-
-        **Response Protocol:**
-        - Output ONLY a JSON array of tool calls in sequence (multiple calls allowed).
-        - Each tool call should include the tool name and its required arguments.
-        - Focus solely on determining the appropriate tools and their sequence for the task.
-
-        **Search Optimization Rules:**
-        1. Keyword Extraction: 
-           - Analyze user query to identify 2-3 core keywords/concepts
-           - Generate multiple search queries using synonyms, related terms, and contextual variations
-        2. Search Constraints:
-           - NEVER use the raw user query directly as search input
-           - Split complex queries into parallel search calls
-        3. Multiple calls:
-           - ALLOW use SEARCH tools MULTIPLE times with DIFFERENT arguments
-        4. NOW is {date}, PLEASE DO NOT search things based on your time
-
-        **IMPORTANT:** 
-        - You must ONLY respond with the STRICT JSON FORMAT below if you need to use tools.
-        - NO JSON markdown label. NO OTHER CONTENT if you use tools.
-        - A tool with the same arguments cannot be used again. You can use the same tool with different arguments.
-        - USE AS MANY TOOLS AS YOU CAN.
-
-        **STRICT JSON FORMAT:**
-        [
-            {{
-                "tool": "tool-name",
-                "arguments": {{
-                    "argument-name": "value"
-                }}
-            }},
-            {{
-                "tool": "tool-name",
-                "arguments": {{
-                    "argument-name": "value"
-                }}
-            }},
-            ... (more tools if needed)
-        ]
-
-        **NOTE:**
-        If NO tool is needed, REPLY DIRECTLY with user input, STRICTLY follow the format below:
-        [
-            {{
-                "tool": "direct_response",
-                "arguments": {{
-                    "content": "Your answer here"
-                }}
-            }}
-        ]
-    """
-
-
-def _generation_prompt(tools_history: list) -> str:
-    prompt = (
-        "The following is additional information collected from various tools to assist in answering the user's query. Please use this information to formulate your response. "
-        "If multiple tools provide relevant data, integrate this information appropriately. "
-        "Do not include facts or details not provided in the tool responses, but you may perform direct logical deductions or reasoning based on the given information.\n\n"
-    )
-
-    prompt += "Tool Responses:\n\n"
-
-    for i, tool_record in enumerate(tools_history):
-        prompt += f"Tool: {tool_record['tool']}\n"
-        prompt += f"Arguments: {tool_record['arguments']}\n"
-        prompt += f"Response: {tool_record['response']}\n"
-        if i < len(tools_history) - 1:
-            prompt += "---\n"
-
-    prompt += "\nBased on the information above, provide a comprehensive and relevant response to the user's query"
-    prompt += "\nIf the guideline tool (ESG, press-release, chair statement, s.t.)exist, please STRICLY follow the guideline to generate answer."
-
-    return prompt
-
-
-def _retry_strategy_prompt(
-    used_tools: list, reason: str, missing_info: str, system_message: str
-) -> str:
-    return (
-        f"For the user question,\n"
-        "I have already tried the following tools:\n"
-        f"{used_tools}" + "\n"
-        f"However, the previous attempts were not satisfactory.\n"
-        f"The reason is {reason}\n"
-        f"The missing info are {missing_info}\n"
-        f"{system_message}"
-    )
-
-
-def _evaluation_prompt(user_input: str, final_response: str) -> str:
-    return (
-        "You are an evaluator. Assess the answer based on:\n"
-        "1. **Relevance**: Does the answer directly address the user's question without unnecessary digressions?\n"
-        "2. **Accuracy**: Is the information logically consistent and coherent within the context provided? (Do not verify real-time factual correctness; assume presented information is accurate unless it contains obvious contradictions.)\n"
-        "3. **Completeness**: Are all key points and necessary context included to fully answer the question?\n\n"
-        "Return ONLY JSON and STRICTLY with the following structure (no extra text outside JSON):\n"
-        "{\n"
-        '  "satisfied": true/false,\n'
-        '  "reason": "explain your judgment",\n'
-        '  "missing_info": ["list specific missing details or context (if any)"]\n'
-        "}\n\n"
-        "Example response:\n"
-        "{\n"
-        '  "satisfied": true,\n'
-        '  "reason": "The answer is relevant, informative and comprehensive",\n'
-        '  "missing_info": []\n'
-        "}\n\n"
-        f"User's question: {user_input}\n"
-        f"Current answer: {final_response}"
-    )
-
-
-def _initial_planning_user_prompt(user_input: str) -> str:
-    return f"""
-        Create a reasonable plan with clear steps to accomplish the task: {user_input}
-        Using Language SAME as the above request use
-    """
-
-
-def _initial_planning_system_prompt() -> str:
-    return f"""
-        You are a planning assistant. Create a concise, actionable plan with clear steps.
-        Focus on key milestones rather than detailed sub-steps.
-        Optimize for clarity and efficiency.
-    """
-
-
-def step_triage_prompt(*, task: str, current_plan: str, names: list[str]) -> str:
+def get_step_triage_prompt(*, task: str, current_plan: str, names: list[str]) -> str:
     """Generates a prompt template for triaging the step execution to the right team member.
 
     Args:
@@ -177,7 +40,7 @@ def step_triage_prompt(*, task: str, current_plan: str, names: list[str]) -> str
     )
 
 
-def reflection_step_completion_prompt(
+def get_reflection_step_completion_prompt(
     *, current_plan: str, conversation_context: str
 ) -> str:
     """Generates a prompt template for evaluating plan step completion.
@@ -214,7 +77,7 @@ def reflection_step_completion_prompt(
     )
 
 
-def appended_plan_prompt(
+def get_appended_plan_prompt(
     *, current_task: str, contexts_history: str, team_composition: str
 ) -> str:
     """Generates a prompt template for appended planning.

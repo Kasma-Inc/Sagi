@@ -4,6 +4,7 @@ import logging
 import re
 from typing import Any, Dict, List, Mapping
 
+from autogen_agentchat import TRACE_LOGGER_NAME
 from autogen_agentchat.agents import UserProxyAgent
 from autogen_agentchat.base import Response, TerminationCondition
 from autogen_agentchat.messages import (
@@ -30,7 +31,7 @@ from autogen_agentchat.teams._group_chat._events import (
     GroupChatStart,
     GroupChatTermination,
 )
-from autogen_agentchat.utils import content_to_str
+from autogen_agentchat.utils import content_to_str, remove_images
 from autogen_core import (
     CancellationToken,
     DefaultTopicId,
@@ -49,13 +50,15 @@ from autogen_core.models import (
 from pydantic import BaseModel, Field
 
 from utils.prompt import (
-    appended_plan_prompt,
+    get_appended_plan_prompt,
     get_final_answer_prompt,
-    reflection_step_completion_prompt,
-    step_triage_prompt,
+    get_reflection_step_completion_prompt,
+    get_step_triage_prompt,
 )
 
 from .plan_manager import PlanManager
+
+trace_logger = logging.getLogger(TRACE_LOGGER_NAME)
 
 
 class UserInputMessage(BaseModel):
@@ -254,7 +257,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
 
         task = await self._compose_task(message)
         formatted_history = self._plan_manager.get_plan_history_str()
-        plan_prompt = appended_plan_prompt(
+        plan_prompt = get_appended_plan_prompt(
             current_task=task,
             contexts_history=formatted_history,
             team_composition=self._team_description,
@@ -417,7 +420,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
 
             self._plan_manager.set_step_state(current_step_id, "in_progress")
 
-        step_triage_prompt = step_triage_prompt(
+        step_triage_prompt = get_step_triage_prompt(
             task=self._plan_manager.get_task(),
             current_plan=current_step_content,
             names=self._participant_names,
@@ -545,7 +548,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         )
 
         # Create a reflection prompt
-        reflection_prompt = reflection_step_completion_prompt(
+        reflection_prompt = get_reflection_step_completion_prompt(
             current_plan=current_plan_content, conversation_context=formatted_context
         )
 

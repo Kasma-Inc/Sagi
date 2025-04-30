@@ -105,7 +105,7 @@ class Plan(BaseModel):
         """
         return [step.content for step in self.steps.values()]
 
-    def get_all_states(self) -> "OrderedDict[str, str]":
+    def get_all_states(self) -> OrderedDict[str, str]:
         """
         Retrieve all step contents and their corresponding states.
 
