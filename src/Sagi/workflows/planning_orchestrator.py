@@ -634,8 +634,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         response = await self._domain_specific_agent.on_messages(
             [message], cancellation_token=cancellation_token
         )
-        match = re.search(r"text='(.*?)'", response.chat_message.content)
-        tool_response = match.group(1)
+        tool_response = json.loads(response.chat_message.content)[0].get("text")
         prompt_dict = json.loads(tool_response)
         return prompt_dict
 
