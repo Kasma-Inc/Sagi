@@ -12,8 +12,8 @@
 
 Sagi is a production-ready, open-source LLM agent framework that combines advanced technologies to create powerful AI agents. It features:
 
-- 🧠 Deep-research workflow architecture, more details refers to the [doc](workflows/planning.md)
-- 🛠️ MCP (Model Context Protocol) integration, the guide of the usage of MCP refers to the [doc](mcp_server/README.md)
+- 🧠 Deep-research workflow architecture, more details refers to the [doc](src/Sagi/workflows/planning.md)
+- 🛠️ MCP (Model Context Protocol) integration, the guide of the usage of MCP refers to the [doc](src/Sagi/mcp_server/README.md)
 - 📊 GraphRAG-powered retrieval system, HiRAG mcp server refers to the [repo](https://github.com/Dormiveglia-elf/hirag_mcp.git)
 
 ## 📰 News
