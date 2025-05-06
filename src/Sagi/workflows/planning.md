@@ -39,7 +39,7 @@ In general, there are two stages for each task: plan generation stage and plan e
 
 The workflow architecture is illustrated in the diagram below:
 
-![workflow_diagram](../assets/planning_workflow.png)
+![workflow_diagram](../../../assets/planning_workflow.png)
 
 
 
