@@ -3,24 +3,13 @@ from typing import Any, Callable, List, Mapping
 
 from autogen_agentchat.agents import AssistantAgent, UserProxyAgent
 from autogen_agentchat.base import ChatAgent, TerminationCondition
-from autogen_agentchat.messages import (
-    AgentEvent,
-    ChatMessage,
-)
+from autogen_agentchat.messages import AgentEvent, ChatMessage
 from autogen_agentchat.state import TeamState
 from autogen_agentchat.teams import BaseGroupChat
 from autogen_agentchat.teams._group_chat._chat_agent_container import ChatAgentContainer
-from autogen_agentchat.teams._group_chat._events import (
-    GroupChatTermination,
-)
-from autogen_core import (
-    AgentRuntime,
-    AgentType,
-    TypeSubscription,
-)
-from autogen_core.models import (
-    ChatCompletionClient,
-)
+from autogen_agentchat.teams._group_chat._events import GroupChatTermination
+from autogen_core import AgentRuntime, AgentType, TypeSubscription
+from autogen_core.models import ChatCompletionClient
 from pydantic import Field
 
 from Sagi.workflows.planning_orchestrator import PlanningOrchestrator

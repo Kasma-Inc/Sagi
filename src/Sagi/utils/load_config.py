@@ -31,7 +31,7 @@ def _replace_env_vars(field: str) -> str:
         var_name = var.strip("${}").lstrip("$")
         try:
             return os.environ.get(var_name)
-        except Exception as e:
+        except Exception:
             print(f"Warning: {var_name} not found in environment variables")
             return var
 

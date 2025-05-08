@@ -33,13 +33,7 @@ from autogen_agentchat.teams._group_chat._events import (
     GroupChatTermination,
 )
 from autogen_agentchat.utils import content_to_str, remove_images
-from autogen_core import (
-    CancellationToken,
-    DefaultTopicId,
-    MessageContext,
-    event,
-    rpc,
-)
+from autogen_core import CancellationToken, DefaultTopicId, MessageContext, event, rpc
 from autogen_core.models import (
     AssistantMessage,
     ChatCompletionClient,

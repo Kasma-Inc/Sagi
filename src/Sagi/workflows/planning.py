@@ -212,11 +212,15 @@ class PlanningWorkflow:
             web_search_server_params, session=self.web_search
         )
 
+        # set env MCP_SERVER_PATH, default is "src/Sagi/mcp_server/"
+        mcp_server_path = os.getenv("MCP_SERVER_PATH", "src/Sagi/mcp_server/")
         prompt_server_params = StdioServerParams(
             command="uv",
             args=[
                 "--directory",
-                "src/Sagi/mcp_server/domain_specific_mcp/src/domain_specific_mcp",
+                os.path.join(
+                    mcp_server_path, "domain_specific_mcp/src/domain_specific_mcp"
+                ),
                 "run",
                 "python",
                 "server.py",
@@ -228,7 +232,7 @@ class PlanningWorkflow:
             command="uv",
             args=[
                 "--directory",
-                "src/Sagi/mcp_server/hirag_mcp",
+                os.path.join(mcp_server_path, "hirag_mcp"),
                 "run",
                 "python",
                 "server.py",
