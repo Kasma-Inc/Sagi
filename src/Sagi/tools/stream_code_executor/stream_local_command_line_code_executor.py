@@ -99,7 +99,6 @@ class StreamLocalCommandLineCodeExecutor(
             # Try extracting a filename (if present)
             try:
                 filename = get_file_name_from_content(code, self.work_dir)
-                yield CodeResultBlock(type="filename", output=filename)
             except ValueError:
                 yield CommandLineCodeResult(
                     exit_code=1,
@@ -121,8 +120,13 @@ class StreamLocalCommandLineCodeExecutor(
                 filename = f"tmp_code_{code_hash}.{ext}"
 
             written_file = (self.work_dir / filename).resolve()
+
+            # Ensure parent directory exists
+            written_file.parent.mkdir(parents=True, exist_ok=True)
+
             with written_file.open("w", encoding="utf-8") as f:
                 f.write(code)
+            yield CodeResultBlock(type="filename", output=str(self.work_dir / filename))
             file_names.append(written_file)
 
             # Build environment
