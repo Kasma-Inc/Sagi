@@ -20,6 +20,7 @@ from autogen_core.models import (
     AssistantMessage,
     ChatCompletionClient,
     CreateResult,
+    SystemMessage,
     UserMessage,
 )
 from autogen_ext.code_executors._common import CommandLineCodeResult
@@ -105,7 +106,6 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                     )
             return
 
-        execution_result: CodeResult | None = None
         inner_messages: List[BaseAgentEvent | BaseChatMessage] = []
 
         for nth_try in range(
@@ -192,27 +192,28 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
 
             # Step 9: Update model context with the code execution result
             await model_context.add_message(
-                UserMessage(
-                    content=execution_result.output,
+                SystemMessage(
+                    content=result.output,
                     source=agent_name,
                 )
             )
 
             # Step 10: Yield a CodeExecutionEvent
             yield CodeExecutionEvent(
-                retry_attempt=nth_try, result=execution_result, source=self.name
+                retry_attempt=nth_try, result=result, source=self.name
             )
 
             # If execution was successful or last retry, then exit
-            if execution_result.exit_code == 0 or nth_try == max_retries_on_error:
+            if result.exit_code == 0 or nth_try == max_retries_on_error:
                 break
 
             # Step 11: If exit code is non-zero and retries are available then
             #          make an inference asking if we should retry or not
             chat_context = await model_context.get_messages()
 
+            # TODO: address the issue when the error is due to a missing library systematically
             retry_prompt = (
-                f"The most recent code execution resulted in an error:\n{execution_result.output}\n\n"
+                f"The most recent code execution resulted in an error:\n{result.output}\n\n"
                 "Should we attempt to resolve it? Please respond with:\n"
                 "- A boolean value for 'retry' indicating whether it should be retried.\n"
                 "- A detailed explanation in 'reason' that identifies the issue, justifies your decision to retry or not, and outlines how you would resolve the error if a retry is attempted."
@@ -239,6 +240,13 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             # Exit if no-retry is needed
             if not should_retry_generation.retry:
                 break
+            else:
+                await model_context.add_message(
+                    AssistantMessage(
+                        content=should_retry_generation.reason,
+                        source=agent_name,
+                    )
+                )
 
             yield CodeGenerationEvent(
                 retry_attempt=nth_try,

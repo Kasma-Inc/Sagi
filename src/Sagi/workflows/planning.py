@@ -3,9 +3,8 @@ from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import List, Literal, Optional
 
-from autogen_agentchat.agents import AssistantAgent, CodeExecutorAgent
+from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ModelFamily, ModelInfo
-from autogen_ext.code_executors.local import LocalCommandLineCodeExecutor
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import (
     StdioServerParams,
@@ -14,6 +13,12 @@ from autogen_ext.tools.mcp import (
 )
 from pydantic import BaseModel
 
+from Sagi.tools.stream_code_executor.stream_code_executor_agent import (
+    StreamCodeExecutorAgent,
+)
+from Sagi.tools.stream_code_executor.stream_local_command_line_code_executor import (
+    StreamLocalCommandLineCodeExecutor,
+)
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.workflows.planning_group_chat import PlanningGroupChat
 
@@ -281,10 +286,10 @@ class PlanningWorkflow:
         work_dir = Path(
             "coding_files"
         )  # the output directory for code generation execution
-        code_executor = CodeExecutorAgent(
+        code_executor = StreamCodeExecutorAgent(
             name="CodeExecutor",
             description="a code executor agent that handles code related tasks.",
-            code_executor=LocalCommandLineCodeExecutor(work_dir=work_dir),
+            stream_code_executor=StreamLocalCommandLineCodeExecutor(work_dir=work_dir),
             model_client=self.code_model_client,
             max_retries_on_error=3,
         )
