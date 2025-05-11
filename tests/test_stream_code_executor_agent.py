@@ -21,7 +21,7 @@ from Sagi.tools.stream_code_executor.stream_local_command_line_code_executor imp
     StreamLocalCommandLineCodeExecutor,
 )
 
-load_dotenv(".env")
+load_dotenv(override=True)
 
 
 @pytest.mark.asyncio

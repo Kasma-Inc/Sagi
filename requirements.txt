@@ -83,6 +83,7 @@ opentelemetry-exporter-otlp-proto-http
 opentelemetry-exporter-otlp-proto-grpc
 
 pytest==8.3.5
+pytest-asyncio==0.26.0
 
 # for hirag
 hnswlib==0.7.0

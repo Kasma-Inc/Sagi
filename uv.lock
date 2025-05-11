@@ -76,19 +76,19 @@ wheels = [
 
 [[package]]
 name = "autogen-agentchat"
-version = "0.5.4"
+version = "0.5.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "autogen-core" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/39/e1/54642de10c9d3d20a2c603bf834201f3df3d7b75941fab6e4b79bca9e32e/autogen_agentchat-0.5.4.tar.gz", hash = "sha256:66653a9cd48e70cab4f251c840e9c0c8293c3111c30fcdb056a9489943738bfd", size = 94847 }
+sdist = { url = "https://files.pythonhosted.org/packages/b6/70/298161fc83458ba426d4e868f6f7c9e29c22b660876320a0d2a42e941805/autogen_agentchat-0.5.6.tar.gz", hash = "sha256:b949a30587e538b08a898549f52cd6d6b21689df738fb17bcaea95b8df3572d4", size = 113773 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/dd/08/5f7ce25427e70f053ee534704840bf868197b33375c77f95e5cb13fedacb/autogen_agentchat-0.5.4-py3-none-any.whl", hash = "sha256:7f0d37c444c5f1caa094eebf98640199fc287593a1e0d570ebd12994e7be3897", size = 92359 },
+    { url = "https://files.pythonhosted.org/packages/da/5f/28cbbdcdedaf69556e4de94432369113fc886481b79afaf289c8bab13e84/autogen_agentchat-0.5.6-py3-none-any.whl", hash = "sha256:18df1a17e24897f95bf90f45054f53578b741e78f934789d5eaea18ebb14df0d", size = 105465 },
 ]
 
 [[package]]
 name = "autogen-core"
-version = "0.5.4"
+version = "0.5.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jsonref" },
@@ -98,21 +98,21 @@ dependencies = [
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2e/50/c0adc94866a0f06a1f14db6816e6bf2b5e6b04b7074637efddc2be2b7455/autogen_core-0.5.4.tar.gz", hash = "sha256:f411842f822db51abc317c30a5bdb1ea3f48f6f6da65cb7edfc49cac5d4f7025", size = 2444776 }
+sdist = { url = "https://files.pythonhosted.org/packages/eb/30/bcd0e7af9687ff5aac1c30ac1c456ab396cd1497ee6544a5930df1b4910c/autogen_core-0.5.6.tar.gz", hash = "sha256:b34a744d35dc28d5ddb7d8403dd39dafa613cc8bb951cf776131c70964a044ef", size = 2446829 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4e/d6/96dbe3d30c89ceb553d992d131fc44f3226abff135f99b68947088a43930/autogen_core-0.5.4-py3-none-any.whl", hash = "sha256:74ef4c132749ebb2ea4ba1ef45a04b9f7ad03249a663c888818016043791ec3e", size = 91519 },
+    { url = "https://files.pythonhosted.org/packages/e5/66/55bf9e804c512a45992083339508e03a5073298797a707b963308b739bea/autogen_core-0.5.6-py3-none-any.whl", hash = "sha256:8c6e3a72e6cf527522e415945f56016053106d565d4ff4a2ba64b8b432d9c1ce", size = 94687 },
 ]
 
 [[package]]
 name = "autogen-ext"
-version = "0.5.4"
+version = "0.5.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "autogen-core" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/00/18/ed8f2446194e457ba595acd7f9c73060e9b6601aedf291d4c29f6e09acbd/autogen_ext-0.5.4.tar.gz", hash = "sha256:9e80793678c676f82fb003111f2268ec5c0fbd1944ca41bf87eebe2f6039e56b", size = 327038 }
+sdist = { url = "https://files.pythonhosted.org/packages/46/bf/321c3957e663e058dbe93db89fbaafcdb0bb81919e470ac3fddb5999a006/autogen_ext-0.5.6.tar.gz", hash = "sha256:a8cb17f12b1180b0d52231267a1d1c4d325be50fbeb4a0c477fb0bdb4a8b8b3f", size = 335300 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0e/57/44425436e38b6d98ba812b31c8cd038188d09efdad5932f546d132f8a039/autogen_ext-0.5.4-py3-none-any.whl", hash = "sha256:ec96305584edac189586a77b810f045000dc2585e15acf9478b9a701a31372bb", size = 289516 },
+    { url = "https://files.pythonhosted.org/packages/1c/04/792ac73e17968bec26de47092ddb74051c9f7e7c49f139acc6cf8882910b/autogen_ext-0.5.6-py3-none-any.whl", hash = "sha256:710b35be955281dabba426ffa16c6e913f03817840601dc37334882e2163b0b8", size = 296787 },
 ]
 
 [package.optional-dependencies]
@@ -876,6 +876,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pytest-asyncio"
+version = "0.26.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8e/c4/453c52c659521066969523e87d85d54139bbd17b78f09532fb8eb8cdb58e/pytest_asyncio-0.26.0.tar.gz", hash = "sha256:c4df2a697648241ff39e7f0e4a73050b03f123f760673956cf0d72a4990e312f", size = 54156 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/20/7f/338843f449ace853647ace35870874f69a764d251872ed1b4de9f234822c/pytest_asyncio-0.26.0-py3-none-any.whl", hash = "sha256:7b51ed894f4fbea1340262bdae5135797ebbe21d8638978e35d31c6d19f72fb0", size = 19694 },
+]
+
+[[package]]
 name = "python-dotenv"
 version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1012,6 +1024,7 @@ dependencies = [
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
     { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "python-jose" },
     { name = "sqlalchemy" },
     { name = "sqlmodel" },
@@ -1023,9 +1036,9 @@ dependencies = [
 requires-dist = [
     { name = "asyncpg", specifier = "==0.30.0" },
     { name = "autoflake", specifier = ">=2.3.1" },
-    { name = "autogen-agentchat", specifier = "==0.5.4" },
-    { name = "autogen-core", specifier = "==0.5.4" },
-    { name = "autogen-ext", extras = ["docker"], specifier = "==0.5.4" },
+    { name = "autogen-agentchat", specifier = "==0.5.6" },
+    { name = "autogen-core", specifier = "==0.5.6" },
+    { name = "autogen-ext", extras = ["docker"], specifier = "==0.5.6" },
     { name = "black", specifier = ">=25.1.0" },
     { name = "blackdoc", specifier = ">=0.3.9" },
     { name = "grpcio", specifier = ">=1.71.0" },
@@ -1039,6 +1052,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.32.1" },
     { name = "opentelemetry-sdk", specifier = ">=1.32.1" },
     { name = "pytest", specifier = "==8.3.5" },
+    { name = "pytest-asyncio", specifier = "==0.26.0" },
     { name = "python-jose", specifier = "==3.4.0" },
     { name = "sqlalchemy", extras = ["asyncpg"], specifier = "==2.0.40" },
     { name = "sqlmodel", specifier = "==0.0.23" },
