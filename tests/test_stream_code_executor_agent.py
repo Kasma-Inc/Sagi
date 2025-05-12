@@ -1,18 +1,17 @@
-import json
 import os
-from typing import Dict
 
 import pytest
 from autogen_agentchat.base import Response
 from autogen_agentchat.messages import (
     CodeGenerationEvent,
-    ModelClientStreamingChunkEvent,
     TextMessage,
 )
 from autogen_core import CancellationToken
+from autogen_core.models import FunctionExecutionResultMessage
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from dotenv import load_dotenv
 
+from Sagi.tools.stream_code_executor.stream_code_executor import CodeFileMessage
 from Sagi.tools.stream_code_executor.stream_code_executor_agent import (
     CodeExecutionEvent,
     StreamCodeExecutorAgent,
@@ -39,28 +38,21 @@ echo "Hello World"
         name="stream_code_executor_agent",
         stream_code_executor=stream_local_command_line_code_executor,
     )
-    index: int = 0
     async for result in stream_code_executor_agent.on_messages_stream(
         messages=[TextMessage(content=sh_script, source="")],
         cancellation_token=CancellationToken(),
     ):
-        print(result)
-        if index in range(0, 4):
-            assert isinstance(result, ModelClientStreamingChunkEvent)
-            if index == 0:
-                content: Dict = json.loads(result.content)
-                assert content["type"] == "filename"
-                assert content["result"] is not None
-            elif index in range(1, 4):
-                content: Dict = json.loads(result.content)
-                assert content["type"] == "stdout"
-                assert content["result"] == "Hello World\n"
-        elif index == 4:
-            assert isinstance(result, Response)
+        if isinstance(result, FunctionExecutionResultMessage):
+            assert result.content[0].is_error == False
+            assert result.content[0].name == "stream_code_executor_agent"
+            assert result.content[0].call_id == ""
             assert (
-                result.chat_message.content == "Hello World\nHello World\nHello World\n"
+                result.content[0].content == "Hello World\nHello World\nHello World\n"
             )
-        index += 1
+
+        elif isinstance(result, CodeFileMessage):
+            assert result.code_file.endswith(".sh")
+            assert result.command.startswith("sh")
 
 
 @pytest.mark.asyncio
@@ -80,29 +72,21 @@ print("Hello World")
         name="stream_code_executor_agent",
         stream_code_executor=stream_local_command_line_code_executor,
     )
-    index: int = 0
     async for result in stream_code_executor_agent.on_messages_stream(
         messages=[TextMessage(content=python_script, source="")],
         cancellation_token=CancellationToken(),
     ):
-        print(result)
-        if index in range(0, 4):
-            assert isinstance(result, ModelClientStreamingChunkEvent)
-            if index == 0:
-                content: Dict = json.loads(result.content)
-                assert content["type"] == "filename"
-                assert content["result"] is not None
-            elif index in range(1, 4):
-                content: Dict = json.loads(result.content)
-                assert content["type"] == "stdout"
-                assert content["result"] == "Hello World\n"
-
-        elif index == 4:
-            assert isinstance(result, Response)
+        if isinstance(result, FunctionExecutionResultMessage):
+            assert result.content[0].is_error == False
+            assert result.content[0].name == "stream_code_executor_agent"
+            assert result.content[0].call_id == ""
             assert (
-                result.chat_message.content == "Hello World\nHello World\nHello World\n"
+                result.content[0].content == "Hello World\nHello World\nHello World\n"
             )
-        index += 1
+
+        elif isinstance(result, CodeFileMessage):
+            assert result.code_file.endswith(".py")
+            assert result.command.split(" ")[0].endswith("python")
 
 
 @pytest.mark.asyncio
@@ -130,8 +114,5 @@ async def test_local_command_line_code_executor_python_with_model():
         print(result)
         assert isinstance(
             result,
-            ModelClientStreamingChunkEvent
-            | CodeExecutionEvent
-            | CodeGenerationEvent
-            | Response,
+            CodeFileMessage | CodeExecutionEvent | CodeGenerationEvent | Response,
         )

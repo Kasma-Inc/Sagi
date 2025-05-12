@@ -9,7 +9,6 @@ from typing import (
     AsyncGenerator,
     Callable,
     List,
-    Literal,
     Optional,
     Sequence,
     Union,
@@ -31,7 +30,7 @@ from autogen_ext.code_executors._common import (
 from autogen_ext.code_executors.local import A, LocalCommandLineCodeExecutor
 
 from Sagi.tools.stream_code_executor.stream_code_executor import (
-    CodeResultBlock,
+    CodeFileMessage,
     StreamCodeExecutor,
 )
 
@@ -63,7 +62,7 @@ class StreamLocalCommandLineCodeExecutor(
 
     async def execute_code_blocks_stream(
         self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
-    ) -> AsyncGenerator[CodeResultBlock | CommandLineCodeResult, None]:
+    ) -> AsyncGenerator[CodeFileMessage | CommandLineCodeResult, None]:
         if not self._setup_functions_complete:
             await self._setup_functions(cancellation_token)
 
@@ -74,7 +73,7 @@ class StreamLocalCommandLineCodeExecutor(
 
     async def _execute_code_dont_check_setup_stream(
         self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
-    ) -> AsyncGenerator[CodeResultBlock | CommandLineCodeResult, None]:
+    ) -> AsyncGenerator[CodeFileMessage | CommandLineCodeResult, None]:
         logs_all: str = ""
         file_names: List[Path] = []
         exitcode = 0
@@ -126,7 +125,6 @@ class StreamLocalCommandLineCodeExecutor(
 
             with written_file.open("w", encoding="utf-8") as f:
                 f.write(code)
-            yield CodeResultBlock(type="filename", output=str(self.work_dir / filename))
             file_names.append(written_file)
 
             # Build environment
@@ -162,6 +160,13 @@ class StreamLocalCommandLineCodeExecutor(
                     # Shell commands (bash, sh, etc.)
                     extra_args = [str(written_file.absolute())]
 
+            command = " ".join([program] + extra_args)
+            yield CodeFileMessage(
+                content=f"Code file: {str(self.work_dir / filename)}\nCommand: {command}",
+                code_file=str(self.work_dir / filename),
+                command=command,
+                source="stream_local_command_line_code_executor",
+            )
             # Create a subprocess and run
             task = asyncio.create_task(
                 asyncio.create_subprocess_exec(
@@ -178,25 +183,11 @@ class StreamLocalCommandLineCodeExecutor(
             proc = None  # Track the process
             try:
                 proc = await task
-                stderr: str = ""
-                stdout: str = ""
+                stdout, stderr = await asyncio.wait_for(
+                    proc.communicate(), self._timeout
+                )
+                exitcode = proc.returncode or 0
 
-                async def read_stream(stream, stream_type: Literal["stderr", "stdout"]):
-                    while True:
-                        line = await stream.readline()
-                        if not line:
-                            break
-                        yield CodeResultBlock(type=stream_type, output=line.decode())
-
-                async for result in read_stream(proc.stdout, "stdout"):
-                    stdout += result.output
-                    yield result
-                async for result in read_stream(proc.stderr, "stderr"):
-                    stderr += result.output
-                    yield result
-
-                await proc.wait()
-                exitcode: int = proc.returncode or 0
             except asyncio.TimeoutError:
                 logs_all += "\nTimeout"
                 exitcode = 124
@@ -212,8 +203,8 @@ class StreamLocalCommandLineCodeExecutor(
                     await proc.wait()
                 break
 
-            logs_all += stderr
-            logs_all += stdout
+            logs_all += stderr.decode()
+            logs_all += stdout.decode()
 
             if exitcode != 0:
                 break

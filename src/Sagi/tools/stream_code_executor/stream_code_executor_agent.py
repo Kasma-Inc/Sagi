@@ -1,4 +1,3 @@
-import json
 from typing import AsyncGenerator, List, Sequence
 
 from autogen_agentchat.agents import CodeExecutorAgent
@@ -9,7 +8,6 @@ from autogen_agentchat.messages import (
     BaseChatMessage,
     CodeExecutionEvent,
     CodeGenerationEvent,
-    ModelClientStreamingChunkEvent,
     TextMessage,
     ThoughtEvent,
 )
@@ -23,10 +21,9 @@ from autogen_core.models import (
     SystemMessage,
     UserMessage,
 )
-from autogen_ext.code_executors._common import CommandLineCodeResult
 
 from Sagi.tools.stream_code_executor.stream_code_executor import (
-    CodeResultBlock,
+    CodeFileMessage,
     StreamCodeExecutor,
 )
 
@@ -90,13 +87,8 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             async for result in self.execute_code_block(
                 code_blocks, cancellation_token
             ):
-                if isinstance(result, CodeResultBlock):
-                    yield ModelClientStreamingChunkEvent(
-                        content=json.dumps(
-                            {"type": result.type, "result": result.output}
-                        ),
-                        source=self.name,
-                    )
+                if isinstance(result, CodeFileMessage):
+                    yield result
                 else:
                     yield Response(
                         chat_message=TextMessage(
@@ -162,7 +154,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             if not code_blocks:
                 yield Response(
                     chat_message=TextMessage(
-                        content=str(model_result.content),
+                        content=f"No code blocks found. The model's response was: {model_result.content}",
                         source=agent_name,
                     )
                 )
@@ -177,31 +169,33 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             )
 
             yield inferred_text_message
+            inner_messages.append(inferred_text_message)
 
             # Step 8: Execute the extracted code blocks
             async for result in self.execute_code_block(
                 code_blocks, cancellation_token
             ):
-                if isinstance(result, CodeResultBlock):
-                    yield ModelClientStreamingChunkEvent(
-                        content=json.dumps(
-                            {"type": result.type, "result": result.output}
-                        ),
-                        source=self.name,
+                # Return CodeFileMessage or CodeResult
+                # CodeFileMessage stores the command and the code file content
+                # CodeResult stores the exit code, stdout and stderr
+                # First yield the CodeFileMessage and then the CodeResult
+                if isinstance(result, CodeFileMessage):
+                    yield result
+                    inner_messages.append(result)
+                elif isinstance(result, CodeResult):
+                    # Step 9: Update model context with the code execution result
+                    await model_context.add_message(
+                        SystemMessage(
+                            content=f"The command {result.code_file} was executed with the following output: {result.output}",
+                            source=agent_name,
+                        )
                     )
-
-            # Step 9: Update model context with the code execution result
-            await model_context.add_message(
-                SystemMessage(
-                    content=result.output,
-                    source=agent_name,
-                )
-            )
-
-            # Step 10: Yield a CodeExecutionEvent
-            yield CodeExecutionEvent(
-                retry_attempt=nth_try, result=result, source=self.name
-            )
+                    # Step 10: Yield a CodeExecutionEvent
+                    code_execution_event = CodeExecutionEvent(
+                        retry_attempt=nth_try, result=result, source=self.name
+                    )
+                    yield code_execution_event
+                    inner_messages.append(code_execution_event)
 
             # If execution was successful or last retry, then exit
             if result.exit_code == 0 or nth_try == max_retries_on_error:
@@ -270,12 +264,14 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
 
     async def execute_code_block(
         self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
-    ) -> AsyncGenerator[CodeResultBlock | CodeResult, None]:
+    ) -> AsyncGenerator[CodeFileMessage | CodeResult, None]:
         # Execute the code blocks.
         async for result in self._code_executor.execute_code_blocks_stream(
             code_blocks, cancellation_token=cancellation_token
         ):
-            if isinstance(result, CommandLineCodeResult):
+            if isinstance(result, CodeFileMessage):
+                yield result
+            elif isinstance(result, CodeResult):
                 if result.output.strip() == "":
                     # No output
                     result.output = f"The script ran but produced no output to console. The POSIX exit code was: {result.exit_code}. If you were expecting output, consider revising the script to ensure content is printed to stdout."

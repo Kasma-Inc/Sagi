@@ -44,6 +44,7 @@ from autogen_core.models import (
 )
 from pydantic import BaseModel, Field
 
+from Sagi.tools.stream_code_executor.stream_code_executor import CodeFileMessage
 from Sagi.utils.prompt import (
     get_appended_plan_prompt,
     get_final_answer_prompt,
@@ -122,6 +123,8 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 re.sub(r"\s+", " ", f"{topic_type}: {description}").strip() + "\n"
             )
         self._team_description = self._team_description.strip()
+        # TODO: register the new message type in a systematic way
+        self._message_factory.register(CodeFileMessage)
 
     async def reset(self) -> None:
         """Reset the group chat manager."""
