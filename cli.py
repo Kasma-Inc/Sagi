@@ -3,6 +3,8 @@ import asyncio
 import json
 import logging
 import os
+import uuid
+from typing import Optional
 from datetime import datetime
 
 from autogen_agentchat import TRACE_LOGGER_NAME
@@ -59,6 +61,16 @@ def parse_args():
         default="sagi_tracer",
         help="Service name for OpenTelemetry tracing",
     )
+    parser.add_argument(
+        "--session-id", "-s",
+        type=str,
+        help="Specify the session ID to load or save; if not provided, one will be generated automatically."
+    )
+    parser.add_argument(
+        "--list-sessions",
+        action="store_true",
+        help="List existing session IDs and exit."
+    )
     return parser.parse_args()
 
 
@@ -96,15 +108,26 @@ def load_state(file_path:str) -> dict:
 
 async def main_cmd(args: argparse.Namespace):
 
+    if args.list_sessions:
+        files = [f for f in os.listdir() if f.startswith("state_") and f.endswith(".json")]
+        sessions = [f[len("state_"):-5] for f in files]
+        print("Available sessions:", sessions or "<none>")
+        return
+
+    session_id: str = args.session_id or str(uuid.uuid4())
+    state_file = f"state_{session_id}.json"
+    print(f" use session_id = {session_id!r},state_file:{state_file}")
+
     workflow = await PlanningWorkflow.create(args.config)
+
     try:
-        team_state = load_state("state.json")
+        team_state = load_state(state_file)
         await workflow.team.load_state(team_state)
-        logging.info("Loaded previous state.json")
+        logging.info(f"Loaded previous state from {state_file}")
     except FileNotFoundError:
-        logging.info("state.json 不存在，使用初始状态")
+        logging.info(f"{state_file} not found; using initial state")
     except Exception as e:
-        logging.error(f"加载 state.json 失败：{e}")
+        logging.error(f"Failed to load state.json: {e}")
 
     try:
         while True:
@@ -112,18 +135,18 @@ async def main_cmd(args: argparse.Namespace):
                 user_input = input("User: ")
                 if user_input.lower() in ["quit", "exit", "q"]:
                     state = await workflow.team.save_state()
-                    with open("state.json", "w") as f:
+                    with open(state_file, "w") as f:
                         json.dump(state, f)
-                    logging.info("退出前已保存 state.json")
+                    logging.info(f"Saved state to {state_file} before exit")
                     break
                 run_task = asyncio.create_task(
                     Console(workflow.run_workflow(user_input))
                 )
                 await run_task
                 state = await workflow.team.save_state()
-                with open("state.json", "w") as f:
+                with open(state_file, "w") as f:
                     json.dump(state, f)
-                logging.info("已保存 state.json")
+                logging.info(f"Saved state to {state_file}")
 
             except KeyboardInterrupt:
                 break
