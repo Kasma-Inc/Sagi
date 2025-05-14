@@ -86,7 +86,7 @@ print("Hello World")
 
         elif isinstance(result, CodeFileMessage):
             assert result.code_file.endswith(".py")
-            assert result.command.split(" ")[0].endswith("python")
+            assert result.command.split(" ")[0].endswith(("python", "python3"))
 
 
 @pytest.mark.asyncio

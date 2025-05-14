@@ -61,7 +61,7 @@ def parse_args():
 
 
 # load env variables
-load_dotenv()
+load_dotenv(override=True)
 
 
 def setup_tracing(endpoint: str = None, service_name: str = None):

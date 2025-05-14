@@ -79,7 +79,7 @@ class PlanningWorkflow:
             model_info = None
 
         if model_info is not None:
-            self.model_client = OpenAIChatCompletionClient(
+            self.orchestrator_model_client = OpenAIChatCompletionClient(
                 model=config_orchestrator_client["model"],
                 base_url=config_orchestrator_client["base_url"],
                 api_key=config_orchestrator_client["api_key"],
@@ -87,7 +87,7 @@ class PlanningWorkflow:
                 model_info=model_info,
             )
         else:
-            self.model_client = OpenAIChatCompletionClient(
+            self.orchestrator_model_client = OpenAIChatCompletionClient(
                 model=config_orchestrator_client["model"],
                 base_url=config_orchestrator_client["base_url"],
                 api_key=config_orchestrator_client["api_key"],
@@ -256,7 +256,7 @@ class PlanningWorkflow:
         rag_agent = AssistantAgent(
             name="retrieval_agent",
             description="a retrieval agent that provides relevant information from the internal database.",
-            model_client=self.model_client,
+            model_client=self.orchestrator_model_client,
             tools=hirag_retrival_tools,  # type: ignore
             system_message="You are a information retrieval agent that provides relevant information from the internal database.",
         )
@@ -264,14 +264,14 @@ class PlanningWorkflow:
         # for new feat: domain specific prompt
         domain_specific_agent = AssistantAgent(
             name="prompt_template_expert",
-            model_client=self.model_client,
+            model_client=self.orchestrator_model_client,
             tools=domain_specific_tools,  # type: ignore
             system_message="You are a prompt expert that provides structured templates for different domains.",
         )
 
         general_agent = AssistantAgent(
             name="general_agent",
-            model_client=self.model_client,
+            model_client=self.orchestrator_model_client,
             description="a general agent that provides answer for simple questions.",
             system_message="You are a general AI assistant that provides answer for simple questions.",
         )
@@ -279,7 +279,7 @@ class PlanningWorkflow:
         surfer = AssistantAgent(
             name="web_search",
             description="a web search agent that collect data and relevant information from the web.",
-            model_client=self.model_client,
+            model_client=self.orchestrator_model_client,
             reflect_on_tool_use=True,  # enable llm summary for contents web search returns
             tools=web_search_tools,  # type: ignore
         )
@@ -301,7 +301,7 @@ class PlanningWorkflow:
                 code_executor,
                 general_agent,
             ],  # can utilize rag_agent
-            model_client=self.model_client,
+            orchestrator_model_client=self.orchestrator_model_client,
             planning_model_client=self.planning_model_client,
             reflection_model_client=self.reflection_model_client,
             domain_specific_agent=domain_specific_agent,  # Add this parameter

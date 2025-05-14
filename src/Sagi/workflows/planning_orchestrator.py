@@ -77,7 +77,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         participant_descriptions: List[str],
         max_turns: int | None,
         message_factory: MessageFactory,
-        model_client: ChatCompletionClient,
+        orchestrator_model_client: ChatCompletionClient,
         output_message_queue: asyncio.Queue[
             AgentEvent | ChatMessage | GroupChatTermination
         ],
@@ -102,7 +102,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
             output_message_queue=output_message_queue,
             termination_condition=termination_condition,
         )
-        self._model_client = model_client
+        self._orchestrator_model_client = orchestrator_model_client
         self._planning_model_client = planning_model_client
         self._reflection_model_client = reflection_model_client
         self._step_triage_model_client = step_triage_model_client
@@ -244,7 +244,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         facts_prompt = self._prompt_templates["facts_prompt"].format(task=task)
         facts_conversation = [UserMessage(content=facts_prompt, source=self._name)]
         facts_response = await self._llm_create(
-            self._model_client, facts_conversation, ctx.cancellation_token
+            self._orchestrator_model_client, facts_conversation, ctx.cancellation_token
         )
         return AssistantMessage(content=facts_response, source=self._name)
 
@@ -564,22 +564,24 @@ class PlanningOrchestrator(BaseGroupChatManager):
     async def _update_plan_with_feedback(
         self, message: UserInputMessage, cancellation_token: CancellationToken
     ) -> None:
-        feedback = message.messages[-1].content
+        human_feedback = await self._compose_task(message)
         planning_conversation = []
         current_plan_contents = json.dumps(
             self._plan_manager.get_current_plan_contents(), indent=4
         )
         planning_conversation.append(
             UserMessage(
-                content=f"Current Plan:\n{current_plan_contents}\n\n Update the current plan based on the following feedback:\n\nUser Feedback: {feedback}\n\n",
+                content=f"Current Plan:\n{current_plan_contents}\n\n Update the current plan based on the following feedback:\n\nUser Feedback: {human_feedback}\n\n",
                 source=self._name,
             )
         )
         plan_response = await self._llm_create(
             self._planning_model_client, planning_conversation, cancellation_token
         )
-        task = await self._compose_task(message)
-        self._plan_manager.new_plan(task=task, model_response=plan_response)
+        self._plan_manager.new_plan(
+            model_response=plan_response,
+            human_feedback=human_feedback,
+        )
 
     async def _check_step_completion(
         self,
@@ -660,7 +662,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         context.append(UserMessage(content=final_answer_prompt, source=self._name))
 
         final_answer_response = await self._llm_create(
-            self._model_client, context, cancellation_token
+            self._orchestrator_model_client, context, cancellation_token
         )
         message = TextMessage(content=final_answer_response, source=self._name)
 

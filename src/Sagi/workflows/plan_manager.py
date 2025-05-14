@@ -310,9 +310,11 @@ class PlanManager:
         Attributes:
             _plan_history (PlanHistory): A container for all plans created in the session.
             _current_plan (Optional[Plan]): The currently active plan, or None if no plan is active.
+            _human_feedback (OrderedDict[Tuple[str, ...], str]): A dictionary mapping previous plan content to corresponding human feedback.
         """
         self._plan_history = PlanHistory(plan_history=[])
         self._current_plan: Optional[Plan] = None
+        self._human_feedback: OrderedDict[Tuple[str, ...], str] = OrderedDict()
 
     def is_plan_awaiting_confirmation(self) -> bool:
         """
@@ -337,18 +339,22 @@ class PlanManager:
         """
         return len(self._plan_history.plan_history)
 
-    def new_plan(self, task: str, model_response: str) -> None:
+    def new_plan(
+        self, task: str = "", model_response: str = "", human_feedback: str = ""
+    ) -> None:
         """
         Set a new plan based on the task and model response.
 
         This method creates a new Plan object with steps extracted from the model response.
         The plan is set as the current plan and marked as awaiting confirmation.
+        Adds previous plan with human feedback to the feedback dictionary.
 
         Args:
             task (str): The task description for the plan.
             model_response (str): JSON string containing the steps for the plan.
                                  Expected format: {"steps": [{"name": "...", "description": "...",
                                  "data_collection_task": "...", "code_executor_task": "..."}]}
+            human_feedback (str): Feedback provided by the user about the plan.
 
         Returns:
             None
@@ -403,6 +409,13 @@ class PlanManager:
             except json.JSONDecodeError:
                 raise ValueError("Model response must be a valid JSON string")
 
+        if not task:
+            task = self._current_plan.task if self._current_plan else ""
+        if human_feedback and self._current_plan:
+            # Save previous plan's feedback
+            self._human_feedback[tuple(self._current_plan.get_all_contents())] = (
+                human_feedback
+            )
         validate_model_response(model_response)
         current_plan_steps = json.loads(model_response)["steps"]
 
@@ -428,7 +441,7 @@ class PlanManager:
                 content = f"{step_name}: {step_description}"
                 append_step(steps, step_id, content)
                 step_id += 1
-
+        # Create new plan
         self._current_plan = Plan(
             plan_id=f"plan_{uuid.uuid4()}",
             task=task,
@@ -448,10 +461,7 @@ class PlanManager:
         """
         if not isinstance(self._current_plan, Plan):
             raise TypeError("Current plan must be a Plan object")
-        if self._current_plan:
-            self._current_plan.awaiting_confirmation = False
-        else:
-            raise ValueError("No running plan to confirm")
+        self._current_plan.awaiting_confirmation = False
 
     def set_step_state(
         self,
@@ -700,6 +710,7 @@ class PlanManager:
         return {
             "plan_history": self._plan_history.dump(),
             "current_plan": (self._current_plan.dump() if self._current_plan else None),
+            "human_feedback": {",".join(k): v for k, v in self._human_feedback.items()},
         }
 
     @classmethod
@@ -717,6 +728,9 @@ class PlanManager:
         obj._plan_history = PlanHistory.load(data["plan_history"])
         obj._current_plan = (
             Plan.load(data["current_plan"]) if data.get("current_plan") else None
+        )
+        obj._human_feedback = OrderedDict(
+            (tuple(k.split(",")), v) for k, v in data.get("human_feedback", {}).items()
         )
         return obj
 

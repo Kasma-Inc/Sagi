@@ -26,7 +26,7 @@ class PlanningGroupChat(BaseGroupChat):
     def __init__(
         self,
         participants: List[ChatAgent],
-        model_client: ChatCompletionClient,
+        orchestrator_model_client: ChatCompletionClient,
         *,
         termination_condition: TerminationCondition | None = None,
         max_turns: int | None = None,
@@ -54,7 +54,7 @@ class PlanningGroupChat(BaseGroupChat):
                 "At least one participant is required for MagenticOneGroupChat."
             )
         # Initialize the model clients.
-        self._model_client = model_client
+        self._orchestrator_model_client = orchestrator_model_client
         self._planning_model_client = planning_model_client  # for json plan output
         self._reflection_model_client = (
             reflection_model_client  # for new feat: reflection
@@ -164,7 +164,7 @@ class PlanningGroupChat(BaseGroupChat):
             participant_descriptions=participant_descriptions,
             max_turns=max_turns,
             message_factory=self._message_factory,
-            model_client=self._model_client,
+            orchestrator_model_client=self._orchestrator_model_client,
             output_message_queue=output_message_queue,
             termination_condition=termination_condition,
             emit_team_events=self._emit_team_events,
