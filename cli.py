@@ -17,6 +17,8 @@ from opentelemetry.semconv.resource import ResourceAttributes
 
 from Sagi.utils.logging import format_json_string_factory
 from Sagi.workflows.planning import PlanningWorkflow
+from autogen_agentchat.messages import BaseMessage
+
 
 # Create logging directory if it doesn't exist
 os.makedirs("logging", exist_ok=True)
@@ -81,16 +83,38 @@ def setup_tracing(endpoint: str = None, service_name: str = None):
     except Exception as e:
         logging.error(f"Failed to setup tracing: {e}")
         return None
+    
+def _default_to_text(self) -> str:
+    return getattr(self, "content", repr(self))
 
+BaseMessage.to_text = _default_to_text
+
+def load_state(file_path:str) -> dict:
+    with open(file_path, "r") as f:
+        state = json.load(f)
+        return state
 
 async def main_cmd(args: argparse.Namespace):
+
     workflow = await PlanningWorkflow.create(args.config)
+    try:
+        team_state = load_state("state.json")
+        await workflow.team.load_state(team_state)
+        logging.info("Loaded previous state.json")
+    except FileNotFoundError:
+        logging.info("state.json 不存在，使用初始状态")
+    except Exception as e:
+        logging.error(f"加载 state.json 失败：{e}")
 
     try:
         while True:
             try:
                 user_input = input("User: ")
                 if user_input.lower() in ["quit", "exit", "q"]:
+                    state = await workflow.team.save_state()
+                    with open("state.json", "w") as f:
+                        json.dump(state, f)
+                    logging.info("退出前已保存 state.json")
                     break
                 run_task = asyncio.create_task(
                     Console(workflow.run_workflow(user_input))
@@ -99,6 +123,7 @@ async def main_cmd(args: argparse.Namespace):
                 state = await workflow.team.save_state()
                 with open("state.json", "w") as f:
                     json.dump(state, f)
+                logging.info("已保存 state.json")
 
             except KeyboardInterrupt:
                 break
