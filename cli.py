@@ -1,11 +1,12 @@
 import argparse
 import asyncio
-import json
 import logging
 import os
+import uuid
 from datetime import datetime
 
 from autogen_agentchat import TRACE_LOGGER_NAME
+from autogen_agentchat.messages import BaseMessage
 from autogen_agentchat.ui import Console
 from dotenv import load_dotenv
 from opentelemetry import trace
@@ -16,6 +17,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.semconv.resource import ResourceAttributes
 
 from Sagi.utils.logging import format_json_string_factory
+from Sagi.utils.queries import Database
 from Sagi.workflows.planning import PlanningWorkflow
 
 # Create logging directory if it doesn't exist
@@ -38,24 +40,31 @@ trace_logger.setLevel(logging.INFO)
 
 def parse_args():
     parser = argparse.ArgumentParser("Sagi CLI")
-    parser.add_argument("--env", type=str, choices=["dev", "prod"], default="dev")
-    parser.add_argument(
-        "--config", type=str, default="src/Sagi/workflows/planning.toml"
-    )
+    parser.add_argument("--env", choices=["dev", "prod"], default="dev")
+    parser.add_argument("--config", default="src/Sagi/workflows/planning.toml")
     parser.add_argument(
         "--trace", action="store_true", help="Enable OpenTelemetry tracing"
     )
     parser.add_argument(
         "--trace_endpoint",
-        type=str,
         default="http://localhost:4317",
         help="OpenTelemetry collector endpoint",
     )
     parser.add_argument(
         "--trace_service_name",
-        type=str,
         default="sagi_tracer",
         help="Service name for OpenTelemetry tracing",
+    )
+    parser.add_argument(
+        "-s",
+        "--session-id",
+        type=str,
+        help="Specify the session ID to load or save; if not provided, one will be generated automatically.",
+    )
+    parser.add_argument(
+        "--list-sessions",
+        action="store_true",
+        help="List existing session IDs and exit.",
     )
     return parser.parse_args()
 
@@ -68,13 +77,12 @@ def setup_tracing(endpoint: str = None, service_name: str = None):
     """Setup OpenTelemetry tracing based on args."""
 
     try:
-        otel_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
-        tracer_provider = TracerProvider(
+        exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
+        provider = TracerProvider(
             resource=Resource.create({ResourceAttributes.SERVICE_NAME: service_name})
         )
-        span_processor = BatchSpanProcessor(otel_exporter)
-        tracer_provider.add_span_processor(span_processor)
-        trace.set_tracer_provider(tracer_provider)
+        provider.add_span_processor(BatchSpanProcessor(exporter))
+        trace.set_tracer_provider(provider)
         tracer = trace.get_tracer(service_name)
         logging.info(f"OpenTelemetry tracing enabled, exporting to {endpoint}")
         return tracer
@@ -83,30 +91,61 @@ def setup_tracing(endpoint: str = None, service_name: str = None):
         return None
 
 
+def _default_to_text(self) -> str:
+    return getattr(self, "content", repr(self))
+
+
+BaseMessage.to_text = _default_to_text
+
+
+DB_URL = os.getenv("POSTGRES_URL_NO_SSL_DEV")
+if not DB_URL:
+    raise RuntimeError("Environment variable POSTGRES_URL_NO_SSL_DEV is not set!")
+
+
 async def main_cmd(args: argparse.Namespace):
+
+    db = Database(DB_URL)
+    await db.init()
+
+    # List sessions and exit
+    if args.list_sessions:
+        sessions = await db.list_sessions()
+        logging.info("Available sessions:", sessions or ["<none>"])
+        await db.close()
+        return
+
+    session_id = args.session_id or str(uuid.uuid4())
+    logging.info(f"use session_id = {session_id!r}")
+
     workflow = await PlanningWorkflow.create(args.config)
+
+    # Load previous state
+    try:
+        team_state = await db.load_state(session_id)
+        await workflow.team.load_state(team_state)
+        logging.info(f"Loaded DB state for session {session_id}")
+    except KeyError:
+        logging.info(f"No DB state for session {session_id}; starting fresh")
+    except Exception as e:
+        logging.error(f"DB load error: {e}")
 
     try:
         while True:
-            try:
-                user_input = input("User: ")
-                if user_input.lower() in ["quit", "exit", "q"]:
-                    break
-                run_task = asyncio.create_task(
-                    Console(workflow.run_workflow(user_input))
-                )
-                await run_task
+            user_input = input("User: ")
+            if user_input.lower() in ("quit", "exit", "q"):
                 state = await workflow.team.save_state()
-                with open("state.json", "w") as f:
-                    json.dump(state, f)
+                await db.save_state(session_id, state)
+                logging.info(f"Saved DB state before exit for {session_id}")
+                break
 
-            except KeyboardInterrupt:
-                break
-            except Exception as e:
-                logging.error(f"Error: {e}")
-                break
+            await asyncio.create_task(Console(workflow.run_workflow(user_input)))
+            state = await workflow.team.save_state()
+            await db.save_state(session_id, state)
+            logging.info(f"Saved DB state for {session_id}")
     finally:
         await workflow.cleanup()
+        await db.close()
         logging.info("Workflow cleaned up.")
 
 
