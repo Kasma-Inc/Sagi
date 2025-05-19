@@ -194,6 +194,31 @@ class PlanningWorkflow:
                 max_tokens=config_code_client["max_tokens"],
             )
 
+        config_single_tool_use_client = config["model_clients"][
+            "single_tool_use_client"
+        ]
+        if model_info is not None:
+            self.single_tool_use_model_client = OpenAIChatCompletionClient(
+                model=config_single_tool_use_client["model"],
+                base_url=config_single_tool_use_client["base_url"],
+                api_key=config_single_tool_use_client["api_key"],
+                max_tokens=config_single_tool_use_client["max_tokens"],
+                parallel_tool_calls=config_single_tool_use_client[
+                    "parallel_tool_calls"
+                ],
+                model_info=model_info,
+            )
+        else:
+            self.single_tool_use_model_client = OpenAIChatCompletionClient(
+                model=config_single_tool_use_client["model"],
+                base_url=config_single_tool_use_client["base_url"],
+                api_key=config_single_tool_use_client["api_key"],
+                max_tokens=config_single_tool_use_client["max_tokens"],
+                parallel_tool_calls=config_single_tool_use_client[
+                    "parallel_tool_calls"
+                ],
+            )
+
     @classmethod
     async def create(
         cls,
@@ -233,38 +258,40 @@ class PlanningWorkflow:
         )
         domain_specific_tools = await mcp_server_tools(prompt_server_params)
 
-        hirag_server_params = StdioServerParams(
-            command="uv",
-            args=[
-                "--directory",
-                os.path.join(mcp_server_path, "hirag_mcp"),
-                "run",
-                "python",
-                "server.py",
-            ],
-            read_timeout_seconds=100,
-        )
+        # ========== Uncomment below code block if you want to use rag_agent ==========
+        # hirag_server_params = StdioServerParams(
+        #     command="uv",
+        #     args=[
+        #         "--directory",
+        #         os.path.join(mcp_server_path, "hirag_mcp"),
+        #         "run",
+        #         "python",
+        #         "server.py",
+        #     ],
+        #     read_timeout_seconds=100,
+        # )
 
-        self.hirag_retrival = await self.session_manager.create_session(
-            "hirag_retrival", create_mcp_server_session(hirag_server_params)
-        )
-        await self.hirag_retrival.initialize()
-        hirag_retrival_tools = await mcp_server_tools(
-            hirag_server_params, session=self.hirag_retrival
-        )
+        # self.hirag_retrival = await self.session_manager.create_session(
+        #     "hirag_retrival", create_mcp_server_session(hirag_server_params)
+        # )
+        # await self.hirag_retrival.initialize()
+        # hirag_retrival_tools = await mcp_server_tools(
+        #     hirag_server_params, session=self.hirag_retrival
+        # )
 
-        rag_agent = AssistantAgent(
-            name="retrieval_agent",
-            description="a retrieval agent that provides relevant information from the internal database.",
-            model_client=self.orchestrator_model_client,
-            tools=hirag_retrival_tools,  # type: ignore
-            system_message="You are a information retrieval agent that provides relevant information from the internal database.",
-        )
+        # rag_agent = AssistantAgent(
+        #     name="retrieval_agent",
+        #     description="a retrieval agent that provides relevant information from the internal database.",
+        #     model_client=self.orchestrator_model_client,
+        #     tools=hirag_retrival_tools,  # type: ignore
+        #     system_message="You are a information retrieval agent that provides relevant information from the internal database.",
+        # )
+        # ========== Uncomment above code block if you want to use rag_agent ==========
 
         # for new feat: domain specific prompt
         domain_specific_agent = AssistantAgent(
             name="prompt_template_expert",
-            model_client=self.orchestrator_model_client,
+            model_client=self.single_tool_use_model_client,
             tools=domain_specific_tools,  # type: ignore
             system_message="You are a prompt expert that provides structured templates for different domains.",
         )
@@ -289,6 +316,7 @@ class PlanningWorkflow:
         code_executor = StreamCodeExecutorAgent(
             name="CodeExecutor",
             description="a code executor agent that handles code related tasks.",
+            system_message="You are a Code Execution Agent. Your role is to generate and execute Python code and shell scripts based on user instructions, ensuring correctness, efficiency, and minimal errors. Handle edge cases gracefully. Python code should be provided in ```python code blocks, and sh shell scripts should be provided in ```sh code blocks for execution.",
             stream_code_executor=StreamLocalCommandLineCodeExecutor(work_dir=work_dir),
             model_client=self.code_model_client,
             max_retries_on_error=3,
