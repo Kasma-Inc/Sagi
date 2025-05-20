@@ -307,7 +307,7 @@ class PlanningWorkflow:
             name="web_search",
             description="a web search agent that collect data and relevant information from the web.",
             model_client=self.orchestrator_model_client,
-            reflect_on_tool_use=True,  # enable llm summary for contents web search returns
+            # reflect_on_tool_use=True,  # enable llm summary for contents web search returns
             tools=web_search_tools,  # type: ignore
         )
         work_dir = Path(

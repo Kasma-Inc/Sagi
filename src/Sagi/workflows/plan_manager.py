@@ -474,9 +474,9 @@ class PlanManager:
                 append_step(steps, step_id, content, group_id)
                 step_id += 1
                 tasks_added = True
-            if step.get("code_executor_task"):
+            if step.get("code_executor_task") and step.get("code_executor_task") not in ["N/A"]:
                 content = (
-                    f"code executor task for {step_name}: {step['code_executor_task']}"
+                    f"[Code Executor] {step_name}: {step['code_executor_task']}"
                 )
                 append_step(steps, step_id, content, group_id)
                 step_id += 1
@@ -657,6 +657,26 @@ class PlanManager:
             return self._current_plan.steps[step_id].step_progress_counter
         raise ValueError(f"Step with step_id {step_id} not found")
 
+    def get_current_plan_id(self) -> str:
+        """
+        Get the ID of the current plan.
+
+        Returns:
+            str: The ID of the current plan.
+        """
+        if self._current_plan:
+            return self._current_plan.plan_id
+        else:
+            raise ValueError("No running plan")
+
+    def get_total_steps_current_plan(self) -> int:
+        """
+        Get the total number of steps in the current plan.
+        """
+        if self._current_plan:
+            return len(self._current_plan.steps)
+        return 0
+    
     def increment_step_counter(self, step_id: str) -> None:
         """
         Increment the counter for a step in the current plan by step_id.
