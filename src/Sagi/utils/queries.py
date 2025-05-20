@@ -1,7 +1,6 @@
-import asyncpg
 import json
-import os
-from datetime import datetime
+
+import asyncpg
 
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS session_states (
@@ -10,6 +9,7 @@ CREATE TABLE IF NOT EXISTS session_states (
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 """
+
 
 class Database:
     def __init__(self, dsn: str):
