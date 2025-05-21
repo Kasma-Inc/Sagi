@@ -13,6 +13,7 @@ class Step(BaseModel):
 
     Attributes:
         step_id (str): The unique identifier inside the plan
+        group_id (str): A group contains multiple steps (currently are data_collection, code_executor, and general steps)
         content (str): The content describing what this step should accomplish
         step_progress_counter (int): The number of times the step has been executed, incremented by 1 each time the step is executed
         state (Literal["pending", "completed", "failed", "in_progress"]): The current state of the step
@@ -21,6 +22,7 @@ class Step(BaseModel):
     """
 
     step_id: str
+    group_id: str
     content: str
     step_progress_counter: int
     state: Literal["pending", "completed", "failed", "in_progress"]
@@ -36,6 +38,7 @@ class Step(BaseModel):
         """
         return {
             "step_id": self.step_id,
+            "group_id": self.group_id,
             "content": self.content,
             "step_progress_counter": self.step_progress_counter,
             "state": self.state,
@@ -57,6 +60,7 @@ class Step(BaseModel):
         """
         return cls(
             step_id=data["step_id"],
+            group_id=data["group_id"],
             content=data["content"],
             step_progress_counter=data.get("step_progress_counter", 0),
             state=data.get("state", "pending"),
@@ -75,7 +79,7 @@ class Plan(BaseModel):
         steps (OrderedDict[str, Step]): Dictionary mapping step IDs to Step objects.
         awaiting_confirmation (bool): Whether the plan awaits user confirmation.
         summary (Optional[str]): Summary of the plan.
-        shared_context (OrderedDict[str, str]): A dictionary to dynamically store and update the concise result summary of each completed Step.
+        shared_context (OrderedDict[str, str]): A dictionary to dynamically store and update the concise result summary of each completed task group.
     """
 
     plan_id: str
@@ -193,22 +197,24 @@ class Plan(BaseModel):
 
     def update_shared_context(self, step_id: str, summary: str) -> None:
         """
-        Update the shared_context dictionary with a new step summary.
+        Update the shared_context dictionary with a new group task summary.
 
         Args:
-            step_id (str): The unique identifier of the step.
-            summary (str): The concise summary of the step's result.
+            group_id (str): The unique identifier of the group.
+            summary (str): The concise summary of the group's result.
         """
-        if step_id not in self.steps:
-            raise ValueError(f"Step with id {step_id} not found")
-        self.shared_context[step_id] = summary
+        if step_id in self.steps:
+            group_id = self.steps[step_id].group_id
+            self.shared_context[group_id] = summary
+        else:
+            raise ValueError(f"Step with step_id {step_id} not found")
 
     def get_shared_context(self) -> OrderedDict[str, str]:
         """
         Get the current shared_context dictionary.
 
         Returns:
-            OrderedDict[str, str]: A dictionary containing the concise result summaries of completed Steps.
+            OrderedDict[str, str]: A dictionary containing the concise result summaries of completed task groups.
         """
         return self.shared_context
 
@@ -226,7 +232,7 @@ class Plan(BaseModel):
                 - steps: A dictionary mapping step IDs to their serialized representations
                 - awaiting_confirmation: Boolean indicating if the plan is awaiting user confirmation
                 - summary: The plan summary text
-                - shared_context: Dictionary mapping step IDs to their summaries
+                - shared_context: Dictionary mapping task group IDs to their summaries
         """
         return {
             "plan_id": self.plan_id,
@@ -253,7 +259,7 @@ class Plan(BaseModel):
                 - steps: A dictionary mapping step IDs to their serialized step data
                 - awaiting_confirmation: Boolean indicating if the plan is awaiting user confirmation
                 - summary: The plan summary text
-                - shared_context: Dictionary mapping step IDs to their summaries
+                - shared_context: Dictionary mapping task group IDs to their summaries
 
         Returns:
             Plan: A new Plan object populated with the deserialized data
@@ -394,7 +400,7 @@ class PlanManager:
         """
 
         def append_step(
-            steps: Dict[str, Step], step_id: int, content: str, sub_task_type: str = ""
+            steps: Dict[str, Step], step_id: int, content: str, group_id: int
         ):
             """
             Utility function to append a step to the plan.
@@ -403,15 +409,11 @@ class PlanManager:
                 steps (Dict[str, Step]): A dictionary mapping step IDs to Step objects.
                 step_id (int): The unique identifier for the step.
                 content (str): The content of the step.
-                sub_task_type (str): The type of sub-task (data_collection or code_executor).
+                group_id (int): The group identifier.
             """
-            step_key = (
-                f"step_{step_id}_{sub_task_type}"
-                if sub_task_type
-                else f"step_{step_id}"
-            )
-            steps[step_key] = Step(
-                step_id=f"step_{step_id}",  # Use the same step_id for related sub-tasks
+            steps[f"step_{step_id}"] = Step(
+                step_id=f"step_{step_id}",
+                group_id=f"group_{group_id}",
                 content=content,
                 step_progress_counter=0,
                 state="pending",
@@ -461,29 +463,29 @@ class PlanManager:
         validate_model_response(model_response)
         current_plan_steps = json.loads(model_response)["steps"]
 
-        steps, step_id = {}, 0
+        steps, step_id, group_id = {}, 0, 0
         for step in current_plan_steps:
             step_name = step["name"]
             step_description = step["description"]
             tasks_added = False
 
-            # add data collection sub-task if present
             if step.get("data_collection_task"):
-                content = f"data collection sub-task for {step_name}: {step['data_collection_task']}"
-                append_step(steps, step_id, content, "data_collection")
+                content = f"data collection task for {step_name}: {step['data_collection_task']}"
+                append_step(steps, step_id, content, group_id)
+                step_id += 1
                 tasks_added = True
-            # add code executor sub-task if present
             if step.get("code_executor_task"):
-                content = f"code executor sub-task for {step_name}: {step['code_executor_task']}"
-                append_step(steps, step_id, content, "code_executor")
+                content = (
+                    f"code executor task for {step_name}: {step['code_executor_task']}"
+                )
+                append_step(steps, step_id, content, group_id)
+                step_id += 1
                 tasks_added = True
-
             if not tasks_added:
                 content = f"{step_name}: {step_description}"
-                append_step(steps, step_id, content)
-
-            step_id += 1
-
+                append_step(steps, step_id, content, group_id)
+                step_id += 1
+            group_id += 1
         # Create new plan
         self._current_plan = Plan(
             plan_id=f"plan_{uuid.uuid4()}",
