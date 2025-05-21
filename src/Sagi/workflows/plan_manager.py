@@ -393,16 +393,25 @@ class PlanManager:
             None
         """
 
-        def append_step(steps: Dict[str, Step], step_id: int, content: str):
+        def append_step(
+            steps: Dict[str, Step], step_id: int, content: str, sub_task_type: str = ""
+        ):
             """
             Utility function to append a step to the plan.
 
             Args:
                 steps (Dict[str, Step]): A dictionary mapping step IDs to Step objects.
                 step_id (int): The unique identifier for the step.
+                content (str): The content of the step.
+                sub_task_type (str): The type of sub-task (data_collection or code_executor).
             """
-            steps[f"step_{step_id}"] = Step(
-                step_id=f"step_{step_id}",
+            step_key = (
+                f"step_{step_id}_{sub_task_type}"
+                if sub_task_type
+                else f"step_{step_id}"
+            )
+            steps[step_key] = Step(
+                step_id=f"step_{step_id}",  # Use the same step_id for related sub-tasks
                 content=content,
                 step_progress_counter=0,
                 state="pending",
@@ -458,22 +467,23 @@ class PlanManager:
             step_description = step["description"]
             tasks_added = False
 
+            # add data collection sub-task if present
             if step.get("data_collection_task"):
-                content = f"data collection task for {step_name}: {step['data_collection_task']}"
-                append_step(steps, step_id, content)
-                step_id += 1
+                content = f"data collection sub-task for {step_name}: {step['data_collection_task']}"
+                append_step(steps, step_id, content, "data_collection")
                 tasks_added = True
+            # add code executor sub-task if present
             if step.get("code_executor_task"):
-                content = (
-                    f"code executor task for {step_name}: {step['code_executor_task']}"
-                )
-                append_step(steps, step_id, content)
-                step_id += 1
+                content = f"code executor sub-task for {step_name}: {step['code_executor_task']}"
+                append_step(steps, step_id, content, "code_executor")
                 tasks_added = True
+
             if not tasks_added:
                 content = f"{step_name}: {step_description}"
                 append_step(steps, step_id, content)
-                step_id += 1
+
+            step_id += 1
+
         # Create new plan
         self._current_plan = Plan(
             plan_id=f"plan_{uuid.uuid4()}",
