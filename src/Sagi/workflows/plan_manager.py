@@ -4,7 +4,7 @@ from collections import OrderedDict
 from typing import Dict, List, Literal, Optional, Tuple
 
 from autogen_agentchat.messages import BaseAgentEvent, BaseChatMessage, BaseMessage
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Step(BaseModel):
@@ -75,6 +75,7 @@ class Plan(BaseModel):
         steps (OrderedDict[str, Step]): Dictionary mapping step IDs to Step objects.
         awaiting_confirmation (bool): Whether the plan awaits user confirmation.
         summary (Optional[str]): Summary of the plan.
+        shared_context (OrderedDict[str, str]): A dictionary to dynamically store and update the concise result summary of each completed Step.
     """
 
     plan_id: str
@@ -82,6 +83,9 @@ class Plan(BaseModel):
     steps: OrderedDict[str, Step]
     awaiting_confirmation: bool
     summary: Optional[str]
+    shared_context: OrderedDict[str, str] = Field(
+        default_factory=OrderedDict
+    )  # Initialize as empty OrderedDict
 
     def get_current_step(self) -> Optional[Tuple[str, str]]:
         """
@@ -187,6 +191,27 @@ class Plan(BaseModel):
         """
         return self.summary
 
+    def update_shared_context(self, step_id: str, summary: str) -> None:
+        """
+        Update the shared_context dictionary with a new step summary.
+
+        Args:
+            step_id (str): The unique identifier of the step.
+            summary (str): The concise summary of the step's result.
+        """
+        if step_id not in self.steps:
+            raise ValueError(f"Step with id {step_id} not found")
+        self.shared_context[step_id] = summary
+
+    def get_shared_context(self) -> OrderedDict[str, str]:
+        """
+        Get the current shared_context dictionary.
+
+        Returns:
+            OrderedDict[str, str]: A dictionary containing the concise result summaries of completed Steps.
+        """
+        return self.shared_context
+
     def dump(self) -> Dict:
         """
         Serialize the plan to a dictionary format.
@@ -201,6 +226,7 @@ class Plan(BaseModel):
                 - steps: A dictionary mapping step IDs to their serialized representations
                 - awaiting_confirmation: Boolean indicating if the plan is awaiting user confirmation
                 - summary: The plan summary text
+                - shared_context: Dictionary mapping step IDs to their summaries
         """
         return {
             "plan_id": self.plan_id,
@@ -208,6 +234,9 @@ class Plan(BaseModel):
             "awaiting_confirmation": self.awaiting_confirmation,
             "summary": self.summary,
             "task": self.task,
+            "shared_context": dict(
+                self.shared_context
+            ),  # Convert OrderedDict to regular dict for serialization
         }
 
     @classmethod
@@ -224,6 +253,7 @@ class Plan(BaseModel):
                 - steps: A dictionary mapping step IDs to their serialized step data
                 - awaiting_confirmation: Boolean indicating if the plan is awaiting user confirmation
                 - summary: The plan summary text
+                - shared_context: Dictionary mapping step IDs to their summaries
 
         Returns:
             Plan: A new Plan object populated with the deserialized data
@@ -236,6 +266,9 @@ class Plan(BaseModel):
             awaiting_confirmation=data["awaiting_confirmation"],
             summary=data["summary"],
             task=data["task"],
+            shared_context=OrderedDict(
+                data.get("shared_context", {})
+            ),  # Convert dict back to OrderedDict
         )
 
 
