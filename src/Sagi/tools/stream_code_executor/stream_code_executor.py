@@ -8,8 +8,9 @@ from autogen_core.code_executor import CodeBlock, CodeExecutor, CodeResult
 
 class CodeFileMessage(BaseTextChatMessage):
     code_file: str
-    command: str
+    # command: str
     content: str
+    type: str = "CodeFileMessage"
 
 
 class StreamCodeExecutor(CodeExecutor):

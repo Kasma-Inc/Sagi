@@ -217,7 +217,21 @@ class PlanningOrchestrator(BaseGroupChatManager):
         if message.agent_response.inner_messages is not None:
             for inner_message in message.agent_response.inner_messages:
                 delta.append(inner_message)
+                inner_message.metadata["step_id"] = (
+                    self._plan_manager.get_current_step()[0]
+                )
                 await self._output_message_queue.put(inner_message)
+
+        # For web app
+        plan_state = {
+            k: v.state for k, v in self._plan_manager._current_plan.steps.items()
+        }
+        plan_state_message = TextMessage(
+            content=json.dumps(plan_state, indent=4),
+            source="PlanState",
+            metadata={"step_id": self._plan_manager.get_current_step()[0]},
+        )
+        await self._output_message_queue.put(plan_state_message)
 
         self._plan_manager.add_message_to_step(
             step_id=self._plan_manager.get_current_step()[0],
@@ -427,7 +441,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
             step_start_json = {
                 "stepId": current_step_id,
                 "content": current_step_content,
-                "totalSteps": self._plan_manager.get_total_steps_current_plan()
+                "totalSteps": self._plan_manager.get_total_steps_current_plan(),
             }
             step_start_message = TextMessage(
                 content=json.dumps(step_start_json, indent=4),
@@ -549,23 +563,14 @@ class PlanningOrchestrator(BaseGroupChatManager):
     ) -> None:
         request_user_feedback_prompt = f"Please review the plan above and provide modification suggestions. Type 'y' if the plan is acceptable."
 
-        # await self.publish_message(
-        #     GroupChatMessage(
-        #         message=TextMessage(
-        #             content=request_user_feedback_prompt, source="UserProxyAgent"
-        #         )
-        #     ),
-        #     topic_id=DefaultTopicId(type=self._output_topic_type),
-        # )
         plan_to_user_dict = {}
         plan_to_user_dict["steps"] = (
             self._plan_manager.get_current_plan_contents().copy()
         )
         # plan_to_user_dict["request_user_feedback_prompt"] = request_user_feedback_prompt
-        # Generate the feedback 
-        plan_to_user_dict["posFeedback"] = "Start to research."
-        plan_to_user_dict["negFeedback"] = "Modify the plan."
-        plan_to_user_dict["negFeedbackContent"] = f"Please provide the modification suggestions for the plan.\n\nCurrent Plan:\n{self._plan_manager.get_current_plan_contents()}"
+        # Generate the feedback
+        plan_to_user_dict["posFeedback"] = "Start to research"
+        plan_to_user_dict["negFeedback"] = "Modify the plan"
         plan_to_user_dict["planId"] = self._plan_manager.get_current_plan_id()
         await self._output_message_queue.put(
             TextMessage(
@@ -646,13 +651,8 @@ class PlanningOrchestrator(BaseGroupChatManager):
         response = await self._domain_specific_agent.on_messages(
             [message], cancellation_token=cancellation_token
         )
-        # tool_response = json.loads(response.chat_message.content)[0].get("text") 
-        # prompt_dict = json.loads(tool_response)
-        prompt_dict = {
-            "facts_prompt": 
-            "Below I will present you a request. Before we begin addressing the request, please answer the following pre-survey to the best of your ability. Keep in mind that you are Ken Jennings-level with trivia, and Mensa-level with puzzles, so there should be a deep well to draw from.\\\\n\\\\nHere is the request:\\\\n\\\\n{task}\\\\n\\\\nHere is the pre-survey:\\\\n\\\\n    1. Please list any specific facts or figures that are GIVEN in the request itself. It is possible that there are none.\\\\n    2. Please list any facts that may need to be looked up, and WHERE SPECIFICALLY they might be found. In some cases, authoritative sources are mentioned in the request itself.\\\\n    3. Please list any facts that may need to be derived (e.g., via logical deduction, simulation, or computation)\\\\n    4. Please list any facts that are recalled from memory, hunches, well-reasoned guesses, etc.\\\\n\\\\nWhen answering this survey, keep in mind that facts will typically be specific names, dates, statistics, etc. Your answer should use headings:\\\\n\\\\n    1. GIVEN OR VERIFIED FACTS\\\\n    2. FACTS TO LOOK UP\\\\n    3. FACTS TO DERIVE\\\\n    4. EDUCATED GUESSES\\\\n\\\\nDO NOT include any other headings or sections in your response. DO NOT list next steps or plans until asked to do so.\\\\n\\", 
-            "plan_prompt": "Fantastic. To address this request we have assembled the following team:\\\\n\\\\n{team}\\\\n\\\\nUSER QUERY: {task}\\\\n\\\\nYou are a professional planning assistant. \\\\nBased on the team composition, user query, and known and unknown facts, please devise a plan for addressing the USER QUERY. Remember, there is no requirement to involve all team members -- a team member particular expertise may not be needed for this task.\\\\n\\\\nEach plan step should contain the following elements:\\\\n1. name: A short title for this step\\\\n2. description: Detailed explanation of the step objective and financial content\\\\n3. data_collection_task: Specific instructions for gathering financial data needed for this step (optional)\\\\n4. code_executor_task: Description of what code executor should do, JUST DETAILED DESCRIPTION IS OK, NOT ACTUAL CODE BLOCK.(optional)\\\\n\\"
-        }
+        tool_response = json.loads(response.chat_message.content)[0].get("text")
+        prompt_dict = json.loads(tool_response)
         return prompt_dict
 
     async def load_state(self, state: Mapping[str, Any]) -> None:
@@ -682,7 +682,17 @@ class PlanningOrchestrator(BaseGroupChatManager):
         final_answer_response = await self._llm_create(
             self._orchestrator_model_client, context, cancellation_token
         )
-        message = TextMessage(content=final_answer_response, source=self._name)
+
+        message = TextMessage(
+            content=json.dumps(
+                {
+                    "content": final_answer_response,
+                    "planId": self._plan_manager.get_current_plan_id(),
+                },
+                indent=4,
+            ),
+            source="final_answer",
+        )
 
         self._plan_manager.add_summary_to_plan(
             summary=message.content,

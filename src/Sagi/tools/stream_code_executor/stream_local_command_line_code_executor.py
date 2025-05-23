@@ -1,5 +1,7 @@
 import asyncio
+import json
 import os
+import subprocess
 import sys
 from hashlib import sha256
 from pathlib import Path
@@ -161,11 +163,17 @@ class StreamLocalCommandLineCodeExecutor(
                     extra_args = [str(written_file.absolute())]
 
             command = " ".join([program] + extra_args)
+            content_json = {
+                "code_file": str(self.work_dir / filename),
+                # "command": command,
+                "code_block": code_block.code,
+                "code_block_language": code_block.language,
+            }
             yield CodeFileMessage(
-                content=f"Code file: {str(self.work_dir / filename)}\nCommand: {command}",
+                content=json.dumps(content_json),
                 code_file=str(self.work_dir / filename),
-                command=command,
-                source="stream_local_command_line_code_executor",
+                # command=command,
+                source=self.__class__.__name__,
             )
             # Create a subprocess and run
             task = asyncio.create_task(
@@ -209,7 +217,22 @@ class StreamLocalCommandLineCodeExecutor(
             if exitcode != 0:
                 break
 
+        hostname = subprocess.check_output("hostname").decode().strip()
+        user = subprocess.check_output("whoami").decode().strip()
+        pwd = (
+            subprocess.check_output("pwd")
+            .decode()
+            .strip()
+            .replace(os.path.expanduser("~"), "~")
+        )
+
         code_file = str(file_names[0]) if file_names else None
         yield CommandLineCodeResult(
-            exit_code=exitcode, output=logs_all, code_file=code_file
+            exit_code=exitcode,
+            output=logs_all,
+            code_file=code_file,
+            command=command,
+            hostname=hostname,
+            user=user,
+            pwd=pwd,
         )

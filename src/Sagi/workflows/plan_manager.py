@@ -676,7 +676,7 @@ class PlanManager:
         if self._current_plan:
             return len(self._current_plan.steps)
         return 0
-    
+
     def increment_step_counter(self, step_id: str) -> None:
         """
         Increment the counter for a step in the current plan by step_id.
