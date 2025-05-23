@@ -180,13 +180,14 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                 # CodeResult stores the exit code, stdout and stderr
                 # First yield the CodeFileMessage and then the CodeResult
                 if isinstance(result, CodeFileMessage):
+                    result.source = self.name
                     yield result
                     inner_messages.append(result)
                 elif isinstance(result, CodeResult):
                     # Step 9: Update model context with the code execution result
                     await model_context.add_message(
                         SystemMessage(
-                            content=f"The command {result.code_file} was executed with the following output: {result.output}",
+                            content=f"The command {result.code_file} was executed with the following output: {result.description}",
                             source=agent_name,
                         )
                     )
@@ -274,8 +275,10 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             elif isinstance(result, CodeResult):
                 if result.output.strip() == "":
                     # No output
-                    result.output = f"The script ran but produced no output to console. The POSIX exit code was: {result.exit_code}. If you were expecting output, consider revising the script to ensure content is printed to stdout."
+                    result.description = f"The script ran but produced no output to console. The POSIX exit code was: {result.exit_code}. If you were expecting output, consider revising the script to ensure content is printed to stdout."
                 elif result.exit_code != 0:
                     # Error
-                    result.output = f"The script ran, then exited with an error (POSIX exit code: {result.exit_code})\nIts output was:\n{result.output}"
-            yield result
+                    result.description = f"The script ran, then exited with an error (POSIX exit code: {result.exit_code})\nIts output was:\n{result.output}"
+                else:
+                    result.description = result.output
+                yield result
