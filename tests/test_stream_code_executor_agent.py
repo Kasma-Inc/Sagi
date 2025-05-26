@@ -11,7 +11,10 @@ from autogen_core.models import FunctionExecutionResultMessage
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from dotenv import load_dotenv
 
-from Sagi.tools.stream_code_executor.stream_code_executor import CodeFileMessage
+from Sagi.tools.stream_code_executor.stream_code_executor import (
+    CodeFileMessage,
+    CustomCommandLineCodeResult,
+)
 from Sagi.tools.stream_code_executor.stream_code_executor_agent import (
     CodeExecutionEvent,
     StreamCodeExecutorAgent,
@@ -19,7 +22,6 @@ from Sagi.tools.stream_code_executor.stream_code_executor_agent import (
 from Sagi.tools.stream_code_executor.stream_local_command_line_code_executor import (
     StreamLocalCommandLineCodeExecutor,
 )
-from Sagi.tools.stream_code_executor.stream_code_executor import CustomCommandLineCodeResult
 
 load_dotenv(override=True)
 
@@ -90,6 +92,7 @@ print("Hello World")
             assert result.code_file.endswith(".py")
         elif isinstance(result, CustomCommandLineCodeResult):
             assert result.command.split(" ")[0].endswith(("python", "python3"))
+
 
 @pytest.mark.asyncio
 async def test_local_command_line_code_executor_python_with_model():

@@ -32,9 +32,9 @@ from autogen_ext.code_executors.local import A, LocalCommandLineCodeExecutor
 
 from Sagi.tools.stream_code_executor.stream_code_executor import (
     CodeFileMessage,
+    CustomCommandLineCodeResult,
     StreamCodeExecutor,
 )
-from Sagi.tools.stream_code_executor.stream_code_executor import CustomCommandLineCodeResult
 
 
 class StreamLocalCommandLineCodeExecutor(

@@ -31,4 +31,5 @@ dependencies = [
     "pytest-asyncio==0.26.0",
     "hirag-prod @ https://github.com/Kasma-Inc/hirag-prod.git ",
     "fastapi>=0.115.12",
+    "pyflakes>=3.3.2",
 ]

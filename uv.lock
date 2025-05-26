@@ -880,7 +880,7 @@ wheels = [
 [[package]]
 name = "hirag-prod"
 version = "0.1.0"
-source = { git = "https://github.com/MaKaili/hirag-prod.git#bf9ef7095b47730c0eed47d7187a524d6bd64fa8" }
+source = { git = "https://github.com/Kasma-Inc/hirag-prod.git#e0b398614c36416838a740ea10cdf2bf6553935c" }
 dependencies = [
     { name = "agno" },
     { name = "autoflake" },
@@ -2443,6 +2443,7 @@ dependencies = [
     { name = "opentelemetry-exporter-otlp-proto-grpc" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
+    { name = "pyflakes" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "python-jose" },
@@ -2463,7 +2464,7 @@ requires-dist = [
     { name = "blackdoc", specifier = ">=0.3.9" },
     { name = "fastapi", specifier = ">=0.115.12" },
     { name = "grpcio", specifier = ">=1.71.0" },
-    { name = "hirag-prod", git = "https://github.com/MaKaili/hirag-prod.git" },
+    { name = "hirag-prod", git = "https://github.com/Kasma-Inc/hirag-prod.git" },
     { name = "hkdf", specifier = "==0.0.3" },
     { name = "isort", specifier = ">=6.0.1" },
     { name = "json-schema-to-pydantic", specifier = "==0.2.4" },
@@ -2473,6 +2474,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-grpc", specifier = ">=1.32.1" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.32.1" },
     { name = "opentelemetry-sdk", specifier = ">=1.32.1" },
+    { name = "pyflakes", specifier = ">=3.3.2" },
     { name = "pytest", specifier = "==8.3.5" },
     { name = "pytest-asyncio", specifier = "==0.26.0" },
     { name = "python-jose", specifier = "==3.4.0" },

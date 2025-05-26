@@ -14,12 +14,14 @@ class CodeFileMessage(BaseTextChatMessage):
     content: str
     type: str = "CodeFileMessage"
 
+
 @dataclass
 class CustomCommandLineCodeResult(CommandLineCodeResult):
     command: str
     hostname: str
     user: str
     pwd: str
+
 
 class StreamCodeExecutor(CodeExecutor):
     @abstractmethod
