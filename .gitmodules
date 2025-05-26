@@ -1,9 +1,0 @@
-[submodule "dev/markify"]
-	path = dev/markify
-	url = https://github.com/hhy-huang/markify.git
-[submodule "mcp_server/hirag_mcp"]
-	path = mcp_server/hirag_mcp
-	url = https://github.com/Dormiveglia-elf/hirag_mcp.git
-[submodule "src/Sagi/mcp_server/hirag_mcp"]
-	path = src/Sagi/mcp_server/hirag_mcp
-	url = https://github.com/Dormiveglia-elf/hirag_mcp.git
