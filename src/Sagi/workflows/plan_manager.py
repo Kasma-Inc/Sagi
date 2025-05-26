@@ -474,10 +474,10 @@ class PlanManager:
                 append_step(steps, step_id, content, group_id)
                 step_id += 1
                 tasks_added = True
-            if step.get("code_executor_task") and step.get("code_executor_task") not in ["N/A"]:
-                content = (
-                    f"[Code Executor] {step_name}: {step['code_executor_task']}"
-                )
+            if step.get("code_executor_task") and step.get(
+                "code_executor_task"
+            ) not in ["N/A"]:
+                content = f"[Code Executor] {step_name}: {step['code_executor_task']}"
                 append_step(steps, step_id, content, group_id)
                 step_id += 1
                 tasks_added = True
