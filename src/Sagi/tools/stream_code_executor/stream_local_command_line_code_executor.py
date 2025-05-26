@@ -24,7 +24,6 @@ from autogen_core.code_executor import (
 )
 from autogen_ext.code_executors._common import (
     PYTHON_VARIANTS,
-    CommandLineCodeResult,
     get_file_name_from_content,
     lang_to_cmd,
     silence_pip,
@@ -35,6 +34,7 @@ from Sagi.tools.stream_code_executor.stream_code_executor import (
     CodeFileMessage,
     StreamCodeExecutor,
 )
+from Sagi.tools.stream_code_executor.stream_code_executor import CustomCommandLineCodeResult
 
 
 class StreamLocalCommandLineCodeExecutor(
@@ -64,7 +64,7 @@ class StreamLocalCommandLineCodeExecutor(
 
     async def execute_code_blocks_stream(
         self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
-    ) -> AsyncGenerator[CodeFileMessage | CommandLineCodeResult, None]:
+    ) -> AsyncGenerator[CodeFileMessage | CustomCommandLineCodeResult, None]:
         if not self._setup_functions_complete:
             await self._setup_functions(cancellation_token)
 
@@ -75,7 +75,7 @@ class StreamLocalCommandLineCodeExecutor(
 
     async def _execute_code_dont_check_setup_stream(
         self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
-    ) -> AsyncGenerator[CodeFileMessage | CommandLineCodeResult, None]:
+    ) -> AsyncGenerator[CodeFileMessage | CustomCommandLineCodeResult, None]:
         logs_all: str = ""
         file_names: List[Path] = []
         exitcode = 0
@@ -101,10 +101,14 @@ class StreamLocalCommandLineCodeExecutor(
             try:
                 filename = get_file_name_from_content(code, self.work_dir)
             except ValueError:
-                yield CommandLineCodeResult(
+                yield CustomCommandLineCodeResult(
                     exit_code=1,
                     output="Filename is not in the workspace",
                     code_file=None,
+                    command="",
+                    hostname="",
+                    user="",
+                    pwd="",
                 )
                 return
 
@@ -227,7 +231,7 @@ class StreamLocalCommandLineCodeExecutor(
         )
 
         code_file = str(file_names[0]) if file_names else None
-        yield CommandLineCodeResult(
+        yield CustomCommandLineCodeResult(
             exit_code=exitcode,
             output=logs_all,
             code_file=code_file,

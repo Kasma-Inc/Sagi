@@ -1,9 +1,11 @@
 from abc import abstractmethod
+from dataclasses import dataclass
 from typing import AsyncGenerator, List
 
 from autogen_agentchat.messages import BaseTextChatMessage
 from autogen_core import CancellationToken
 from autogen_core.code_executor import CodeBlock, CodeExecutor, CodeResult
+from autogen_ext.code_executors._common import CommandLineCodeResult
 
 
 class CodeFileMessage(BaseTextChatMessage):
@@ -12,6 +14,12 @@ class CodeFileMessage(BaseTextChatMessage):
     content: str
     type: str = "CodeFileMessage"
 
+@dataclass
+class CustomCommandLineCodeResult(CommandLineCodeResult):
+    command: str
+    hostname: str
+    user: str
+    pwd: str
 
 class StreamCodeExecutor(CodeExecutor):
     @abstractmethod

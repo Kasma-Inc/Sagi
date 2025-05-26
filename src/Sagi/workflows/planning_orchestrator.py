@@ -44,7 +44,7 @@ from autogen_core.models import (
 )
 from pydantic import BaseModel, Field
 
-from Sagi.tools.stream_code_executor.stream_code_executor import CodeFileMessage
+from Sagi.tools.stream_code_executor.stream_code_executor import CodeFileMessage, CustomCommandLineCodeResult
 from Sagi.utils.prompt import (
     get_appended_plan_prompt,
     get_final_answer_prompt,

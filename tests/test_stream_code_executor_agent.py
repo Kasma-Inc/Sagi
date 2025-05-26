@@ -19,6 +19,7 @@ from Sagi.tools.stream_code_executor.stream_code_executor_agent import (
 from Sagi.tools.stream_code_executor.stream_local_command_line_code_executor import (
     StreamLocalCommandLineCodeExecutor,
 )
+from Sagi.tools.stream_code_executor.stream_code_executor import CustomCommandLineCodeResult
 
 load_dotenv(override=True)
 
@@ -52,6 +53,7 @@ echo "Hello World"
 
         elif isinstance(result, CodeFileMessage):
             assert result.code_file.endswith(".sh")
+        elif isinstance(result, CustomCommandLineCodeResult):
             assert result.command.startswith("sh")
 
 
@@ -86,8 +88,8 @@ print("Hello World")
 
         elif isinstance(result, CodeFileMessage):
             assert result.code_file.endswith(".py")
+        elif isinstance(result, CustomCommandLineCodeResult):
             assert result.command.split(" ")[0].endswith(("python", "python3"))
-
 
 @pytest.mark.asyncio
 async def test_local_command_line_code_executor_python_with_model():
