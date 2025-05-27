@@ -11,6 +11,9 @@ services:
       context: .
       dockerfile: dev/Dockerfile
     container_name: "${USER}_chatbot_python"
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - CODING_FILES_PATH=${ROOT_DIR}/coding_files
     volumes:
       - .:/chatbot
       - ${DOCKER_SOCKET_PATH}:/var/run/docker.sock

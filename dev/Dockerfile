@@ -37,6 +37,4 @@ if [ -z "$VIRTUAL_ENV" ]; then
 fi
 EOF
 
-ENV DOCKER_HOST="unix:///var/run/docker.sock"
-
 WORKDIR /chatbot

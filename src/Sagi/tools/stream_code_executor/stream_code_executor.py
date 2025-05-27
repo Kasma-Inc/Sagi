@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import AsyncGenerator, List
+from typing import AsyncGenerator, List, Literal
 
 from autogen_agentchat.messages import BaseTextChatMessage
 from autogen_core import CancellationToken
@@ -21,6 +21,10 @@ class CustomCommandLineCodeResult(CommandLineCodeResult):
     hostname: str
     user: str
     pwd: str
+
+
+class CodeResultBlockMessage(BaseTextChatMessage):
+    type: Literal["stdout", "stderr"]
 
 
 class StreamCodeExecutor(CodeExecutor):

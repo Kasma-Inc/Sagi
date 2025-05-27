@@ -72,10 +72,12 @@ pandas==2.2.3
 gdown==5.2.0
 
 mem0ai==0.1.70
-autogen-agentchat==0.5.6
-autogen-core==0.5.6
-autogen-ext==0.5.6
+autogen-agentchat==0.5.7
+autogen-core==0.5.7
+autogen-ext==0.5.7
 json-schema-to-pydantic==0.2.4
+
+docker==7.1.0
 
 # for using opentelemetry tracing
 opentelemetry-sdk

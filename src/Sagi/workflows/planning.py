@@ -19,6 +19,7 @@ from Sagi.tools.stream_code_executor.stream_code_executor_agent import (
 from Sagi.tools.stream_code_executor.stream_local_command_line_code_executor import (
     StreamLocalCommandLineCodeExecutor,
 )
+from Sagi.tools.web_search_agent import WebSearchAgent
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.workflows.planning_group_chat import PlanningGroupChat
 
@@ -303,12 +304,13 @@ class PlanningWorkflow:
             system_message="You are a general AI assistant that provides answer for simple questions.",
         )
 
-        surfer = AssistantAgent(
-            name="web_search",
+        surfer = WebSearchAgent(
+            name="web_search_agent",
             description="a web search agent that collect data and relevant information from the web.",
             model_client=self.orchestrator_model_client,
             # reflect_on_tool_use=True,  # enable llm summary for contents web search returns
             tools=web_search_tools,  # type: ignore
+            max_retries=2,
         )
         work_dir = Path(
             "coding_files"
@@ -318,6 +320,7 @@ class PlanningWorkflow:
             description="a code executor agent that handles code related tasks.",
             system_message="You are a Code Execution Agent. Your role is to generate and execute Python code and shell scripts based on user instructions, ensuring correctness, efficiency, and minimal errors. Handle edge cases gracefully. Python code should be provided in ```python code blocks, and sh shell scripts should be provided in ```sh code blocks for execution.",
             stream_code_executor=StreamLocalCommandLineCodeExecutor(work_dir=work_dir),
+            # stream_code_executor=StreamDockerCommandLineCodeExecutor(work_dir=work_dir, bind_dir=os.getenv("CODING_FILES_PATH") if os.getenv("ENVIRONMENT") == "docker" else work_dir),
             model_client=self.code_model_client,
             max_retries_on_error=3,
         )

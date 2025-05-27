@@ -1,4 +1,5 @@
 import asyncio
+import json
 from asyncio import Event
 from hashlib import sha256
 from pathlib import Path
@@ -22,7 +23,8 @@ from autogen_ext.code_executors.local import A
 from docker.types import CancellableStream, DeviceRequest
 
 from Sagi.tools.stream_code_executor.stream_code_executor import (
-    CodeResultBlock,
+    CodeFileMessage,
+    CodeResultBlockMessage,
     StreamCodeExecutor,
 )
 
@@ -73,7 +75,9 @@ class StreamDockerCommandLineCodeExecutor(
 
     async def execute_code_blocks_stream(
         self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
-    ) -> AsyncGenerator[CodeResultBlock | CommandLineCodeResult, None]:
+    ) -> AsyncGenerator[
+        CodeFileMessage | CodeResultBlockMessage | CommandLineCodeResult, None
+    ]:
         if not self._setup_functions_complete:
             await self._setup_functions(cancellation_token)
 
@@ -84,7 +88,9 @@ class StreamDockerCommandLineCodeExecutor(
 
     async def _execute_code_dont_check_setup_stream(
         self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
-    ) -> AsyncGenerator[CodeResultBlock | CommandLineCodeResult, None]:
+    ) -> AsyncGenerator[
+        CodeFileMessage | CodeResultBlockMessage | CommandLineCodeResult, None
+    ]:
         if self._container is None or not self._running:
             raise ValueError(
                 "Container is not running. Must first be started with either start or a context manager."
@@ -104,7 +110,6 @@ class StreamDockerCommandLineCodeExecutor(
                 # Check if there is a filename comment
                 try:
                     filename = get_file_name_from_content(code, self.work_dir)
-                    yield CodeResultBlock(type="filename", output=filename)
                 except ValueError:
                     outputs.append("Filename is not in the workspace")
                     last_exit_code = 1
@@ -114,12 +119,8 @@ class StreamDockerCommandLineCodeExecutor(
                     filename = f"tmp_code_{sha256(code.encode()).hexdigest()}.{lang}"
 
                 code_path = self.work_dir / filename
-                print(type(self.work_dir))
-                print(filename)
-                print(type(code_path))
                 with code_path.open("w", encoding="utf-8") as fout:
                     fout.write(code)
-                print(type(code_path))
                 files.append(code_path)
 
                 lang_cmd: str = lang_to_cmd(lang)
@@ -127,6 +128,17 @@ class StreamDockerCommandLineCodeExecutor(
                     command = ["timeout", str(self._timeout), "python", "-u", filename]
                 else:
                     command = ["timeout", str(self._timeout), lang_cmd, filename]
+
+                content_json = {
+                    "code_file": str(code_path),
+                    "code_block": code_block.code,
+                    "code_block_language": code_block.language,
+                }
+                yield CodeFileMessage(
+                    content=json.dumps(content_json),
+                    code_file=str(code_path),
+                    source=self.__class__.__name__,
+                )
 
                 async for result in self._execute_command_stream(
                     command, cancellation_token
@@ -164,7 +176,7 @@ class StreamDockerCommandLineCodeExecutor(
 
     async def _execute_command_stream(
         self, command: List[str], cancellation_token: CancellationToken
-    ) -> AsyncGenerator[CodeResultBlock | CodeResult, None]:
+    ) -> AsyncGenerator[CodeResultBlockMessage | CodeResult, None]:
         if self._container is None or not self._running:
             raise ValueError(
                 "Container is not running. Must first be started with either start or a context manager."
@@ -194,11 +206,19 @@ class StreamDockerCommandLineCodeExecutor(
                 if stdout is not None:
                     stdout_decode: str = stdout.decode("utf-8")
                     output += stdout_decode
-                    yield CodeResultBlock(type="stdout", output=stdout_decode)
+                    yield CodeResultBlockMessage(
+                        type="stdout",
+                        content=stdout_decode,
+                        source=self.__class__.__name__,
+                    )
                 if stderr is not None:
                     stderr_decode: str = stderr.decode("utf-8")
                     output += stderr_decode
-                    yield CodeResultBlock(type="stderr", output=stderr_decode)
+                    yield CodeResultBlockMessage(
+                        type="stderr",
+                        content=stderr_decode,
+                        source=self.__class__.__name__,
+                    )
 
         event.set()
         exit_code: int = self._container.client.api.exec_inspect(exec_id)["ExitCode"]
