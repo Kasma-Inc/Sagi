@@ -24,3 +24,15 @@ async def test_workflow_reset():
             assert plan_manager_state["plan_history"]["plan_history"] == []
             assert plan_manager_state["current_plan"] == None
             assert plan_manager_state["human_feedback"] == {}
+
+
+@pytest.mark.asyncio
+async def test_workflow_load_state():
+    workflow = await PlanningWorkflow.create("src/Sagi/workflows/planning.toml")
+    async for _ in workflow.run_workflow("Hello, how are you?"):
+        pass
+    state = await workflow.team.save_state()
+    await workflow.team.reset()
+    await workflow.team.load_state(state)
+    state1 = await workflow.team.save_state()
+    assert state1 == state
