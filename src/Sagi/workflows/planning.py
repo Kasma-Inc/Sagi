@@ -22,6 +22,9 @@ from Sagi.tools.stream_code_executor.stream_local_command_line_code_executor imp
 from Sagi.tools.web_search_agent import WebSearchAgent
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.workflows.planning_group_chat import PlanningGroupChat
+from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor import (
+    StreamDockerCommandLineCodeExecutor,
+)
 
 
 class Step(BaseModel):
@@ -319,8 +322,13 @@ class PlanningWorkflow:
             name="CodeExecutor",
             description="a code executor agent that handles code related tasks.",
             system_message="You are a Code Execution Agent. Your role is to generate and execute Python code and shell scripts based on user instructions, ensuring correctness, efficiency, and minimal errors. Handle edge cases gracefully. Python code should be provided in ```python code blocks, and sh shell scripts should be provided in ```sh code blocks for execution.",
-            stream_code_executor=StreamLocalCommandLineCodeExecutor(work_dir=work_dir),
-            # stream_code_executor=StreamDockerCommandLineCodeExecutor(work_dir=work_dir, bind_dir=os.getenv("CODING_FILES_PATH") if os.getenv("ENVIRONMENT") == "docker" else work_dir),
+            # stream_code_executor=StreamLocalCommandLineCodeExecutor(work_dir=work_dir),
+            stream_code_executor=StreamDockerCommandLineCodeExecutor(
+                work_dir=work_dir,
+                bind_dir=os.getenv("CODING_FILES_PATH")
+                if os.getenv("ENVIRONMENT") == "docker"
+                else work_dir,
+            ),
             model_client=self.code_model_client,
             max_retries_on_error=3,
         )

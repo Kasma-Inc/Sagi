@@ -158,18 +158,18 @@ class StreamDockerCommandLineCodeExecutor(
                 # Execute the command
                 lang_cmd: str = lang_to_cmd(lang)
                 if lang_cmd == "python":
-                    command = ["timeout", str(self._timeout), "python", "-u", filename]
+                    command = ["python", "-u", filename]
                 else:
-                    command = ["timeout", str(self._timeout), lang_cmd, filename]
+                    command = [lang_cmd, filename]
 
                 content_json = {
-                    "code_file": str(written_file),
+                    # "code_file": str(filename),
                     "code_block": code_block.code,
                     "code_block_language": code_block.language,
                 }
                 yield CodeFileMessage(
                     content=json.dumps(content_json),
-                    code_file=str(written_file),
+                    code_file=str(filename),
                     source=self.__class__.__name__,
                 )
 
@@ -195,11 +195,11 @@ class StreamDockerCommandLineCodeExecutor(
 
         hostname = self._container.id[:12]  # 12 chars of container id as the hostname
         user = "root"
-        pwd = self.work_dir.as_posix()
+        pwd = "workspace"
         yield CustomCommandLineCodeResult(
             exit_code=last_exit_code,
             output="".join(outputs),
-            code_file=file_names[0] if file_names else None,
+            code_file=filename,
             command=" ".join(command),
             hostname=hostname,
             user=user,
