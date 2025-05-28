@@ -25,6 +25,7 @@ from docker.types import CancellableStream, DeviceRequest
 from Sagi.tools.stream_code_executor.stream_code_executor import (
     CodeFileMessage,
     CodeResultBlockMessage,
+    CustomCommandLineCodeResult,
     StreamCodeExecutor,
 )
 
@@ -88,9 +89,7 @@ class StreamDockerCommandLineCodeExecutor(
 
     async def _execute_code_dont_check_setup_stream(
         self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
-    ) -> AsyncGenerator[
-        CodeFileMessage | CodeResultBlockMessage | CommandLineCodeResult, None
-    ]:
+    ) -> AsyncGenerator[CodeFileMessage | CustomCommandLineCodeResult, None]:
         if self._container is None or not self._running:
             raise ValueError(
                 "Container is not running. Must first be started with either start or a context manager."
@@ -100,29 +99,62 @@ class StreamDockerCommandLineCodeExecutor(
             raise ValueError("No code blocks to execute.")
 
         outputs: List[str] = []
-        files: List[Path] = []
+        file_names: List[str] = []
         last_exit_code = 0
         try:
             for code_block in code_blocks:
-                lang = code_block.language.lower()
-                code = silence_pip(code_block.code, lang)
+                lang, code = code_block.language, code_block.code
+                lang = lang.lower()
+
+                # Remove pip output where possible
+                code = silence_pip(code, lang)
+
+                # Normalize python variants to "python"
+                if lang in PYTHON_VARIANTS:
+                    lang = "python"
+
+                # Abort if not supported
+                if lang not in self.SUPPORTED_LANGUAGES:
+                    exitcode = 1
+                    logs_all += "\n" + f"unknown language {lang}"
+                    break
 
                 # Check if there is a filename comment
                 try:
                     filename = get_file_name_from_content(code, self.work_dir)
                 except ValueError:
-                    outputs.append("Filename is not in the workspace")
-                    last_exit_code = 1
-                    break
+                    yield CustomCommandLineCodeResult(
+                        exit_code=1,
+                        output="Filename is not in the workspace",
+                        code_file=None,
+                        command="",
+                        hostname="",
+                        user="",
+                        pwd="",
+                    )
+                    return
 
-                if not filename:
-                    filename = f"tmp_code_{sha256(code.encode()).hexdigest()}.{lang}"
+                if filename is None:
+                    code_hash = sha256(code.encode()).hexdigest()
+                    if lang.startswith("python"):
+                        ext = "py"
+                    elif lang in ["pwsh", "powershell", "ps1"]:
+                        ext = "ps1"
+                    else:
+                        ext = lang
 
-                code_path = self.work_dir / filename
-                with code_path.open("w", encoding="utf-8") as fout:
-                    fout.write(code)
-                files.append(code_path)
+                    filename = f"tmp_code_{code_hash}.{ext}"
 
+                written_file = (self.work_dir / filename).resolve()
+
+                # Ensure parent directory exists
+                written_file.parent.mkdir(parents=True, exist_ok=True)
+
+                with written_file.open("w", encoding="utf-8") as f:
+                    f.write(code)
+                file_names.append(written_file)
+
+                # Execute the command
                 lang_cmd: str = lang_to_cmd(lang)
                 if lang_cmd == "python":
                     command = ["timeout", str(self._timeout), "python", "-u", filename]
@@ -130,7 +162,7 @@ class StreamDockerCommandLineCodeExecutor(
                     command = ["timeout", str(self._timeout), lang_cmd, filename]
 
                 content_json = {
-                    "code_file": str(code_path),
+                    "code_file": str(written_file),
                     "code_block": code_block.code,
                     "code_block_language": code_block.language,
                 }
@@ -146,8 +178,9 @@ class StreamDockerCommandLineCodeExecutor(
                     if isinstance(result, CodeResult):
                         last_exit_code = int(result.exit_code)
                         outputs.append(result.output)
-                    else:
-                        yield result
+                    # else:
+                    #     yield result
+                    # TODO: Handle streaming output
 
                 if last_exit_code != 0:
                     break
@@ -159,9 +192,22 @@ class StreamDockerCommandLineCodeExecutor(
                     except (OSError, FileNotFoundError):
                         pass
 
-        code_file = str(files[0]) if files else None
-        yield CommandLineCodeResult(
-            exit_code=last_exit_code, output="".join(outputs), code_file=code_file
+        hostname = subprocess.check_output("hostname").decode().strip()
+        user = subprocess.check_output("whoami").decode().strip()
+        pwd = (
+            subprocess.check_output("pwd")
+            .decode()
+            .strip()
+            .replace(os.path.expanduser("~"), "~")
+        )
+        yield CustomCommandLineCodeResult(
+            exit_code=last_exit_code,
+            output="".join(outputs),
+            code_file=file_names[0] if file_names else None,
+            command=command,
+            hostname=hostname,
+            user=user,
+            pwd=pwd,
         )
 
     async def handle_execute_command_stream_cancel(

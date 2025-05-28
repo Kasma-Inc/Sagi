@@ -168,7 +168,7 @@ class StreamLocalCommandLineCodeExecutor(
 
             command = " ".join([program] + extra_args)
             content_json = {
-                "code_file": str(self.work_dir / filename),
+                "code_file": str(written_file),
                 # "command": command,
                 "code_block": code_block.code,
                 "code_block_language": code_block.language,
