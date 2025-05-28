@@ -13,6 +13,7 @@ from autogen_core.code_executor import (
     FunctionWithRequirementsStr,
 )
 from autogen_ext.code_executors._common import (
+    PYTHON_VARIANTS,
     CommandLineCodeResult,
     get_file_name_from_content,
     lang_to_cmd,
@@ -168,7 +169,7 @@ class StreamDockerCommandLineCodeExecutor(
                 }
                 yield CodeFileMessage(
                     content=json.dumps(content_json),
-                    code_file=str(code_path),
+                    code_file=str(written_file),
                     source=self.__class__.__name__,
                 )
 
@@ -192,19 +193,14 @@ class StreamDockerCommandLineCodeExecutor(
                     except (OSError, FileNotFoundError):
                         pass
 
-        hostname = subprocess.check_output("hostname").decode().strip()
-        user = subprocess.check_output("whoami").decode().strip()
-        pwd = (
-            subprocess.check_output("pwd")
-            .decode()
-            .strip()
-            .replace(os.path.expanduser("~"), "~")
-        )
+        hostname = self._container.id[:12]  # 12 chars of container id as the hostname
+        user = "root"
+        pwd = self.work_dir.as_posix()
         yield CustomCommandLineCodeResult(
             exit_code=last_exit_code,
             output="".join(outputs),
             code_file=file_names[0] if file_names else None,
-            command=command,
+            command=" ".join(command),
             hostname=hostname,
             user=user,
             pwd=pwd,
