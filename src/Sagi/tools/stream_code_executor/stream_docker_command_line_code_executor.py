@@ -163,7 +163,7 @@ class StreamDockerCommandLineCodeExecutor(
                     command = [lang_cmd, filename]
 
                 content_json = {
-                    # "code_file": str(filename),
+                    "code_file": str(filename),
                     "code_block": code_block.code,
                     "code_block_language": code_block.language,
                 }

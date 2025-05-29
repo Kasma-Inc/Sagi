@@ -16,15 +16,12 @@ from pydantic import BaseModel
 from Sagi.tools.stream_code_executor.stream_code_executor_agent import (
     StreamCodeExecutorAgent,
 )
-from Sagi.tools.stream_code_executor.stream_local_command_line_code_executor import (
-    StreamLocalCommandLineCodeExecutor,
+from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor import (
+    StreamDockerCommandLineCodeExecutor,
 )
 from Sagi.tools.web_search_agent import WebSearchAgent
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.workflows.planning_group_chat import PlanningGroupChat
-from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor import (
-    StreamDockerCommandLineCodeExecutor,
-)
 
 
 class Step(BaseModel):
@@ -308,7 +305,7 @@ class PlanningWorkflow:
         )
 
         surfer = WebSearchAgent(
-            name="web_search_agent",
+            name="web_search",
             description="a web search agent that collect data and relevant information from the web.",
             model_client=self.orchestrator_model_client,
             # reflect_on_tool_use=True,  # enable llm summary for contents web search returns
@@ -316,7 +313,7 @@ class PlanningWorkflow:
             max_retries=2,
         )
         work_dir = Path(
-            "coding_files"
+            "Sagi/coding_files"
         )  # the output directory for code generation execution
         code_executor = StreamCodeExecutorAgent(
             name="CodeExecutor",
@@ -325,9 +322,11 @@ class PlanningWorkflow:
             # stream_code_executor=StreamLocalCommandLineCodeExecutor(work_dir=work_dir),
             stream_code_executor=StreamDockerCommandLineCodeExecutor(
                 work_dir=work_dir,
-                bind_dir=os.getenv("CODING_FILES_PATH")
-                if os.getenv("ENVIRONMENT") == "docker"
-                else work_dir,
+                bind_dir=(
+                    os.getenv("CODING_FILES_PATH")
+                    if os.getenv("ENVIRONMENT") == "docker"
+                    else work_dir
+                ),
             ),
             model_client=self.code_model_client,
             max_retries_on_error=3,
