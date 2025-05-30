@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import pytest
 from autogen_agentchat.base import Response
@@ -132,13 +133,13 @@ echo "Hello World"
 sleep 1
 echo "Hello World"
 ```"""
-
+    work_dir = Path("coding_files")
     stream_docker_command_line_code_executor = StreamDockerCommandLineCodeExecutor(
-        work_dir="coding_files",
+        work_dir=work_dir,
         bind_dir=(
-            os.getenv("CODING_FILES_PATH")
+            os.getenv("HOST_PATH") + "/" + str(work_dir)
             if os.getenv("ENVIRONMENT") == "docker"
-            else "coding_files"
+            else work_dir
         ),
     )
     stream_code_executor_agent: StreamCodeExecutorAgent = StreamCodeExecutorAgent(
@@ -170,12 +171,13 @@ print("Hello World")
 time.sleep(1)
 print("Hello World")
 ```"""
+    work_dir = Path("coding_files")
     stream_docker_command_line_code_executor = StreamDockerCommandLineCodeExecutor(
-        work_dir="coding_files",
+        work_dir=work_dir,
         bind_dir=(
-            os.getenv("CODING_FILES_PATH")
+            os.getenv("HOST_PATH") + "/" + str(work_dir)
             if os.getenv("ENVIRONMENT") == "docker"
-            else "coding_files"
+            else work_dir
         ),
     )
     stream_code_executor_agent: StreamCodeExecutorAgent = StreamCodeExecutorAgent(

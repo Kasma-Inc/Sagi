@@ -323,7 +323,7 @@ class PlanningWorkflow:
             stream_code_executor=StreamDockerCommandLineCodeExecutor(
                 work_dir=work_dir,
                 bind_dir=(
-                    os.getenv("HOST_PATH") + work_dir
+                    os.getenv("HOST_PATH") + "/" + str(work_dir)
                     if os.getenv("ENVIRONMENT") == "docker"
                     else work_dir
                 ),

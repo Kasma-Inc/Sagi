@@ -2,25 +2,23 @@
 
 # Set default values for the directories if not provided
 if [ -z "$SAGI_DIR" ]; then
-    echo "Error: SAGI_DIR environment variable is not set"
-    echo "Please set SAGI_DIR to the directory containing the sagi code"
-    exit 1
+    echo "SAGI_DIR is not set, using default path $(pwd)"
+    SAGI_DIR="$(pwd)"
+    export SAGI_DIR=${SAGI_DIR}
 fi
-
 
 if [ -z "$DOCKER_SOCKET_PATH" ]; then
-    echo "Error: DOCKER_SOCKET_PATH environment variable is not set"
-    echo "Please set DOCKER_SOCKET_PATH to the path of the docker socket"
-    exit 1
+    echo "DOCKER_SOCKET_PATH is not set, using default path /var/run/docker.sock"
+    DOCKER_SOCKET_PATH="/var/run/docker.sock"
+    export DOCKER_SOCKET_PATH=${DOCKER_SOCKET_PATH}
 fi
+
+
 
 export USERNAME=$(whoami)
 CONTAINER_NAME_1="${USERNAME}_sagi-dev"
 CONTAINER_NAME_2="${USERNAME}_markify_service"
 COMPOSE_PROJECT_NAME="${USERNAME}_sagi-dev-dc"
-
-export SAGI_DIR=${SAGI_DIR}
-export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}
 
 
 start_docker_compose() {
