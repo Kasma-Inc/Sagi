@@ -53,8 +53,8 @@ Sagi is a production-ready, open-source LLM agent framework that combines advanc
 
 1. **Build the Docker Container**
    ```bash
-   chmod +x dev/setup_dc.sh
-   ./dev/setup_dc.sh
+   chmod +x dev/setup.sh
+   ./dev/setup.sh
    ```
 
 2. **Access the Container** (Choose one method)
