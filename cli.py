@@ -22,6 +22,7 @@ from Sagi.workflows.planning import PlanningWorkflow
 os.makedirs("logging", exist_ok=True)
 setup_logging()
 
+
 def parse_args():
     parser = argparse.ArgumentParser("Sagi CLI")
     parser.add_argument("--env", choices=["dev", "prod"], default="dev")

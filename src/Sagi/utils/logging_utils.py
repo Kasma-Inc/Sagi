@@ -8,19 +8,18 @@ from autogen_core.logging import LLMCallEvent, LLMStreamEndEvent, LLMStreamStart
 
 class LLMStreamStartFilter(logging.Filter):
     def filter(self, record):
-        if hasattr(record, 'msg') and isinstance(record.msg, (
-            LLMStreamStartEvent,
-            LLMStreamEndEvent,
-            LLMCallEvent
-        )):
+        if hasattr(record, "msg") and isinstance(
+            record.msg, (LLMStreamStartEvent, LLMStreamEndEvent, LLMCallEvent)
+        ):
             return True
         return False
+
 
 class ReadableFormatter(logging.Formatter):
     def format(self, record):
         # Get the base format
         base_msg = super().format(record)
-        
+
         try:
             # Extract JSON part from the message
             if isinstance(record.msg, LLMStreamStartEvent):
@@ -35,42 +34,44 @@ class ReadableFormatter(logging.Formatter):
         except Exception as e:
             print(e)
             exit()
-        
+
         return base_msg
-    
+
     def _format_llm_start(self, data):
         lines = [
-            "\n" + "="*80,
+            "\n" + "=" * 80,
             f"🤖 LLM Stream Call",
             f"Agent: {data.get('agent_id', 'Unknown').split('-')[0]}",
-            "-"*80
+            "-" * 80,
         ]
-        
-        messages = data.get('messages', [])
+
+        messages = data.get("messages", [])
         for i, msg in enumerate(messages):
-            role = msg.get('role', 'unknown')
-            content = msg.get('content', '')
-            
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+
             lines.append(f"\n📨 Message {i+1} ({role}):")
             lines.append(self._indent_text(content, 4))
-        
+
         return "\n".join(lines)
-    
+
     def _format_llm_end(self, data):
         lines = []
-        
-        response = data.get('response', {})
-        
+
+        response = data.get("response", {})
+
         # Show usage stats
-        usage = response.get('usage', {})
+        usage = response.get("usage", {})
         if usage:
             lines.append(f"\n📊 Token Usage:")
             lines.append(f"    Prompt: {usage.get('prompt_tokens', 0)}")
             lines.append(f"    Completion: {usage.get('completion_tokens', 0)}")
-            lines.append(f"    Total: {usage.get('prompt_tokens', 0) + usage.get('completion_tokens', 0)}")
-        
+            lines.append(
+                f"    Total: {usage.get('prompt_tokens', 0) + usage.get('completion_tokens', 0)}"
+            )
+
         # Show content
-        content = response.get('content')
+        content = response.get("content")
         if content:
             lines.append(f"\n💬 Response:")
             if isinstance(content, dict):
@@ -79,59 +80,63 @@ class ReadableFormatter(logging.Formatter):
             else:
                 # Truncate if too long
                 lines.append(self._indent_text(str(content), 4))
-        
-        lines.append("="*80)
+
+        lines.append("=" * 80)
         return "\n".join(lines)
-    
+
     def _format_llm_call(self, data):
         lines = [
-            "\n" + "="*80,
+            "\n" + "=" * 80,
             f"🤖 LLM Call",
             f"Agent: {data.get('agent_id', 'Unknown').split('-')[0]}",
-            "-"*80
+            "-" * 80,
         ]
-        
+
         # Show messages
-        messages = data.get('messages', [])
+        messages = data.get("messages", [])
         for i, msg in enumerate(messages):
-            role = msg.get('role', 'unknown')
-            content = msg.get('content', '')
-            
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+
             lines.append(f"\n📨 Message {i+1} ({role}):")
             lines.append(self._indent_text(content, 4))
-        
-        response = data.get('response', {})
+
+        response = data.get("response", {})
         if response:
             # Show token usage
-            usage = response.get('usage', {})
+            usage = response.get("usage", {})
             if usage:
                 lines.append(f"\n📊 Token Usage:")
                 lines.append(f"    Prompt: {usage.get('prompt_tokens', 0)}")
                 lines.append(f"    Completion: {usage.get('completion_tokens', 0)}")
-                lines.append(f"    Total: {usage.get('prompt_tokens', 0) + usage.get('completion_tokens', 0)}")
+                lines.append(
+                    f"    Total: {usage.get('prompt_tokens', 0) + usage.get('completion_tokens', 0)}"
+                )
 
             # Show response summary
-            choices = response.get('choices', [])
+            choices = response.get("choices", [])
             for choice in choices:
-                finish_reason = choice.get('finish_reason', 'unknown')
-                message = choice.get('message', {})
-                content = message.get('content', '')
-                tool_calls = message.get('tool_calls', [])
+                finish_reason = choice.get("finish_reason", "unknown")
+                message = choice.get("message", {})
+                content = message.get("content", "")
+                tool_calls = message.get("tool_calls", [])
                 if tool_calls:
                     for tool_call in tool_calls:
-                        tool_call_id = tool_call.get('id', 'unknown')
-                        function = tool_call.get('function', {})
-                        tool_call_name = function.get('name', 'unknown')
-                        tool_call_args = function.get('arguments', {})
+                        tool_call_id = tool_call.get("id", "unknown")
+                        function = tool_call.get("function", {})
+                        tool_call_name = function.get("name", "unknown")
+                        tool_call_args = function.get("arguments", {})
                         lines.append(f"\n📤 Tool Call: {tool_call_id}:")
                         lines.append(self._indent_text(f"name: {tool_call_name}", 4))
-                        lines.append(self._indent_text(f"arguments: {tool_call_args}", 4))
-                
+                        lines.append(
+                            self._indent_text(f"arguments: {tool_call_args}", 4)
+                        )
+
                 lines.append(self._indent_text(content, 4))
-        
-        lines.append("="*80)
+
+        lines.append("=" * 80)
         return "\n".join(lines)
-    
+
     def _indent_text(self, text, spaces):
         if text is None:
             return ""
@@ -142,12 +147,13 @@ class ReadableFormatter(logging.Formatter):
 def setup_logging():
     # Create file handler with custom filter
     file_handler = logging.FileHandler(
-        f"logging/{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.log",
-        mode="a"
+        f"logging/{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.log", mode="a"
     )
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(
-        ReadableFormatter("%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s")
+        ReadableFormatter(
+            "%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
+        )
     )
     file_handler.addFilter(LLMStreamStartFilter())
 
