@@ -27,7 +27,6 @@ from autogen_agentchat.teams._group_chat._base_group_chat_manager import (
 )
 from autogen_agentchat.teams._group_chat._events import (
     GroupChatAgentResponse,
-    GroupChatMessage,
     GroupChatRequestPublish,
     GroupChatStart,
     GroupChatTermination,
@@ -199,16 +198,9 @@ class PlanningOrchestrator(BaseGroupChatManager):
                     content=response, source=self._name
                 )
                 # Add to message queue
-                await self._output_message_queue.put(chunk_event)
                 content += response
             else:
                 content = response.content
-
-        stream_end_message = TextMessage(
-            content=f"{self._name} stream ended.",
-            source=self._name,
-        )
-        await self._output_message_queue.put(stream_end_message)
 
         assert isinstance(content, str)
         return content
@@ -343,21 +335,6 @@ class PlanningOrchestrator(BaseGroupChatManager):
         feedback = message.messages[-1].content
         if feedback.strip().lower() in {"ok", "yes", "y"}:
             self._plan_manager.confirm_plan()
-
-            # Log the plan to the output topic.
-            planning_message = TextMessage(
-                content=json.dumps(
-                    self._plan_manager.get_current_plan_state(), indent=4
-                ),
-                source="Planner",
-            )
-            # Log the message to the output topic.
-            await self.publish_message(
-                GroupChatMessage(message=planning_message),
-                topic_id=DefaultTopicId(type=self._output_topic_type),
-            )
-            # Log the message to the output queue.
-            await self._output_message_queue.put(planning_message)
             await self._orchestrate_step(cancellation_token=ctx.cancellation_token)
         else:
             await self._update_plan_with_feedback(message, ctx.cancellation_token)
@@ -420,10 +397,6 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 source="StepCompletionNotifier",
             )
             self._plan_manager.add_reflection_to_step(current_step_id, reason)
-            await self.publish_message(
-                GroupChatMessage(message=step_completion_message),
-                topic_id=DefaultTopicId(type=self._output_topic_type),
-            )
             await self._output_message_queue.put(step_completion_message)
 
             # Find the next pending step after completing the current one
@@ -449,10 +422,6 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 content=json.dumps(step_start_json, indent=4),
                 source="NewStepNotifier",
             )
-            await self.publish_message(
-                GroupChatMessage(message=step_start_message),
-                topic_id=DefaultTopicId(type=self._output_topic_type),
-            )
             await self._output_message_queue.put(step_start_message)
 
         # Check if the plan has been in progress for too long
@@ -476,10 +445,6 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 source="StepCompletionNotifier",
             )
             self._plan_manager.add_reflection_to_step(current_step_id, reason)
-            await self.publish_message(
-                GroupChatMessage(message=step_failed_message),
-                topic_id=DefaultTopicId(type=self._output_topic_type),
-            )
             await self._output_message_queue.put(step_failed_message)
 
             # Find the next pending step
@@ -532,11 +497,6 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 indent=4,
             ),
             source="ToolCaller",
-        )
-        # Log it to the output topic.
-        await self.publish_message(
-            GroupChatMessage(message=step_running_message),
-            topic_id=DefaultTopicId(type=self._output_topic_type),
         )
         # Log it to the output queue.
         await self._output_message_queue.put(step_running_message)
@@ -703,11 +663,6 @@ class PlanningOrchestrator(BaseGroupChatManager):
         # Clear the current plan to prepare for the next round
         self._plan_manager.commit_plan()
 
-        # Log it to the output topic.
-        await self.publish_message(
-            GroupChatMessage(message=message),
-            topic_id=DefaultTopicId(type=self._output_topic_type),
-        )
         # Log it to the output queue.
         await self._output_message_queue.put(message)
 

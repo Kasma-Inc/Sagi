@@ -3,9 +3,7 @@ import asyncio
 import logging
 import os
 import uuid
-from datetime import datetime
 
-from autogen_agentchat import TRACE_LOGGER_NAME
 from autogen_agentchat.messages import BaseMessage
 from autogen_agentchat.ui import Console
 from dotenv import load_dotenv
@@ -16,27 +14,13 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.semconv.resource import ResourceAttributes
 
-from Sagi.utils.logging import format_json_string_factory
+from Sagi.utils.logging_utils import setup_logging
 from Sagi.utils.queries import Database
 from Sagi.workflows.planning import PlanningWorkflow
 
 # Create logging directory if it doesn't exist
 os.makedirs("logging", exist_ok=True)
-
-logging.setLogRecordFactory(format_json_string_factory)
-
-logging.basicConfig(
-    level=logging.INFO,
-    filename=f"logging/{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.log",
-    filemode="a",
-    format="%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
-)
-
-# For trace logging.
-trace_logger = logging.getLogger(TRACE_LOGGER_NAME)
-trace_logger.addHandler(logging.StreamHandler())
-trace_logger.setLevel(logging.INFO)
-
+setup_logging()
 
 def parse_args():
     parser = argparse.ArgumentParser("Sagi CLI")
