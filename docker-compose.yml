@@ -11,7 +11,7 @@ services:
     container_name: "${USERNAME}_sagi-dev"
     volumes:
       # SAGI_DIR is the directory of the sagi project, please download from https://github.com/Kasma-Inc/Sagi.git if you don't have it
-      - ${SAGI_DIR}:/sagi
+      - ${SAGI_DIR}:/chatbot
       - ${DOCKER_SOCKET_PATH}:/var/run/docker.sock
     cap_add:
       - SYS_ADMIN
