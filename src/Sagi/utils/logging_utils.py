@@ -6,7 +6,7 @@ from autogen_agentchat import TRACE_LOGGER_NAME
 from autogen_core.logging import LLMCallEvent, LLMStreamEndEvent, LLMStreamStartEvent
 
 
-class LLMStreamStartFilter(logging.Filter):
+class LLMFilter(logging.Filter):
     def filter(self, record):
         if hasattr(record, "msg") and isinstance(
             record.msg, (LLMStreamStartEvent, LLMStreamEndEvent, LLMCallEvent)
@@ -155,7 +155,7 @@ def setup_logging():
             "%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
         )
     )
-    file_handler.addFilter(LLMStreamStartFilter())
+    file_handler.addFilter(LLMFilter())
 
     # Create logger and add handler
     logger = logging.getLogger()
@@ -165,6 +165,6 @@ def setup_logging():
     # For trace logging with filter
     trace_logger = logging.getLogger(TRACE_LOGGER_NAME)
     stream_handler = logging.StreamHandler()
-    stream_handler.addFilter(LLMStreamStartFilter())
+    stream_handler.addFilter(LLMFilter())
     trace_logger.addHandler(stream_handler)
     trace_logger.setLevel(logging.INFO)
