@@ -313,7 +313,7 @@ class PlanningWorkflow:
             max_retries=2,
         )
         work_dir = Path(
-            "Sagi/coding_files"
+            "coding_files"
         )  # the output directory for code generation execution
         code_executor = StreamCodeExecutorAgent(
             name="CodeExecutor",
@@ -323,7 +323,7 @@ class PlanningWorkflow:
             stream_code_executor=StreamDockerCommandLineCodeExecutor(
                 work_dir=work_dir,
                 bind_dir=(
-                    os.getenv("CODING_FILES_PATH")
+                    os.getenv("HOST_PATH") + work_dir
                     if os.getenv("ENVIRONMENT") == "docker"
                     else work_dir
                 ),

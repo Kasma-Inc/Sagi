@@ -6,16 +6,11 @@ networks:
     name: ${COMPOSE_PROJECT_NAME}
 
 services:
-  chatbot:
-    build:
-      context: .
-      dockerfile: dev/Dockerfile
-    container_name: "${USER}_chatbot_python"
-    environment:
-      - DOCKER_HOST=unix:///var/run/docker.sock
-      - CODING_FILES_PATH=${ROOT_DIR}/coding_files
+  ofnil-agentic-rag:
+    image: sagicuhk/sagi:latest
+    container_name: "${USERNAME}_ofnil-agentic-rag-dev"
     volumes:
-      - .:/chatbot
+      - ${OFNIL_AGENTIC_RAG_DIR}:/chatbot
       - ${DOCKER_SOCKET_PATH}:/var/run/docker.sock
     cap_add:
       - SYS_ADMIN
@@ -26,22 +21,33 @@ services:
     deploy:
       mode: global
     ports:
-      - "8000"
+      - "8001"
+    environment:
+      # These two environment variables are used to configure the docker_command_line_code_executor
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - HOST_PATH=${OFNIL_AGENTIC_RAG_DIR}
 
   markify:
-    build:
-      context: .
-      dockerfile: dev/markify/Dockerfile
-    container_name: "${USER}_markify_service"
-    volumes: 
-      - ./dev/markify:/markify
-      - ./dev/markify/preprocess.sh:/root/preprocess.sh
+    image: sagicuhk/markify:latest
+    container_name: "${USERNAME}_markify_service"
     entrypoint: ["/bin/sh", "/root/preprocess.sh"]  # just restart to update quickly without rebuilding
     ports:
       - "20926"
     command: ["tail", "-f", "/dev/null"]  # keep docker running
     deploy:
       mode: global
+
+  ofnil-agentic-rag-web:
+    image: sagicuhk/sagi:latest
+    container_name: "${USERNAME}_ofnil-agentic-rag-web-dev"
+    volumes:
+      - ${OFNIL_AGENTIC_RAG_WEB_DIR}:/chatbot
+    command: ["tail", "-f", "/dev/null"]  # keep docker running
+    restart: unless-stopped
+    deploy:
+      mode: global
+    ports: 
+      - "3000" 
 
 volumes:
   markify:
