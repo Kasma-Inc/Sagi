@@ -129,3 +129,154 @@ Based on the information gathered, provide the final answer to the original requ
 The answer should be phrased as if you were speaking to the user.
 """
     return template.format(task=task)
+
+
+def get_data_collector_prompt(
+    *, shared_section: str, step_section: str, step_content: str
+) -> str:
+    """Generates a prompt for the DataCollector agent role.
+
+    Args:
+        shared_section: The formatted summaries of previous results.
+        step_section: The formatted current sub-task section.
+        step_content: The plain content of the current sub-task.
+    """
+    template = """
+        Completed summaries:
+        {shared_section}
+
+        Current sub-task:
+        {step_section}
+
+        Your task:
+        - Using the above summaries, search for and extract only the key information relevant to "{step_content}".
+        - Return only those key points; do not include unrelated data.
+    """
+    return template.format(
+        shared_section=shared_section,
+        step_section=step_section,
+        step_content=step_content,
+    )
+
+
+def get_code_executor_prompt(*, shared_section: str, step_section: str) -> str:
+    """Generates a prompt for the CodeExecutor agent role.
+
+    Args:
+        shared_section: The formatted summaries of previous results.
+        step_section: The formatted current sub-task section.
+    """
+    template = """
+        Completed summaries:
+        {shared_section}
+
+        Current sub-task:
+        {step_section}
+
+        Your task:
+        - Write Python code to accomplish "{step_section}".
+        - Return the full, runnable code block in a ```python``` fence; do not add any extra explanation.
+    """
+    return template.format(
+        shared_section=shared_section,
+        step_section=step_section,
+    )
+
+
+def get_default_execution_prompt(*, shared_section: str, step_section: str) -> str:
+    """Generates the default execution prompt for other agent roles.
+
+    Args:
+        shared_section: The formatted summaries of previous results.
+        step_section: The formatted current sub-task section.
+    """
+    template = """
+        {shared_section}
+
+        {step_section}
+
+        Your task:
+        - Execute using only the above summaries and sub-task content.
+    """
+    return template.format(
+        shared_section=shared_section,
+        step_section=step_section,
+    )
+
+
+def get_previous_results_section(*, relevant_summaries: list[str]) -> str:
+    """Generates a section listing all previous result summaries.
+
+    Args:
+        relevant_summaries: A list of strings summarizing past results.
+    """
+    if relevant_summaries:
+        items = "\n".join(f"- {s}" for s in relevant_summaries)
+    else:
+        items = "- (none)"
+    template = """
+        Previous Results:
+        {items}
+    """
+    return template.format(items=items)
+
+
+def get_current_subtask_section(*, step) -> str:
+    """Generates the section for the current sub-task details.
+
+    Args:
+        step: An object with attributes `group_id`, `step_id`, and `content`.
+    """
+    template = """
+        Current Sub-Task (group {group_id}, step {step_id}):
+        {content}
+    """
+    return template.format(
+        group_id=step.group_id,
+        step_id=step.step_id,
+        content=step.content,
+    )
+
+
+def get_instruction_prompt(
+    *, refined_context: str, instruction_or_question: str
+) -> str:
+    """Combines refined context with the instruction or question into a single prompt.
+
+    Args:
+        refined_context: The up-to-date context string.
+        instruction_or_question: The instruction or question to pose.
+    """
+    template = """
+        {refined_context}
+
+        === Instruction ===
+        {instruction_or_question}
+    """
+    return template.format(
+        refined_context=refined_context,
+        instruction_or_question=instruction_or_question,
+    )
+
+
+def get_relevance_filter_prompt(*, numbered: str, task: str) -> str:
+    """Creates a prompt asking which numbered summaries are relevant to the given task.
+
+    Args:
+        numbered: A numbered list of summary strings.
+        task: Description of the current task.
+    """
+    template = """
+        Below are previous result summaries, each numbered:
+        {numbered}
+
+        Current Task:
+        {task}
+
+        Question: Which of the above summaries are directly relevant to executing this task?
+        Answer with a JSON array of numbers, e.g. [1,4].
+    """
+    return template.format(
+        numbered=numbered,
+        task=task,
+    )

@@ -1,14 +1,18 @@
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv(override=True)
 import argparse
 import asyncio
 import logging
 import os
+import signal
 import uuid
 from datetime import datetime
 
 from autogen_agentchat import TRACE_LOGGER_NAME
 from autogen_agentchat.messages import BaseMessage
 from autogen_agentchat.ui import Console
-from dotenv import load_dotenv
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
@@ -69,13 +73,8 @@ def parse_args():
     return parser.parse_args()
 
 
-# load env variables
-load_dotenv(override=True)
-
-
 def setup_tracing(endpoint: str = None, service_name: str = None):
     """Setup OpenTelemetry tracing based on args."""
-
     try:
         exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
         provider = TracerProvider(
@@ -91,16 +90,39 @@ def setup_tracing(endpoint: str = None, service_name: str = None):
         return None
 
 
-def _default_to_text(self) -> str:
-    return getattr(self, "content", repr(self))
-
-
-BaseMessage.to_text = _default_to_text
-
+# Extend BaseMessage to text
+BaseMessage.to_text = lambda self: getattr(self, "content", repr(self))
 
 DB_URL = os.getenv("POSTGRES_URL_NO_SSL_DEV")
 if not DB_URL:
     raise RuntimeError("Environment variable POSTGRES_URL_NO_SSL_DEV is not set!")
+
+
+_already_shutting_down = False
+
+
+async def shutdown(db: Database, session_id: str, team):
+    global _already_shutting_down
+    if _already_shutting_down:
+        return
+    _already_shutting_down = True
+
+    try:
+        logging.info(f"Saving state for session {session_id} before shutdown...")
+        await db.save_team_state(session_id, team)
+    except Exception as e:
+        logging.error(f"Error saving state on shutdown: {e}")
+    finally:
+        await db.close()
+        logging.info("Database connection closed.")
+
+
+def register_signal_handlers(db: Database, session_id: str, team):
+    loop = asyncio.get_event_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(
+            sig, lambda sig=sig: asyncio.create_task(shutdown(db, session_id, team))
+        )
 
 
 async def main_cmd(args: argparse.Namespace):
@@ -111,19 +133,21 @@ async def main_cmd(args: argparse.Namespace):
     # List sessions and exit
     if args.list_sessions:
         sessions = await db.list_sessions()
-        logging.info("Available sessions:", sessions or ["<none>"])
+        logging.info("Available sessions: %s", sessions or ["<none>"])
         await db.close()
         return
 
+    # Determine session ID
     session_id = args.session_id or str(uuid.uuid4())
-    logging.info(f"use session_id = {session_id!r}")
+    logging.info(f"Using session_id = {session_id!r}")
 
+    # Create workflow and team
     workflow = await PlanningWorkflow.create(args.config)
+    team = workflow.team
 
     # Load previous state
     try:
-        team_state = await db.load_state(session_id)
-        await workflow.team.load_state(team_state)
+        await db.load_team_state(session_id, team)
         logging.info(f"Loaded DB state for session {session_id}")
     except KeyError:
         logging.info(f"No DB state for session {session_id}; starting fresh")
@@ -131,22 +155,35 @@ async def main_cmd(args: argparse.Namespace):
     except Exception as e:
         logging.error(f"DB load error: {e}")
 
+    # Register signals for graceful shutdown
+    register_signal_handlers(db, session_id, team)
+
+    # Interaction loop
     try:
         while True:
-            user_input = input("User: ")
-            if user_input.lower() in ("quit", "exit", "q"):
-                state = await workflow.team.save_state()
-                await db.save_state(session_id, state)
-                logging.info(f"Saved DB state before exit for {session_id}")
+            try:
+                user_input = input("User: ")
+            except (EOFError, KeyboardInterrupt):
+                logging.info("Detected EOF/KeyboardInterrupt, exiting loop.")
                 break
 
-            await asyncio.create_task(Console(workflow.run_workflow(user_input)))
-            state = await workflow.team.save_state()
-            await db.save_state(session_id, state)
-            logging.info(f"Saved DB state for {session_id}")
+            if user_input.lower() in ("quit", "exit", "q"):
+                logging.info("Exit command received.")
+                break
+
+            # Run workflow and display
+            await Console(workflow.run_workflow(user_input))
+
+            # Save state after each turn
+            try:
+                await db.save_team_state(session_id, team)
+                logging.info(f"Saved DB state for session {session_id}")
+            except Exception as e:
+                logging.error(f"Error saving state: {e}")
     finally:
+        # Cleanup
+        await shutdown(db, session_id, team)
         await workflow.cleanup()
-        await db.close()
         logging.info("Workflow cleaned up.")
 
 

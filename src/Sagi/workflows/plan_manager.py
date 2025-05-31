@@ -4,7 +4,17 @@ from collections import OrderedDict
 from typing import Dict, List, Literal, Optional, Tuple
 
 from autogen_agentchat.messages import BaseAgentEvent, BaseChatMessage, BaseMessage
+from autogen_core.models import UserMessage
 from pydantic import BaseModel, Field
+
+from Sagi.utils.prompt import (
+    get_code_executor_prompt,
+    get_current_subtask_section,
+    get_data_collector_prompt,
+    get_default_execution_prompt,
+    get_previous_results_section,
+    get_relevance_filter_prompt,
+)
 
 
 class Step(BaseModel):
@@ -596,6 +606,16 @@ class PlanManager:
         else:
             raise ValueError("No running plan")
 
+    def update_shared_context(self, step_id: str, summary: str) -> None:
+        """
+        Delegate the summary for the specified step to the Plan.update_shared_context method.
+        """
+        if self._current_plan:
+            # Forward the call to Plan.update_shared_context
+            self._current_plan.update_shared_context(step_id, summary)
+        else:
+            raise ValueError("No active plan to update shared_context")
+
     def get_messages_by_step_id(
         self, step_id: str
     ) -> List[BaseAgentEvent | BaseChatMessage]:
@@ -808,3 +828,69 @@ class PlanManager:
         """
         self._current_plan = None
         self._plan_history = PlanHistory(plan_history=[])
+
+    async def filter_summaries_with_llm(
+        self, summaries: list[str], task: str
+    ) -> list[str]:
+        """
+        Invoke the LLM to return the subset of summary texts most relevant to the current task.
+        """
+        # Construct the prompt used for filtering
+        numbered = "\n".join(f"{i+1}. {s}" for i, s in enumerate(summaries))
+        filter_prompt = get_relevance_filter_prompt(numbered=numbered, task=task)
+
+        # Build messages: instruct the model to output strict JSON only
+        messages = [UserMessage(content=filter_prompt, source="user")]
+
+        # Send the request and receive the full reply
+        from Sagi.workflows.planning import PlanningWorkflow
+
+        workflow = PlanningWorkflow("src/Sagi/workflows/planning.toml")
+
+        result = await workflow.orchestrator_model_client.create(messages)
+        text = result.content.strip()
+
+        try:
+            chosen = json.loads(text)
+        except json.JSONDecodeError:
+            return summaries
+
+        return [
+            summaries[i - 1]
+            for i in chosen
+            if isinstance(i, int) and 1 <= i <= len(summaries)
+        ]
+
+    async def build_prompt_for_step(self, step_id: str, agent_role: str) -> str:
+        """Builds the LLM prompt for a given step and agent role."""
+        plan = self._current_plan
+        if plan is None:
+            raise ValueError("No active plan")
+        step = plan.steps.get(step_id)
+        if not step:
+            raise ValueError(f"Step '{step_id}' not found")
+
+        # Retrieve and filter summaries
+        all_summaries = list(plan.shared_context.values())
+        relevant = await self.filter_summaries_with_llm(all_summaries, step.content)
+
+        shared_section = get_previous_results_section(relevant_summaries=relevant)
+        step_section = get_current_subtask_section(step=step)
+
+        # Dispatch to the correct prompt generator
+        if agent_role == "DataCollector":
+            return get_data_collector_prompt(
+                shared_section=shared_section,
+                step_section=step_section,
+                step_content=step.content,
+            )
+        elif agent_role == "CodeExecutor":
+            return get_code_executor_prompt(
+                shared_section=shared_section,
+                step_section=step_section,
+            )
+        else:
+            return get_default_execution_prompt(
+                shared_section=shared_section,
+                step_section=step_section,
+            )

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import re
 from typing import Any, Dict, List, Mapping
 
@@ -42,6 +43,7 @@ from autogen_core.models import (
     SystemMessage,
     UserMessage,
 )
+from autogen_ext.models.openai import OpenAIChatCompletionClient
 from pydantic import BaseModel, Field
 
 from Sagi.tools.stream_code_executor.stream_code_executor import (
@@ -50,6 +52,7 @@ from Sagi.tools.stream_code_executor.stream_code_executor import (
 from Sagi.utils.prompt import (
     get_appended_plan_prompt,
     get_final_answer_prompt,
+    get_instruction_prompt,
     get_reflection_step_completion_prompt,
     get_step_triage_prompt,
 )
@@ -224,6 +227,15 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 )
                 await self._output_message_queue.put(inner_message)
 
+        # Only record messages sent by external agents (not the Orchestrator)
+        chat_msg = message.agent_response.chat_message
+        if chat_msg.source != self._name:
+            self._plan_manager.add_message_to_step(
+                step_id=self._plan_manager.get_current_step()[0],
+                message=chat_msg,
+            )
+            delta.append(chat_msg)
+
         # For web app
         plan_state = {
             k: v.state for k, v in self._plan_manager._current_plan.steps.items()
@@ -234,12 +246,6 @@ class PlanningOrchestrator(BaseGroupChatManager):
             metadata={"step_id": self._plan_manager.get_current_step()[0]},
         )
         await self._output_message_queue.put(plan_state_message)
-
-        self._plan_manager.add_message_to_step(
-            step_id=self._plan_manager.get_current_step()[0],
-            message=message.agent_response.chat_message,
-        )
-        delta.append(message.agent_response.chat_message)
 
         if self._termination_condition is not None:
             stop_message = await self._termination_condition(delta)
@@ -386,6 +392,46 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 context.append(UserMessage(content=m.content, source=m.source))
         return context
 
+    async def _generate_step_summary(
+        self,
+        step: str,
+        context: List[UserMessage],
+        cancellation_token: CancellationToken,
+    ) -> str:
+
+        model_client = OpenAIChatCompletionClient(
+            model="gpt-4o-mini",
+            base_url=os.getenv("OPENAI_BASE_URL"),
+            api_key=os.getenv("OPENAI_API_KEY"),
+            max_tokens=2000,
+        )
+
+        # System prompt to instruct the model
+        system_prompt = SystemMessage(
+            content=(
+                "You are an assistant that distills execution context into a concise result. "
+                "Based on the context below, provide a single-paragraph summary of this step's execution."
+            )
+        )
+
+        # Prepare the user payload: include the step and the list of context messages
+        payload = {"step": step, "context": [message.content for message in context]}
+        user_prompt = UserMessage(
+            content=json.dumps(payload, ensure_ascii=False, indent=4), source="user"
+        )
+
+        # Call the model and get the completion
+        from Sagi.workflows.planning import PlanningWorkflow
+
+        workflow = PlanningWorkflow("src/Sagi/workflows/planning.toml")
+
+        result = await workflow.orchestrator_model_client.create(
+            messages=[system_prompt, user_prompt], cancellation_token=cancellation_token
+        )
+
+        # Return the trimmed summary
+        return result.content.strip()
+
     async def _orchestrate_step(self, cancellation_token: CancellationToken) -> None:
         current_step = self._plan_manager.get_current_step()
         if current_step is None:
@@ -420,6 +466,11 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 source="StepCompletionNotifier",
             )
             self._plan_manager.add_reflection_to_step(current_step_id, reason)
+            # Write this step’s result summary into shared_context
+            summary = await self._generate_step_summary(
+                current_step_content, filtered_context, cancellation_token
+            )
+            self._plan_manager.update_shared_context(current_step_id, summary)
             await self.publish_message(
                 GroupChatMessage(message=step_completion_message),
                 topic_id=DefaultTopicId(type=self._output_topic_type),
@@ -508,10 +559,30 @@ class PlanningOrchestrator(BaseGroupChatManager):
         )
         step_triage = json.loads(step_triage_response)
 
-        # Broadcast the next step
+        # 1) Extract the next speaker from the triage result as agent_role
+        agent_role = step_triage["next_speaker"]["answer"]
+
+        # 2) Retrieve the instruction from the triage result
         instruction_or_question = step_triage["instruction_or_question"]["answer"]
+
+        # 3) Build the refined context by passing in step_id and agent_role
+        refined_context = await self._plan_manager.build_prompt_for_step(
+            current_step_id, agent_role
+        )
+
+        # 4) Assemble the final prompt
+
+        instruction_prompt = get_instruction_prompt(
+            refined_context=refined_context,
+            instruction_or_question=instruction_or_question,
+        )
+
+        instruction_prompt = (
+            f"{refined_context}\n\n" f"=== Instruction ===\n{instruction_or_question}"
+        )
+
         message = TextMessage(
-            content=instruction_or_question,
+            content=instruction_prompt,
             source=self._name,
         )
         self._plan_manager.add_message_to_step(
@@ -519,6 +590,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
             message=message,
         )
 
+        # maintain the original logic, using the triage instruction to trigger the tool execution.
         next_speaker = step_triage["next_speaker"]["answer"]
         logging.info(f"Next Speaker: {next_speaker}")
 
@@ -533,6 +605,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
             ),
             source="ToolCaller",
         )
+
         # Log it to the output topic.
         await self.publish_message(
             GroupChatMessage(message=step_running_message),
