@@ -35,7 +35,7 @@ class HighLevelPlanPPT(BaseModel):
     slides: List[Slide]
 
 
-class Step(BaseModel):
+class Group(BaseModel):
     name: str
     description: str
     data_collection_task: Optional[str] = None
@@ -43,7 +43,7 @@ class Step(BaseModel):
 
 
 class PlanningResponse(BaseModel):
-    steps: List[Step]
+    groups: List[Group]
 
 
 class ReflectionResponse(BaseModel):
@@ -400,7 +400,11 @@ class PlanningWorkflow:
             domain_specific_agent=domain_specific_agent,  # Add this parameter
             step_triage_model_client=self.step_triage_model_client,
             template_based_planning_model_client=self.template_based_planning_model_client,
-            template_selection_model_client=self.template_selection_model_client,
+            template_selection_model_client=(
+                self.template_selection_model_client
+                if template_work_dir is not None
+                else None
+            ),
             template_work_dir=template_work_dir,  # Add template work directory parameter
         )
         return self

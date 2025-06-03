@@ -384,14 +384,14 @@ class PlanManager:
         """
         Set a new plan based on the task and model response.
 
-        This method creates a new Plan object with steps extracted from the model response.
+        This method creates a new Plan object with groups extracted from the model response.
         The plan is set as the current plan and marked as awaiting confirmation.
         Adds previous plan with human feedback to the feedback dictionary.
 
         Args:
             task (str): The task description for the plan.
-            model_response (str): JSON string containing the steps for the plan.
-                                 Expected format: {"steps": [{"name": "...", "description": "...",
+            model_response (str): JSON string containing the groups for the plan.
+                                 Expected format: {"groups": [{"name": "...", "description": "...",
                                  "data_collection_task": "...", "code_executor_task": "..."}]}
             human_feedback (str): Feedback provided by the user about the plan.
 
@@ -426,28 +426,28 @@ class PlanManager:
             Validate the model response format.
 
             Args:
-                model_response (str): JSON string containing the steps for the plan.
+                model_response (str): JSON string containing the groups for the plan.
             """
             try:
                 response_data = json.loads(model_response)
                 if not isinstance(response_data, dict):
                     raise ValueError("Model response must be a JSON object")
 
-                if "steps" not in response_data:
-                    raise ValueError("Model response must contain a 'steps' key")
+                if "groups" not in response_data:
+                    raise ValueError("Model response must contain a 'groups' key")
 
-                if not isinstance(response_data["steps"], list):
-                    raise ValueError("The 'steps' value must be a list")
+                if not isinstance(response_data["groups"], list):
+                    raise ValueError("The 'groups' value must be a list")
 
-                for i, step in enumerate(response_data["steps"]):
-                    if not isinstance(step, dict):
-                        raise ValueError(f"Step {i} must be a dictionary")
+                for i, group in enumerate(response_data["groups"]):
+                    if not isinstance(group, dict):
+                        raise ValueError(f"Group {i} must be a dictionary")
 
-                    if "name" not in step:
-                        raise ValueError(f"Step {i} must contain a 'name' key")
+                    if "name" not in group:
+                        raise ValueError(f"Group {i} must contain a 'name' key")
 
-                    if "description" not in step:
-                        raise ValueError(f"Step {i} must contain a 'description' key")
+                    if "description" not in group:
+                        raise ValueError(f"Group {i} must contain a 'description' key")
 
                     # data_collection_task and code_executor_task are optional
             except json.JSONDecodeError:
@@ -461,28 +461,28 @@ class PlanManager:
                 human_feedback
             )
         validate_model_response(model_response)
-        current_plan_steps = json.loads(model_response)["steps"]
+        current_plan_groups = json.loads(model_response)["groups"]
 
         steps, step_id, group_id = {}, 0, 0
-        for step in current_plan_steps:
-            step_name = step["name"]
-            step_description = step["description"]
+        for group in current_plan_groups:
+            group_name = group["name"]
+            group_description = group["description"]
             tasks_added = False
 
-            if step.get("data_collection_task"):
-                content = step["data_collection_task"]
+            if group.get("data_collection_task"):
+                content = group["data_collection_task"]
                 append_step(steps, step_id, content, group_id)
                 step_id += 1
                 tasks_added = True
-            if step.get("code_executor_task") and step.get(
+            if group.get("code_executor_task") and group.get(
                 "code_executor_task"
             ) not in ["N/A"]:
-                content = step["code_executor_task"]
+                content = group["code_executor_task"]
                 append_step(steps, step_id, content, group_id)
                 step_id += 1
                 tasks_added = True
             if not tasks_added:
-                content = f"{step_name}: {step_description}"
+                content = f"{group_name}: {group_description}"
                 append_step(steps, step_id, content, group_id)
                 step_id += 1
             group_id += 1
