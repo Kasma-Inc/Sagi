@@ -2,7 +2,6 @@ import argparse
 import asyncio
 import logging
 import os
-import uuid
 
 from autogen_agentchat.messages import BaseMessage
 from autogen_agentchat.ui import Console
@@ -15,7 +14,6 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.semconv.resource import ResourceAttributes
 
 from Sagi.utils.logging_utils import setup_logging
-from Sagi.utils.queries import Database
 from Sagi.workflows.planning import PlanningWorkflow
 
 # Create logging directory if it doesn't exist
@@ -51,6 +49,11 @@ def parse_args():
         action="store_true",
         help="List existing session IDs and exit.",
     )
+    parser.add_argument(
+        "--template_work_dir",
+        type=str,
+        help="Specify the template working directory path",
+    )
     return parser.parse_args()
 
 
@@ -83,55 +86,57 @@ def _default_to_text(self) -> str:
 BaseMessage.to_text = _default_to_text
 
 
-DB_URL = os.getenv("POSTGRES_URL_NO_SSL_DEV")
-if not DB_URL:
-    raise RuntimeError("Environment variable POSTGRES_URL_NO_SSL_DEV is not set!")
+# DB_URL = os.getenv("POSTGRES_URL_NO_SSL_DEV")
+# if not DB_URL:
+#     raise RuntimeError("Environment variable POSTGRES_URL_NO_SSL_DEV is not set!")
 
 
 async def main_cmd(args: argparse.Namespace):
 
-    db = Database(DB_URL)
-    await db.init()
+    # db = Database(DB_URL)
+    # await db.init()
 
-    # List sessions and exit
-    if args.list_sessions:
-        sessions = await db.list_sessions()
-        logging.info("Available sessions:", sessions or ["<none>"])
-        await db.close()
-        return
+    # # List sessions and exit
+    # if args.list_sessions:
+    #     sessions = await db.list_sessions()
+    #     logging.info("Available sessions:", sessions or ["<none>"])
+    #     await db.close()
+    #     return
 
-    session_id = args.session_id or str(uuid.uuid4())
-    logging.info(f"use session_id = {session_id!r}")
+    # session_id = args.session_id or str(uuid.uuid4())
+    # logging.info(f"use session_id = {session_id!r}")
 
-    workflow = await PlanningWorkflow.create(args.config)
+    workflow = await PlanningWorkflow.create(
+        args.config, template_work_dir=args.template_work_dir
+    )
 
     # Load previous state
-    try:
-        team_state = await db.load_state(session_id)
-        await workflow.team.load_state(team_state)
-        logging.info(f"Loaded DB state for session {session_id}")
-    except KeyError:
-        logging.info(f"No DB state for session {session_id}; starting fresh")
-        await workflow.team.reset()
-    except Exception as e:
-        logging.error(f"DB load error: {e}")
+    # try:
+    #     team_state = await db.load_state(session_id)
+    #     await workflow.team.load_state(team_state)
+    #     logging.info(f"Loaded DB state for session {session_id}")
+    # except KeyError:
+    #     logging.info(f"No DB state for session {session_id}; starting fresh")
+    #     await workflow.team.reset()
+    # except Exception as e:
+    #     logging.error(f"DB load error: {e}")
 
     try:
         while True:
             user_input = input("User: ")
             if user_input.lower() in ("quit", "exit", "q"):
                 state = await workflow.team.save_state()
-                await db.save_state(session_id, state)
-                logging.info(f"Saved DB state before exit for {session_id}")
+                # await db.save_state(session_id, state)
+                # logging.info(f"Saved DB state before exit for {session_id}")
                 break
 
             await asyncio.create_task(Console(workflow.run_workflow(user_input)))
             state = await workflow.team.save_state()
-            await db.save_state(session_id, state)
-            logging.info(f"Saved DB state for {session_id}")
+            # await db.save_state(session_id, state)
+            # logging.info(f"Saved DB state for {session_id}")
     finally:
         await workflow.cleanup()
-        await db.close()
+        # await db.close()
         logging.info("Workflow cleaned up.")
 
 

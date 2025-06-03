@@ -1,3 +1,11 @@
+SLIDE_CATEGORY_INFO = """
+Opening slide: The first slide that introduces the presentation, typically including the title, presenter's name, and other introductory information.
+Ending slide: The final slide that concludes the presentation, usually featuring a summary, conclusions, or a call to action, along with contact details or acknowledgments.
+Normal texts slide: Content slides that present information primarily through text, such as bullet points or paragraphs.
+Normal texts with images slide: Content slides that combine text with images or diagrams to enhance understanding and visual appeal.
+"""
+
+
 def get_step_triage_prompt(*, task: str, current_plan: str, names: list[str]) -> str:
     """Generates a prompt template for triaging the step execution to the right team member.
 
@@ -129,3 +137,65 @@ Based on the information gathered, provide the final answer to the original requ
 The answer should be phrased as if you were speaking to the user.
 """
     return template.format(task=task)
+
+
+def get_high_level_ppt_plan_prompt(*, task: str, file_content: str) -> str:
+    """Generates a prompt template for high-level PPT plan.
+
+    Args:
+        task: The current task
+        file_content: The file content
+    """
+    template = """
+You are an expert PowerPoint presentation planning assistant.
+
+Your task is to generate a clear, high-level PowerPoint presentation outline to guide slide-by-slide creation.
+
+Instructions:
+
+1. Review the provided content ({file_content}) and user query ({query}) carefully for key topics and objectives.
+2. Structure the outline using best practices for presentation design, ensuring logical flow and coherence.
+3. Represent each slide as a bullet point; each point must include:
+- The main purpose or idea of the slide (e.g., Introduction, Overview of Challenges, Proposed Solutions, Conclusion).
+- The assigned category for the slide, as defined in the following information: {slide_category_info}.
+4. Do not include detailed content or slide text; focus exclusively on slide purpose, category, and sequence.
+5. Organize the plan with a clear progression from introduction, main content, to conclusion/next steps, as appropriate for the subject.
+6. Include a minimum of 6 slides to ensure comprehensive coverage.
+7. Present the outline as a numbered list for clarity.
+
+Return only the slide-by-slide outline as the output.
+    """
+    return template.format(
+        file_content=file_content, query=task, slide_category_info=SLIDE_CATEGORY_INFO
+    )
+
+
+def get_template_selection_prompt(*, slide_content: str, template_options: str) -> str:
+    """Generates a prompt template for template selection.
+
+    Args:
+        slide_content: The content for the slide
+        template_options: Available template options to choose from
+    """
+    template = """
+You are a presentation design expert. Your task is to analyze a slide's content and select the most appropriate template from the provided options.
+
+## CRITICAL INSTRUCTION:
+**Return ONLY the template_id number. Do not include explanations, extra text, or modify the format.**
+
+## Task Steps:
+1. Read and understand the current slide's content.
+2. Review all provided template options.
+3. Select the template that aligns best with the slide's category, content type, and structure.
+4. Respond with the template_id number.
+
+## Slide Content:
+{slide_content}
+
+## Available Templates:
+{template_options}
+"""
+
+    return template.format(
+        slide_content=slide_content, template_options=template_options
+    )

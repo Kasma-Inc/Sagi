@@ -38,6 +38,9 @@ class PlanningGroupChat(BaseGroupChat):
         domain_specific_agent: (
             AssistantAgent | None
         ) = None,  # for new feat: domain specific prompt
+        template_work_dir: str | None = None,  # for template working directory
+        template_selection_model_client: ChatCompletionClient,
+        template_based_planning_model_client: ChatCompletionClient,
     ):
         super().__init__(
             participants,
@@ -63,6 +66,11 @@ class PlanningGroupChat(BaseGroupChat):
         self._user_proxy = user_proxy  # for new feat: human in the loop
         self._domain_specific_agent = (
             domain_specific_agent  # for new feat: domain specific prompt
+        )
+        self._template_work_dir = template_work_dir  # for template working directory
+        self._template_selection_model_client = template_selection_model_client
+        self._template_based_planning_model_client = (
+            template_based_planning_model_client
         )
 
     async def _init(self, runtime: AgentRuntime) -> None:
@@ -173,6 +181,9 @@ class PlanningGroupChat(BaseGroupChat):
             step_triage_model_client=self._step_triage_model_client,
             user_proxy=self._user_proxy,  # for new feat: human in the loop
             domain_specific_agent=self._domain_specific_agent,  # for new feat: domain specific prompt
+            template_work_dir=self._template_work_dir,  # for template working directory
+            template_selection_model_client=self._template_selection_model_client,
+            template_based_planning_model_client=self._template_based_planning_model_client,
         )
 
     async def save_state(self) -> Mapping[str, Any]:

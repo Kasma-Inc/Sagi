@@ -1,5 +1,6 @@
 import os
 from contextlib import AsyncExitStack
+from enum import Enum
 from pathlib import Path
 from typing import List, Literal, Optional
 
@@ -20,8 +21,18 @@ from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor im
     StreamDockerCommandLineCodeExecutor,
 )
 from Sagi.tools.web_search_agent import WebSearchAgent
+from Sagi.utils.json_handler import get_template_num
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.workflows.planning_group_chat import PlanningGroupChat
+
+
+class Slide(BaseModel):
+    category: str
+    description: str
+
+
+class HighLevelPlanPPT(BaseModel):
+    slides: List[Slide]
 
 
 class Step(BaseModel):
@@ -112,12 +123,29 @@ class PlanningWorkflow:
                 model_info=model_info,
                 max_tokens=config_planning_client["max_tokens"],
             )
+
+            self.template_based_planning_model_client = OpenAIChatCompletionClient(
+                model=config_planning_client["model"],
+                base_url=config_planning_client["base_url"],
+                api_key=config_planning_client["api_key"],
+                response_format=HighLevelPlanPPT,
+                model_info=model_info,
+                max_tokens=config_planning_client["max_tokens"],
+            )
         else:
             self.planning_model_client = OpenAIChatCompletionClient(
                 model=config_planning_client["model"],
                 base_url=config_planning_client["base_url"],
                 api_key=config_planning_client["api_key"],
                 response_format=PlanningResponse,
+                max_tokens=config_planning_client["max_tokens"],
+            )
+
+            self.template_based_planning_model_client = OpenAIChatCompletionClient(
+                model=config_planning_client["model"],
+                base_url=config_planning_client["base_url"],
+                api_key=config_planning_client["api_key"],
+                response_format=HighLevelPlanPPT,
                 max_tokens=config_planning_client["max_tokens"],
             )
 
@@ -224,9 +252,36 @@ class PlanningWorkflow:
     async def create(
         cls,
         config_path: str,
+        template_work_dir: str | None = None,
     ):
         self = cls(config_path)
 
+        if template_work_dir is not None:
+            config = load_toml_with_env_vars(config_path)
+            template_num = get_template_num(
+                os.path.join(template_work_dir, "slide_induction.json")
+            )
+
+            template_choices = [f"template_{i}" for i in range(1, template_num + 1)]
+            TemplateList = Enum("TemplateList", template_choices)
+
+            class TemplateSelection(BaseModel):
+                template_id: TemplateList
+
+            config_planning_client = config["model_clients"]["planning_client"]
+            if "model_info" in config_planning_client:
+                model_info = config_planning_client["model_info"]
+                model_info["family"] = ModelFamily.UNKNOWN
+                model_info = ModelInfo(**model_info)
+            else:
+                model_info = None
+
+            self.template_selection_model_client = OpenAIChatCompletionClient(
+                model=config_planning_client["model"],
+                base_url=config_planning_client["base_url"],
+                api_key=config_planning_client["api_key"],
+                response_format=TemplateSelection,
+            )
         self.session_manager = MCPSessionManager()
 
         web_search_server_params = StdioServerParams(
@@ -344,6 +399,9 @@ class PlanningWorkflow:
             reflection_model_client=self.reflection_model_client,
             domain_specific_agent=domain_specific_agent,  # Add this parameter
             step_triage_model_client=self.step_triage_model_client,
+            template_based_planning_model_client=self.template_based_planning_model_client,
+            template_selection_model_client=self.template_selection_model_client,
+            template_work_dir=template_work_dir,  # Add template work directory parameter
         )
         return self
 

@@ -1,0 +1,172 @@
+{
+    "opening": {
+        "slides": [
+            1
+        ],
+        "template_id": 1,
+        "content_schema": {
+            "presenters": {
+                "description": "names of the presenters on the slide",
+                "type": "text",
+                "data": [
+                    "Paul"
+                ]
+            },
+            "affiliation": {
+                "description": "affiliation or organization name of the presenter",
+                "type": "text",
+                "data": [
+                    "Microsoft"
+                ]
+            },
+            "date": {
+                "description": "presentation date formatted in year/month/day",
+                "type": "text",
+                "data": [
+                    "2025/5/26"
+                ]
+            },
+            "main title": {
+                "description": "title of the slide, indicating the main topic or subject",
+                "type": "text",
+                "data": [
+                    "GraphRAG"
+                ]
+            }
+        }
+    },
+    "table of contents": {
+        "slides": [
+            2
+        ],
+        "template_id": 2,
+        "content_schema": {
+            "main title": {
+                "description": "main title of the slide",
+                "type": "text",
+                "data": [
+                    "Table of Contents"
+                ]
+            },
+            "content bullets": {
+                "description": "list items summarizing the main sections of the presentation",
+                "type": "text",
+                "data": [
+                    "Introduction",
+                    "Method",
+                    "Experiment",
+                    "Conclusion"
+                ]
+            }
+        }
+    },
+    "ending": {
+        "slides": [
+            6
+        ],
+        "template_id": 6,
+        "content_schema": {
+            "main message": {
+                "description": "closing message of the slide",
+                "type": "text",
+                "data": [
+                    "Thank you for listening!"
+                ]
+            }
+        }
+    },
+    "Flowchart with Sequential Text Boxes and Explanatory Paragraph on the Right:image": {
+        "template_id": 3,
+        "slides": [
+            3
+        ],
+        "content_schema": {
+            "main title": {
+                "description": "main title of the slide",
+                "type": "text",
+                "data": [
+                    "Introduction"
+                ]
+            },
+            "content paragraph": {
+                "description": "content paragraph with theme color text",
+                "type": "text",
+                "data": [
+                    "GraphRAG is a structured, hierarchical approach to Retrieval Augmented Generation (RAG), as opposed to naive semantic-search approaches using plain text snippets. The GraphRAG process involves extracting a knowledge graph out of raw text, building a community hierarchy, generating summaries for these communities, and then leveraging these structures when perform RAG-based tasks.。"
+                ]
+            },
+            "supporting image": {
+                "description": "image illustrating a data processing pipeline",
+                "type": "image",
+                "data": [
+                    "Diagram: Flowchart illustrating a data processing pipeline from source documents to a global answer using text extraction, summarization, and community detection."
+                ]
+            }
+        }
+    },
+    "Title with Four Bullet Points in a Vertical List:text": {
+        "template_id": 4,
+        "slides": [
+            4
+        ],
+        "content_schema": {
+            "main title": {
+                "description": "main title of the slide",
+                "type": "text",
+                "data": [
+                    "Method"
+                ]
+            },
+            "section title": {
+                "description": "section title of this portion of the slide",
+                "type": "text",
+                "data": [
+                    "GraphRAG Workflow"
+                ]
+            },
+            "content paragraph": {
+                "description": "explanation of the workflow steps in the slide",
+                "type": "text",
+                "data": [
+                    "To start, the documents in the corpus are split into text chunks. The LLM extracts information from each chunk for downstream processing.",
+                    "In this step, the LLM is prompted to extract instances of important entities and the relationships between the entities from a given chunk. Additionally, the LLM generates short descriptions for the entities and relationships.",
+                    "The use of an LLM to extract entities, relationships, and claims is a form of abstractive summarization – these are meaningful summaries of concepts that, in the case of relationships and claims, may not be explicitly stated in the text. The entity/relationship/claim extraction processes creates multiple instances of a single element because an element is typically detected and extracted multiple times across documents."
+                ]
+            }
+        }
+    },
+    "Title with Grid and Paragraph Explanation Below:image": {
+        "template_id": 5,
+        "slides": [
+            5
+        ],
+        "content_schema": {
+            "main title": {
+                "description": "main title of the slide",
+                "type": "text",
+                "data": [
+                    "Conclusion"
+                ]
+            },
+            "content paragraph": {
+                "description": "conclusion paragraph summarizing the key points of the presentation",
+                "type": "text",
+                "data": [
+                    "We have presented GraphRAG, a RAG approach that combines knowledge graph generation andquery-focused summarization (QFS) to support human sensemaking over entire text corpora. Initialevaluations show substantial improvements over a vector RAG baseline for both the comprehensiveness and diversity of answers, as well as favorable comparisons to a global but graph-free approachusing map-reduce source text summarization. For situations requiring many global queries over thesame dataset, summaries of root-level communities in the entity-based graph index provide a dataindex that is both superior to vector RAG and achieves competitive performance to other globalmethods at a fraction of the token cost."
+                ]
+            },
+            "supplementary image": {
+                "description": "image providing additional visual information or context",
+                "type": "image",
+                "data": [
+                    "This is a picture of TABLE"
+                ]
+            }
+        }
+    },
+    "functional_keys": [
+        "opening",
+        "table of contents",
+        "ending"
+    ]
+}
