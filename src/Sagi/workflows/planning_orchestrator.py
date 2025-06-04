@@ -694,6 +694,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         self, reason: str, cancellation_token: CancellationToken
     ) -> None:
         """Prepare the final answer for the task."""
+        breakpoint()
         context = self.messages_to_context(
             self._plan_manager.get_messages_of_current_plan()
         )
