@@ -32,7 +32,7 @@ start_docker_compose() {
 
     # start docker-compose
     echo "Starting docker-compose with project name: ${COMPOSE_PROJECT_NAME}..."
-    docker-compose -f docker-compose.yml -p ${COMPOSE_PROJECT_NAME} up -d --build
+    docker compose -f docker-compose.yml -p ${COMPOSE_PROJECT_NAME} up -d --build
     if [ $? -ne 0 ]; then
         echo "docker-compose failed to start. Please check the logs for more information."
         exit 1
