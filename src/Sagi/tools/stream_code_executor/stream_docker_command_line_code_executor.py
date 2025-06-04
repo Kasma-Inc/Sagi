@@ -117,7 +117,7 @@ class StreamDockerCommandLineCodeExecutor(
                 # Abort if not supported
                 if lang not in self.SUPPORTED_LANGUAGES:
                     exitcode = 1
-                    logs_all += "\n" + f"unknown language {lang}"
+                    outputs += "\n" + f"unknown language {lang}"
                     break
 
                 # Check if there is a filename comment
@@ -187,7 +187,7 @@ class StreamDockerCommandLineCodeExecutor(
                     break
         finally:
             if self._delete_tmp_files:
-                for file in files:
+                for file in file_names:
                     try:
                         file.unlink()
                     except (OSError, FileNotFoundError):

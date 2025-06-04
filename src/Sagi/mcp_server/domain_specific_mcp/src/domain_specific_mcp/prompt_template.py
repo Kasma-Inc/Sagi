@@ -31,10 +31,10 @@ USER QUERY: {task}
 You are a professional planning assistant. 
 Based on the team composition, user query, and known and unknown facts, please devise a plan for addressing the USER QUERY. Remember, there is no requirement to involve all team members -- a team member particular expertise may not be needed for this task.
 
-Each plan step should contain the following elements:
-1. name: A short title for this step
-2. description: Detailed explanation of the step objective and financial content
-3. data_collection_task: Specific instructions for gathering financial data needed for this step (optional)
+Each plan group should contain the following elements:
+1. name: A short title for this group task
+2. description: Detailed explanation of the group objective.
+3. data_collection_task: Specific instructions for gathering data needed for this group task (optional)
 4. code_executor_task: Description of what code executor should do, JUST DETAILED DESCRIPTION IS OK, NOT ACTUAL CODE BLOCK.(optional)
 """
 
@@ -68,14 +68,14 @@ USER QUERY: {task}
 You are a professional financial PPT creation planning assistant. 
 Based on the team composition, user query, please generate a detailed financial PowerPoint presentation creation plan following these structural requirements:
 
-Each plan step should contain the following elements:
-1. name: A short title for this step
-2. description: Detailed explanation of the step objective and financial content
-3. data_collection_task: Specific instructions for gathering financial data needed for this step (optional)
+Each plan group should contain the following elements:
+1. name: A short title for this group task
+2. description: Detailed explanation of the group objective and financial content
+3. data_collection_task: Specific instructions for gathering financial data needed for this group task (optional)
 4. code_executor_task: Description of what code should do to process data, GENERATE slide, APPEND it to PPT and SAVE PPT (optional)
 
 Plan requirements:
-- Each step should GENERATE one slide, APPEND it to the PPT and SAVE PPT.
+- Each group task should GENERATE one slide, APPEND it to the PPT and SAVE PPT.
 - Include common financial PPT elements such as titles, financial metrics, bullet point lists, visual elements (charts, graphs, financial tables, etc.)
 - Code sections should primarily use Python (with visualization libraries like matplotlib, seaborn, plotly, pandas_datareader, etc.) or bash to install dependencies
 - Ensure code is practical and executable, capable of completing financial data processing and slide generation tasks
@@ -83,17 +83,17 @@ Plan requirements:
 
 Please output in JSON format, conforming to the following structure:
 
-  steps: [
-      name: Step Name,
-      description: Step Description,
+  groups: [
+      name: Group Task Name,
+      description: Group Task Description,
       data_collection_task: Data Collection Task Description,
       code_executor_task: Description of code task to be performed based on the collected data
     ,
-    ...more steps
+    ...more groups
   ]
 
 Example for a Tesla stock analysis presentation:
-  steps: [
+  groups: [
       name: Company Overview,
       description: Create a title slide with brief overview of Tesla, including its ticker symbol, industry, and founding date.,
       data_collection_task: Find Tesla ticker symbol (TSLA), founding date, headquarters location, and CEO information.,
@@ -121,7 +121,7 @@ Example for a Tesla stock analysis presentation:
       code_executor_task: Create a final slide with a clear investment recommendation (Buy/Hold/Sell) in large, colored text. Include a target price with potential upside percentage. Add bullet points outlining the key investment thesis including growth potential, technological advantages, and potential risks. Format the slide professionally with consistent fonts and colors. Remember to append the slide to PPT and save PPT.
   ]
 
-REMEMBER: EACH STEP MUST SAVE THE PPT AFTER APPENDING THE SLIDE.
+REMEMBER: EACH GROUP TASK MUST SAVE THE PPT AFTER APPENDING THE SLIDE.
 """
 
 GENERAL_PPT_PLAN_PROMPT = """Excellent. To create the presentation outlined in the request, we have assembled the following team:
@@ -133,28 +133,28 @@ USER QUERY: {task}
 You are a professional PPT creation planning assistant. 
 Based on the team composition, user query, please generate a detailed PowerPoint presentation creation plan following these structural requirements:
 
-Each plan step should contain the following elements:
-1. name: A short title for this step
-2. description: Detailed explanation of the step objective and content
-3. data_collection_task: Specific instructions for gathering data needed for this step (optional)
+Each plan group should contain the following elements:
+1. name: A short title for this group task
+2. description: Detailed explanation of the group objective and content
+3. data_collection_task: Specific instructions for gathering data needed for this group task (optional)
 4. code_executor_task: Description of what code should do to process data, GENERATE slide, APPEND it to PPT and SAVE PPT (optional)
 
 Plan requirements:
-- Each step should GENERATE one slide, APPEND it to the PPT and SAVE PPT.
+- Each group task should GENERATE one slide, APPEND it to the PPT and SAVE PPT.
 - Include common PPT elements such as titles, body text, bullet point lists, visual elements (charts, images, etc.)
 - Code tasks should describe operations to be performed using Python (with visualization libraries like matplotlib, seaborn, plotly, etc.) or bash to install dependencies
 - Code task descriptions should be clear enough to guide future code generation based on the collected data
 
 Please output in JSON format, conforming to the following structure:
 
-  steps: [
-      name: Step Name,
-      description: Step Description,
+  groups: [
+      name: Group Task Name,
+      description: Group Task Description,
       data_collection_task: Data Collection Task Description,
       code_executor_task: Description of code task to be performed based on the collected data
     ,
-    ...more steps
+      ...more groups
   ]
 
-REMEMBER: EACH STEP MUST SAVE THE PPT AFTER APPENDING THE SLIDE.
+REMEMBER: EACH GROUP TASK MUST SAVE THE PPT AFTER APPENDING THE SLIDE.
 """
