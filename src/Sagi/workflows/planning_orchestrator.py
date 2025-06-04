@@ -54,6 +54,7 @@ from Sagi.utils.json_handler import (
 )
 from Sagi.utils.prompt import (
     get_appended_plan_prompt,
+    get_expand_plan_prompt,
     get_final_answer_prompt,
     get_high_level_ppt_plan_prompt,
     get_reflection_step_completion_prompt,
@@ -97,6 +98,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         step_triage_model_client: ChatCompletionClient,
         template_selection_model_client: ChatCompletionClient,
         template_based_planning_model_client: ChatCompletionClient,
+        single_group_planning_model_client: ChatCompletionClient,
         user_proxy: Any | None = None,
         domain_specific_agent: Any | None = None,
         template_work_dir: str | None = None,
@@ -127,6 +129,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         self._template_based_planning_model_client = (
             template_based_planning_model_client
         )
+        self._single_group_planning_model_client = single_group_planning_model_client
         self._group_chat_manager_topic_type = group_chat_manager_topic_type
         self._prompt_templates = {}  # to store domain specific prompts
         self._plan_manager = PlanManager()  # Initialize plan manager
@@ -356,7 +359,20 @@ class PlanningOrchestrator(BaseGroupChatManager):
             self._template_work_dir, "slide_induction.json"
         )
         template_options = format_templates(slide_induction_path)
+
+        plan_groups: Dict[str, List[Dict[str, str]]] = {"groups": []}
         for _, slide in enumerate(template_based_high_level_ppt_plan_enum["slides"]):
+            expand_plan_prompt = get_expand_plan_prompt(
+                task=task,
+                slide_content=format_slide_info(slide),
+            )
+            expand_single_group_response = await self._llm_create(
+                self._single_group_planning_model_client,
+                [SystemMessage(content=expand_plan_prompt, source=self._name)],
+                ctx.cancellation_token,
+            )
+            expand_single_group = json.loads(expand_single_group_response)
+
             template_selection_prompt = get_template_selection_prompt(
                 slide_content=format_slide_info(slide),
                 template_options=template_options,
@@ -367,10 +383,12 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 ctx.cancellation_token,
             )
             template_selection = json.loads(template_selection_response)
-            slide["template_id"] = template_selection["template_id"]
-
-        breakpoint()
-        # TODO: expand the plan to consistent with current implementation
+            expand_single_group["template_id"] = str(template_selection["template_id"])
+            plan_groups["groups"].append(expand_single_group)
+        self._plan_manager.new_plan(task=task, model_response=json.dumps(plan_groups))
+        # TODO: add fine-grained human in the loop for plan adjustment
+        self._plan_manager.confirm_plan()
+        await self._orchestrate_step(cancellation_token=ctx.cancellation_token)
 
     async def _get_appended_plan(
         self, message: UserInputMessage, ctx: MessageContext
@@ -694,7 +712,6 @@ class PlanningOrchestrator(BaseGroupChatManager):
         self, reason: str, cancellation_token: CancellationToken
     ) -> None:
         """Prepare the final answer for the task."""
-        breakpoint()
         context = self.messages_to_context(
             self._plan_manager.get_messages_of_current_plan()
         )

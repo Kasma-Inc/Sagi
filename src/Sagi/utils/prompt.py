@@ -199,3 +199,31 @@ You are a presentation design expert. Your task is to analyze a slide's content 
     return template.format(
         slide_content=slide_content, template_options=template_options
     )
+
+
+def get_expand_plan_prompt(*, task: str, slide_content: str) -> str:
+    """Generates a prompt template for expand plan.
+
+    Args:
+        task: The current task
+        slide_content: The content for the slide
+    """
+    template = """
+    You are a plan expander. Your task is to expand the plan for the following slide content:
+
+    ## Slide Content:
+    {slide_content}
+
+    ## User Query:
+    {task}
+
+    ## Expl
+    ## Return the expanded plan in the following format:
+    {{
+        "name": "A short title for this group task",
+        "description": "Detailed explanation of the group task objective",
+        "data_collection_task": "Specific instructions for gathering data needed for this group task",
+        "code_executor_task": "Description of what code executor should do, JUST DETAILED DESCRIPTION IS OK, NOT ACTUAL CODE BLOCK."
+    }}
+    """
+    return template.format(task=task, slide_content=slide_content)

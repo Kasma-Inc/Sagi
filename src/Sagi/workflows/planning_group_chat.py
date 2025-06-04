@@ -41,6 +41,7 @@ class PlanningGroupChat(BaseGroupChat):
         template_work_dir: str | None = None,  # for template working directory
         template_selection_model_client: ChatCompletionClient,
         template_based_planning_model_client: ChatCompletionClient,
+        single_group_planning_model_client: ChatCompletionClient,
     ):
         super().__init__(
             participants,
@@ -72,6 +73,7 @@ class PlanningGroupChat(BaseGroupChat):
         self._template_based_planning_model_client = (
             template_based_planning_model_client
         )
+        self._single_group_planning_model_client = single_group_planning_model_client
 
     async def _init(self, runtime: AgentRuntime) -> None:
         # Constants for the group chat manager.
@@ -184,6 +186,7 @@ class PlanningGroupChat(BaseGroupChat):
             template_work_dir=self._template_work_dir,  # for template working directory
             template_selection_model_client=self._template_selection_model_client,
             template_based_planning_model_client=self._template_based_planning_model_client,
+            single_group_planning_model_client=self._single_group_planning_model_client,
         )
 
     async def save_state(self) -> Mapping[str, Any]:

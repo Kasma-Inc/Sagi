@@ -132,6 +132,15 @@ class PlanningWorkflow:
                 model_info=model_info,
                 max_tokens=config_planning_client["max_tokens"],
             )
+
+            self.single_group_planning_model_client = OpenAIChatCompletionClient(
+                model=config_planning_client["model"],
+                base_url=config_planning_client["base_url"],
+                api_key=config_planning_client["api_key"],
+                response_format=Group,
+                model_info=model_info,
+                max_tokens=config_planning_client["max_tokens"],
+            )
         else:
             self.planning_model_client = OpenAIChatCompletionClient(
                 model=config_planning_client["model"],
@@ -146,6 +155,14 @@ class PlanningWorkflow:
                 base_url=config_planning_client["base_url"],
                 api_key=config_planning_client["api_key"],
                 response_format=HighLevelPlanPPT,
+                max_tokens=config_planning_client["max_tokens"],
+            )
+
+            self.single_group_planning_model_client = OpenAIChatCompletionClient(
+                model=config_planning_client["model"],
+                base_url=config_planning_client["base_url"],
+                api_key=config_planning_client["api_key"],
+                response_format=Group,
                 max_tokens=config_planning_client["max_tokens"],
             )
 
@@ -405,6 +422,7 @@ class PlanningWorkflow:
                 if template_work_dir is not None
                 else None
             ),
+            single_group_planning_model_client=self.single_group_planning_model_client,
             template_work_dir=template_work_dir,  # Add template work directory parameter
         )
         return self
