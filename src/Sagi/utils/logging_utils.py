@@ -88,7 +88,7 @@ class ReadableFormatter(logging.Formatter):
         lines = [
             "\n" + "=" * 80,
             f"🤖 LLM Call",
-            f"Agent: {data.get('agent_id', 'Unknown').split('-')[0]}",
+            f"Agent: {data.get('agent_id', 'Unknown').split('-')[0] if data.get('agent_id') else 'Unknown'}",
             "-" * 80,
         ]
 

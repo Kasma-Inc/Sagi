@@ -36,7 +36,7 @@ class StreamDockerCommandLineCodeExecutor(
 ):
     def __init__(
         self,
-        image: str = "python:3-slim",
+        image: str = "sagicuhk/docker_executor_image",
         container_name: Optional[str] = None,
         *,
         timeout: int = 60,

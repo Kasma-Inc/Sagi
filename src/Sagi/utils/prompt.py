@@ -1,4 +1,6 @@
-def get_step_triage_prompt(*, task: str, current_plan: str, names: list[str]) -> str:
+def get_step_triage_prompt(
+    *, task: str, current_plan: str, names: list[str], team_description: str
+) -> str:
     """Generates a prompt template for triaging the step execution to the right team member.
 
     Args:
@@ -14,6 +16,8 @@ def get_step_triage_prompt(*, task: str, current_plan: str, names: list[str]) ->
         We are executing the following sub-task based on the plan:
         {current_plan}
 
+        The team members are:
+        {team_description}
         To make progress on the request, please answer the following questions, including necessary reasoning:
 
             - Who should speak next? (select from: {names})
@@ -37,6 +41,7 @@ def get_step_triage_prompt(*, task: str, current_plan: str, names: list[str]) ->
         task=task,
         current_plan=current_plan,
         names=", ".join(names),
+        team_description=team_description,
     )
 
 
