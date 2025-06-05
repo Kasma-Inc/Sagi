@@ -546,6 +546,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
             task=self._plan_manager.get_task(),
             current_plan=current_step_content,
             names=self._participant_names,
+            team_description=self._team_description,
         )
         context.append(UserMessage(content=step_triage_prompt, source=self._name))
 
@@ -590,6 +591,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         )
 
         # Check if the next speaker is valid
+        # TODO: handle the case where the next speaker is not in the team
         if next_speaker not in self._participant_name_to_topic_type:
             raise ValueError(
                 f"Invalid next speaker: {next_speaker} from the step triage, participants are: {self._participant_names}"
