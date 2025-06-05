@@ -4,7 +4,6 @@ from collections import OrderedDict
 from typing import Dict, List, Literal, Optional, Tuple
 
 from autogen_agentchat.messages import BaseAgentEvent, BaseChatMessage, BaseMessage
-from autogen_core.models import UserMessage
 from pydantic import BaseModel, Field
 
 from Sagi.utils.prompt import (
@@ -13,7 +12,6 @@ from Sagi.utils.prompt import (
     get_data_collector_prompt,
     get_default_execution_prompt,
     get_previous_results_section,
-    get_relevance_filter_prompt,
 )
 
 
@@ -186,6 +184,18 @@ class Plan(BaseModel):
             return self.steps[step_id].messages
         else:
             raise ValueError(f"Step with step_id {step_id} not found")
+        
+    def get_messages_by_group_id(
+        self, group_id: str
+    ) -> List[BaseAgentEvent | BaseChatMessage]:
+        """Retrieve messages from all steps that belong to the specified group."""
+
+        return [
+            msg
+            for step in self.steps.values()
+            if step.group_id == group_id
+            for msg in step.messages
+        ]
 
     def add_summary_to_plan(self, summary: str) -> None:
         """
@@ -629,6 +639,16 @@ class PlanManager:
             return self._current_plan.get_messages_by_step_id(step_id)
         else:
             raise ValueError("No running plan")
+        
+    def get_messages_by_group_id(
+        self, group_id: str
+    ) -> List[BaseAgentEvent | BaseChatMessage]:
+        """Get messages from all steps belonging to the specified group."""
+
+        if self._current_plan:
+            return self._current_plan.get_messages_by_group_id(group_id)
+        else:
+            raise ValueError("No running plan")
 
     def get_messages_of_current_step(self) -> List[BaseAgentEvent | BaseChatMessage]:
         """
@@ -641,6 +661,17 @@ class PlanManager:
         if current_step is None:
             return []
         return self.get_messages_by_step_id(current_step[0])
+    
+    def get_messages_of_current_group(self) -> List[BaseAgentEvent | BaseChatMessage]:
+        """Get messages of all steps within the group of the current step."""
+
+        current_step = self.get_current_step()
+        if current_step is None or not self._current_plan:
+            return []
+        step_id, _ = current_step
+        group_id = self._current_plan.steps[step_id].group_id
+        return self.get_messages_by_group_id(group_id)
+
 
     def get_messages_of_current_plan(self) -> List[BaseAgentEvent | BaseChatMessage]:
         """
@@ -829,37 +860,6 @@ class PlanManager:
         self._current_plan = None
         self._plan_history = PlanHistory(plan_history=[])
 
-    async def filter_summaries_with_llm(
-        self, summaries: list[str], task: str
-    ) -> list[str]:
-        """
-        Invoke the LLM to return the subset of summary texts most relevant to the current task.
-        """
-        # Construct the prompt used for filtering
-        numbered = "\n".join(f"{i+1}. {s}" for i, s in enumerate(summaries))
-        filter_prompt = get_relevance_filter_prompt(numbered=numbered, task=task)
-
-        # Build messages: instruct the model to output strict JSON only
-        messages = [UserMessage(content=filter_prompt, source="user")]
-
-        # Send the request and receive the full reply
-        from Sagi.workflows.planning import PlanningWorkflow
-
-        workflow = PlanningWorkflow("src/Sagi/workflows/planning.toml")
-
-        result = await workflow.orchestrator_model_client.create(messages)
-        text = result.content.strip()
-
-        try:
-            chosen = json.loads(text)
-        except json.JSONDecodeError:
-            return summaries
-
-        return [
-            summaries[i - 1]
-            for i in chosen
-            if isinstance(i, int) and 1 <= i <= len(summaries)
-        ]
 
     async def build_prompt_for_step(self, step_id: str, agent_role: str) -> str:
         """Builds the LLM prompt for a given step and agent role."""
@@ -870,11 +870,8 @@ class PlanManager:
         if not step:
             raise ValueError(f"Step '{step_id}' not found")
 
-        # Retrieve and filter summaries
-        all_summaries = list(plan.shared_context.values())
-        relevant = await self.filter_summaries_with_llm(all_summaries, step.content)
-
-        shared_section = get_previous_results_section(relevant_summaries=relevant)
+        # No LLM summarization; provide an empty previous results section
+        shared_section = get_previous_results_section(relevant_summaries=[])
         step_section = get_current_subtask_section(step=step)
 
         # Dispatch to the correct prompt generator

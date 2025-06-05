@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import os
 import re
 from typing import Any, Dict, List, Mapping
 
@@ -43,7 +42,6 @@ from autogen_core.models import (
     SystemMessage,
     UserMessage,
 )
-from autogen_ext.models.openai import OpenAIChatCompletionClient
 from pydantic import BaseModel, Field
 
 from Sagi.tools.stream_code_executor.stream_code_executor import (
@@ -392,46 +390,6 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 context.append(UserMessage(content=m.content, source=m.source))
         return context
 
-    async def _generate_step_summary(
-        self,
-        step: str,
-        context: List[UserMessage],
-        cancellation_token: CancellationToken,
-    ) -> str:
-
-        model_client = OpenAIChatCompletionClient(
-            model="gpt-4o-mini",
-            base_url=os.getenv("OPENAI_BASE_URL"),
-            api_key=os.getenv("OPENAI_API_KEY"),
-            max_tokens=2000,
-        )
-
-        # System prompt to instruct the model
-        system_prompt = SystemMessage(
-            content=(
-                "You are an assistant that distills execution context into a concise result. "
-                "Based on the context below, provide a single-paragraph summary of this step's execution."
-            )
-        )
-
-        # Prepare the user payload: include the step and the list of context messages
-        payload = {"step": step, "context": [message.content for message in context]}
-        user_prompt = UserMessage(
-            content=json.dumps(payload, ensure_ascii=False, indent=4), source="user"
-        )
-
-        # Call the model and get the completion
-        from Sagi.workflows.planning import PlanningWorkflow
-
-        workflow = PlanningWorkflow("src/Sagi/workflows/planning.toml")
-
-        result = await workflow.orchestrator_model_client.create(
-            messages=[system_prompt, user_prompt], cancellation_token=cancellation_token
-        )
-
-        # Return the trimmed summary
-        return result.content.strip()
-
     async def _orchestrate_step(self, cancellation_token: CancellationToken) -> None:
         current_step = self._plan_manager.get_current_step()
         if current_step is None:
@@ -441,7 +399,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
             current_step_id, current_step_content = current_step
 
         context = self.messages_to_context(
-            self._plan_manager.get_messages_of_current_step()
+            self._plan_manager.get_messages_of_current_group()
         )
         filtered_context = [
             msg
@@ -466,11 +424,6 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 source="StepCompletionNotifier",
             )
             self._plan_manager.add_reflection_to_step(current_step_id, reason)
-            # Write this step’s result summary into shared_context
-            summary = await self._generate_step_summary(
-                current_step_content, filtered_context, cancellation_token
-            )
-            self._plan_manager.update_shared_context(current_step_id, summary)
             await self.publish_message(
                 GroupChatMessage(message=step_completion_message),
                 topic_id=DefaultTopicId(type=self._output_topic_type),

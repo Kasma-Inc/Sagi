@@ -11,6 +11,7 @@ def test_step_creation_and_serialization():
     # Test Step creation
     step = Step(
         step_id="step1",
+        group_id="group_1",
         content="Test step content",
         step_progress_counter=0,
         state="pending",
@@ -48,6 +49,7 @@ def test_plan_creation_and_operations():
     # Create test steps
     step1 = Step(
         step_id="step1",
+        group_id="group_1",
         content="First step",
         step_progress_counter=0,
         state="pending",
@@ -57,6 +59,7 @@ def test_plan_creation_and_operations():
 
     step2 = Step(
         step_id="step2",
+        group_id="group_2",
         content="Second step",
         step_progress_counter=0,
         state="pending",
@@ -114,6 +117,7 @@ def test_plan_history():
     # Create test plan
     step = Step(
         step_id="step1",
+        group_id="group_1",
         content="Test step",
         step_progress_counter=0,
         state="pending",
@@ -258,3 +262,35 @@ def test_plan_manager_serialization():
     assert loaded_manager.get_plan_count() == 0
     assert loaded_manager.get_task() == task
     assert len(loaded_manager.get_current_plan_contents()) == 4
+
+def test_group_message_retrieval():
+    manager = PlanManager()
+    task = "Test task"
+    model_response = json.dumps(
+        {
+            "steps": [
+                {
+                    "name": "Step 1",
+                    "description": "First step",
+                    "data_collection_task": "Collect data",
+                    "code_executor_task": "N/A",
+                },
+                {
+                    "name": "Step 2",
+                    "description": "Second step",
+                    "data_collection_task": "Collect more data",
+                    "code_executor_task": "N/A",
+                },
+            ]
+        }
+    )
+    manager.new_plan(task, model_response)
+
+    # Add messages to both steps (group_0 and group_1)
+    manager.add_message_to_step("step_0", TextMessage(content="msg1", source="tester"))
+    manager.add_message_to_step("step_1", TextMessage(content="msg2", source="tester"))
+
+    # Retrieve messages of the current group (initially group_0)
+    msgs = manager.get_messages_of_current_group()
+    assert len(msgs) == 1
+    assert msgs[0].content == "msg1"
