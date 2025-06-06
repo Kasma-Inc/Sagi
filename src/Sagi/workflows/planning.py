@@ -116,9 +116,6 @@ class ModelClientFactory:
 
 
 class PlanningWorkflow:
-    def __init__(self):
-        pass
-
     @classmethod
     async def create(
         cls,
