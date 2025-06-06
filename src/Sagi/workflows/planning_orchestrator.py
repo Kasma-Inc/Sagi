@@ -566,7 +566,9 @@ class PlanningOrchestrator(BaseGroupChatManager):
             message=message,
         )
 
-        next_speaker = step_triage["next_speaker"]["answer"]
+        next_speaker = self._participant_names[
+            step_triage["next_speaker"]["answer"] - 1
+        ]
         logging.info(f"Next Speaker: {next_speaker}")
 
         step_running_message = TextMessage(

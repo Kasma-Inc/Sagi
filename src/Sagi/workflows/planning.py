@@ -2,7 +2,7 @@ import os
 from contextlib import AsyncExitStack
 from enum import Enum
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Type, TypeVar
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ModelFamily, ModelInfo
@@ -24,6 +24,11 @@ from Sagi.tools.web_search_agent import WebSearchAgent
 from Sagi.utils.json_handler import get_template_num
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.workflows.planning_group_chat import PlanningGroupChat
+
+DEFAULT_WORK_DIR = "coding_files"
+DEFAULT_MCP_SERVER_PATH = "src/Sagi/mcp_server/"
+DEFAULT_WEB_SEARCH_MAX_RETRIES = 3
+DEFAULT_CODE_MAX_RETRIES = 3
 
 
 class Slide(BaseModel):
@@ -73,208 +78,123 @@ class StepTriageInnerResponse(BaseModel):
     answer: str
 
 
-class StepTriageResponse(BaseModel):
-    instruction_or_question: StepTriageInnerResponse
-    next_speaker: StepTriageInnerResponse
+T = TypeVar("T", bound=BaseModel)
+
+
+class ModelClientFactory:
+    @staticmethod
+    def _init_model_info(client_config: Dict[str, Any]) -> Optional[ModelInfo]:
+        if "model_info" in client_config:
+            model_info = client_config["model_info"]
+            model_info["family"] = ModelFamily.UNKNOWN
+            return ModelInfo(**model_info)
+        return None
+
+    @classmethod
+    def create_model_client(
+        cls,
+        client_config: Dict[str, Any],
+        response_format: Optional[Type[T]] = None,
+        parallel_tool_calls: Optional[bool] = None,
+    ) -> OpenAIChatCompletionClient:
+        model_info = cls._init_model_info(client_config)
+        client_kwargs = {
+            "model": client_config["model"],
+            "base_url": client_config["base_url"],
+            "api_key": client_config["api_key"],
+            "model_info": model_info,
+            "max_tokens": client_config["max_tokens"],
+        }
+
+        if response_format:
+            client_kwargs["response_format"] = response_format
+
+        if parallel_tool_calls is not None:
+            client_kwargs["parallel_tool_calls"] = parallel_tool_calls
+
+        return OpenAIChatCompletionClient(**client_kwargs)
 
 
 class PlanningWorkflow:
-    def __init__(self, config_path: str):
-        config = load_toml_with_env_vars(config_path)
-
-        config_orchestrator_client = config["model_clients"]["orchestrator_client"]
-        if "model_info" in config_orchestrator_client:
-            model_info = config_orchestrator_client["model_info"]
-            model_info["family"] = ModelFamily.UNKNOWN
-            model_info = ModelInfo(**model_info)
-        else:
-            model_info = None
-
-        if model_info is not None:
-            self.orchestrator_model_client = OpenAIChatCompletionClient(
-                model=config_orchestrator_client["model"],
-                base_url=config_orchestrator_client["base_url"],
-                api_key=config_orchestrator_client["api_key"],
-                max_tokens=config_orchestrator_client["max_tokens"],
-                model_info=model_info,
-            )
-        else:
-            self.orchestrator_model_client = OpenAIChatCompletionClient(
-                model=config_orchestrator_client["model"],
-                base_url=config_orchestrator_client["base_url"],
-                api_key=config_orchestrator_client["api_key"],
-                max_tokens=config_orchestrator_client["max_tokens"],
-            )
-
-        config_planning_client = config["model_clients"]["planning_client"]
-        if "model_info" in config_planning_client:
-            model_info = config_planning_client["model_info"]
-            model_info["family"] = ModelFamily.UNKNOWN
-            model_info = ModelInfo(**model_info)
-        else:
-            model_info = None
-
-        if model_info is not None:
-            self.planning_model_client = OpenAIChatCompletionClient(
-                model=config_planning_client["model"],
-                base_url=config_planning_client["base_url"],
-                api_key=config_planning_client["api_key"],
-                response_format=PlanningResponse,
-                model_info=model_info,
-                max_tokens=config_planning_client["max_tokens"],
-            )
-
-            self.template_based_planning_model_client = OpenAIChatCompletionClient(
-                model=config_planning_client["model"],
-                base_url=config_planning_client["base_url"],
-                api_key=config_planning_client["api_key"],
-                response_format=HighLevelPlanPPT,
-                model_info=model_info,
-                max_tokens=config_planning_client["max_tokens"],
-            )
-
-            self.single_group_planning_model_client = OpenAIChatCompletionClient(
-                model=config_planning_client["model"],
-                base_url=config_planning_client["base_url"],
-                api_key=config_planning_client["api_key"],
-                response_format=Group,
-                model_info=model_info,
-                max_tokens=config_planning_client["max_tokens"],
-            )
-        else:
-            self.planning_model_client = OpenAIChatCompletionClient(
-                model=config_planning_client["model"],
-                base_url=config_planning_client["base_url"],
-                api_key=config_planning_client["api_key"],
-                response_format=PlanningResponse,
-                max_tokens=config_planning_client["max_tokens"],
-            )
-
-            self.template_based_planning_model_client = OpenAIChatCompletionClient(
-                model=config_planning_client["model"],
-                base_url=config_planning_client["base_url"],
-                api_key=config_planning_client["api_key"],
-                response_format=HighLevelPlanPPT,
-                max_tokens=config_planning_client["max_tokens"],
-            )
-
-            self.single_group_planning_model_client = OpenAIChatCompletionClient(
-                model=config_planning_client["model"],
-                base_url=config_planning_client["base_url"],
-                api_key=config_planning_client["api_key"],
-                response_format=Group,
-                max_tokens=config_planning_client["max_tokens"],
-            )
-
-        config_reflection_client = config["model_clients"]["reflection_client"]
-        if "model_info" in config_reflection_client:
-            model_info = config_reflection_client["model_info"]
-            model_info["family"] = ModelFamily.UNKNOWN
-            model_info = ModelInfo(**model_info)
-        else:
-            model_info = None
-
-        if model_info is not None:
-            self.reflection_model_client = OpenAIChatCompletionClient(
-                model=config_reflection_client["model"],
-                base_url=config_reflection_client["base_url"],
-                api_key=config_reflection_client["api_key"],
-                response_format=ReflectionResponse,
-                model_info=model_info,
-                max_tokens=config_reflection_client["max_tokens"],
-            )
-        else:
-            self.reflection_model_client = OpenAIChatCompletionClient(
-                model=config_reflection_client["model"],
-                base_url=config_reflection_client["base_url"],
-                api_key=config_reflection_client["api_key"],
-                response_format=ReflectionResponse,
-                max_tokens=config_reflection_client["max_tokens"],
-            )
-
-        config_step_triage_client = config["model_clients"]["step_triage_client"]
-        if "model_info" in config_step_triage_client:
-            model_info = config_step_triage_client["model_info"]
-            model_info["family"] = ModelFamily.UNKNOWN
-            model_info = ModelInfo(**model_info)
-        else:
-            model_info = None
-
-        if model_info is not None:
-            self.step_triage_model_client = OpenAIChatCompletionClient(
-                model=config_step_triage_client["model"],
-                base_url=config_step_triage_client["base_url"],
-                api_key=config_step_triage_client["api_key"],
-                response_format=StepTriageResponse,
-                model_info=model_info,
-            )
-        else:
-            self.step_triage_model_client = OpenAIChatCompletionClient(
-                model=config_step_triage_client["model"],
-                base_url=config_step_triage_client["base_url"],
-                api_key=config_step_triage_client["api_key"],
-                response_format=StepTriageResponse,
-            )
-
-        config_code_client = config["model_clients"]["code_client"]
-        if "model_info" in config_code_client:
-            model_info = config_code_client["model_info"]
-            model_info["family"] = ModelFamily.UNKNOWN
-            model_info = ModelInfo(**model_info)
-        else:
-            model_info = None
-
-        if model_info is not None:
-            self.code_model_client = OpenAIChatCompletionClient(
-                model=config_code_client["model"],
-                base_url=config_code_client["base_url"],
-                api_key=config_code_client["api_key"],
-                model_info=model_info,
-                max_tokens=config_code_client["max_tokens"],
-            )
-        else:
-            self.code_model_client = OpenAIChatCompletionClient(
-                model=config_code_client["model"],
-                base_url=config_code_client["base_url"],
-                api_key=config_code_client["api_key"],
-                max_tokens=config_code_client["max_tokens"],
-            )
-
-        config_single_tool_use_client = config["model_clients"][
-            "single_tool_use_client"
-        ]
-        if model_info is not None:
-            self.single_tool_use_model_client = OpenAIChatCompletionClient(
-                model=config_single_tool_use_client["model"],
-                base_url=config_single_tool_use_client["base_url"],
-                api_key=config_single_tool_use_client["api_key"],
-                max_tokens=config_single_tool_use_client["max_tokens"],
-                parallel_tool_calls=config_single_tool_use_client[
-                    "parallel_tool_calls"
-                ],
-                model_info=model_info,
-            )
-        else:
-            self.single_tool_use_model_client = OpenAIChatCompletionClient(
-                model=config_single_tool_use_client["model"],
-                base_url=config_single_tool_use_client["base_url"],
-                api_key=config_single_tool_use_client["api_key"],
-                max_tokens=config_single_tool_use_client["max_tokens"],
-                parallel_tool_calls=config_single_tool_use_client[
-                    "parallel_tool_calls"
-                ],
-            )
+    def __init__(self):
+        pass
 
     @classmethod
     async def create(
         cls,
         config_path: str,
+        team_config_path: str,
         template_work_dir: str | None = None,
     ):
-        self = cls(config_path)
+        self = cls()
 
+        config = load_toml_with_env_vars(config_path)
+        team_config = load_toml_with_env_vars(team_config_path)
+
+        # TeamMember enum dynamically from team.toml
+        team_members = list(team_config["team"].values())
+        TeamMembers = Enum("TeamMembers", team_members)
+
+        class StepTriageNextSpeakerResponse(BaseModel):
+            reason: str
+            answer: TeamMembers
+
+        class StepTriageResponse(BaseModel):
+            instruction_or_question: StepTriageInnerResponse
+            next_speaker: StepTriageNextSpeakerResponse
+
+        # Initialize all model clients using ModelClientFactory
+        config_orchestrator_client = config["model_clients"]["orchestrator_client"]
+        self.orchestrator_model_client = ModelClientFactory.create_model_client(
+            config_orchestrator_client
+        )
+
+        config_reflection_client = config["model_clients"]["reflection_client"]
+        self.reflection_model_client = ModelClientFactory.create_model_client(
+            config_reflection_client, response_format=ReflectionResponse
+        )
+
+        config_step_triage_client = config["model_clients"]["step_triage_client"]
+        self.step_triage_model_client = ModelClientFactory.create_model_client(
+            config_step_triage_client, response_format=StepTriageResponse
+        )
+
+        config_code_client = config["model_clients"]["code_client"]
+        self.code_model_client = ModelClientFactory.create_model_client(
+            config_code_client
+        )
+
+        config_single_tool_use_client = config["model_clients"][
+            "single_tool_use_client"
+        ]
+        self.single_tool_use_model_client = ModelClientFactory.create_model_client(
+            config_single_tool_use_client,
+            parallel_tool_calls=config_single_tool_use_client.get(
+                "parallel_tool_calls"
+            ),
+        )
+
+        config_planning_client = config["model_clients"]["planning_client"]
+        self.planning_model_client = ModelClientFactory.create_model_client(
+            config_planning_client, response_format=PlanningResponse
+        )
+
+        # Initialize template based planning client using the same config as planning client
+        self.template_based_planning_model_client = (
+            ModelClientFactory.create_model_client(
+                config_planning_client, response_format=HighLevelPlanPPT
+            )
+        )
+
+        # Initialize single group planning client using the same config as planning client
+        self.single_group_planning_model_client = (
+            ModelClientFactory.create_model_client(
+                config_planning_client, response_format=Group
+            )
+        )
+
+        # Initialize template selection client if template_work_dir is provided
         if template_work_dir is not None:
-            config = load_toml_with_env_vars(config_path)
             template_num = get_template_num(
                 os.path.join(template_work_dir, "slide_induction.json")
             )
@@ -285,20 +205,12 @@ class PlanningWorkflow:
             class TemplateSelection(BaseModel):
                 template_id: TemplateList
 
-            config_planning_client = config["model_clients"]["planning_client"]
-            if "model_info" in config_planning_client:
-                model_info = config_planning_client["model_info"]
-                model_info["family"] = ModelFamily.UNKNOWN
-                model_info = ModelInfo(**model_info)
-            else:
-                model_info = None
-
-            self.template_selection_model_client = OpenAIChatCompletionClient(
-                model=config_planning_client["model"],
-                base_url=config_planning_client["base_url"],
-                api_key=config_planning_client["api_key"],
-                response_format=TemplateSelection,
+            self.template_selection_model_client = (
+                ModelClientFactory.create_model_client(
+                    config_planning_client, response_format=TemplateSelection
+                )
             )
+
         self.session_manager = MCPSessionManager()
 
         web_search_server_params = StdioServerParams(
@@ -316,7 +228,7 @@ class PlanningWorkflow:
         )
 
         # set env MCP_SERVER_PATH, default is "src/Sagi/mcp_server/"
-        mcp_server_path = os.getenv("MCP_SERVER_PATH", "src/Sagi/mcp_server/")
+        mcp_server_path = os.getenv("MCP_SERVER_PATH", DEFAULT_MCP_SERVER_PATH)
         prompt_server_params = StdioServerParams(
             command="uv",
             args=[
@@ -382,10 +294,10 @@ class PlanningWorkflow:
             model_client=self.orchestrator_model_client,
             # reflect_on_tool_use=True,  # enable llm summary for contents web search returns
             tools=web_search_tools,  # type: ignore
-            max_retries=2,
+            max_retries=DEFAULT_WEB_SEARCH_MAX_RETRIES,
         )
         work_dir = Path(
-            "coding_files"
+            DEFAULT_WORK_DIR
         )  # the output directory for code generation execution
         code_executor = StreamCodeExecutorAgent(
             name="CodeExecutor",
@@ -401,16 +313,25 @@ class PlanningWorkflow:
                 ),
             ),
             model_client=self.code_model_client,
-            max_retries_on_error=3,
+            max_retries_on_error=DEFAULT_CODE_MAX_RETRIES,
         )
+
+        # mapping of team member names to their agent instances
+        agent_mapping: Dict[str, Any] = {
+            "web_search": surfer,
+            "CodeExecutor": code_executor,
+            "general_agent": general_agent,
+        }
+
+        # participants list dynamically based on team.toml
+        participants = []
+        for member in team_members:
+            if member in agent_mapping:
+                participants.append(agent_mapping[member])
 
         # Pass prompt_template_agent as a separate parameter
         self.team = PlanningGroupChat(
-            participants=[
-                surfer,
-                code_executor,
-                general_agent,
-            ],  # can utilize rag_agent
+            participants=participants,
             orchestrator_model_client=self.orchestrator_model_client,
             planning_model_client=self.planning_model_client,
             reflection_model_client=self.reflection_model_client,

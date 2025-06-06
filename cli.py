@@ -20,11 +20,15 @@ from Sagi.workflows.planning import PlanningWorkflow
 os.makedirs("logging", exist_ok=True)
 setup_logging()
 
+DEFAULT_TEAM_CONFIG_PATH = "src/Sagi/workflows/team.toml"
+DEFAULT_CONFIG_PATH = "src/Sagi/workflows/planning.toml"
+
 
 def parse_args():
     parser = argparse.ArgumentParser("Sagi CLI")
     parser.add_argument("--env", choices=["dev", "prod"], default="dev")
-    parser.add_argument("--config", default="src/Sagi/workflows/planning.toml")
+    parser.add_argument("--config", default=DEFAULT_CONFIG_PATH)
+    parser.add_argument("--team_config", default=DEFAULT_TEAM_CONFIG_PATH)
     parser.add_argument(
         "--trace", action="store_true", help="Enable OpenTelemetry tracing"
     )
@@ -89,7 +93,7 @@ BaseMessage.to_text = _default_to_text
 async def main_cmd(args: argparse.Namespace):
 
     workflow = await PlanningWorkflow.create(
-        args.config, template_work_dir=args.template_work_dir
+        args.config, args.team_config, template_work_dir=args.template_work_dir
     )
 
     try:
