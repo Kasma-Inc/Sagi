@@ -38,10 +38,6 @@ def get_step_triage_prompt(
                     "reason": string,
                     "answer": string (select from: {names})
                 }},
-                "instruction_or_question": {{
-                    "reason": string,
-                    "answer": string
-                }}
             }}
     """
 

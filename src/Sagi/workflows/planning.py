@@ -73,11 +73,6 @@ class MCPSessionManager:
         self.sessions.clear()
 
 
-class StepTriageInnerResponse(BaseModel):
-    reason: str
-    answer: str
-
-
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -137,7 +132,6 @@ class PlanningWorkflow:
             answer: TeamMembers
 
         class StepTriageResponse(BaseModel):
-            instruction_or_question: StepTriageInnerResponse
             next_speaker: StepTriageNextSpeakerResponse
 
         # Initialize all model clients using ModelClientFactory
@@ -298,7 +292,7 @@ class PlanningWorkflow:
         )  # the output directory for code generation execution
         code_executor = StreamCodeExecutorAgent(
             name="CodeExecutor",
-            description="a code executor agent that handles code related tasks.",
+            description="a code executor agent that can generate and execute Python and shell scripts to assist in code based tasks such as generating files, appending files, calculating data, etc.",
             system_message="You are a Code Execution Agent. Your role is to generate and execute Python code and shell scripts based on user instructions, ensuring correctness, efficiency, and minimal errors. Handle edge cases gracefully. Python code should be provided in ```python code blocks, and sh shell scripts should be provided in ```sh code blocks for execution.",
             # stream_code_executor=StreamLocalCommandLineCodeExecutor(work_dir=work_dir),
             stream_code_executor=StreamDockerCommandLineCodeExecutor(

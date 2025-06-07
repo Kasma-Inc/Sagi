@@ -4,6 +4,7 @@ from prompt_template import (
     FINANCIAL_PPT_PLAN_PROMPT,
     GENERAL_FACTS_PROMPT,
     GENERAL_PPT_PLAN_PROMPT,
+    GENERAL_REPORT_PLAN_PROMPT,
     GNERAL_PLAN_PROMPT,
 )
 
@@ -23,6 +24,10 @@ PROMPT_TEMPLATES = {
     "general-ppt": {
         "facts_prompt": GENERAL_FACTS_PROMPT,
         "plan_prompt": GENERAL_PPT_PLAN_PROMPT,
+    },
+    "general-report": {
+        "facts_prompt": GENERAL_FACTS_PROMPT,
+        "plan_prompt": GENERAL_REPORT_PLAN_PROMPT,
     },
 }
 
@@ -52,6 +57,14 @@ async def get_ppt_plan() -> str:
     Get General PowerPoint(PPT) prompt templates for creating brilliant presentations.
     """
     return PROMPT_TEMPLATES["general-ppt"]
+
+
+@mcp.tool()
+async def get_report_plan() -> str:
+    """
+    Get General Report prompt templates for creating brilliant reports.
+    """
+    return PROMPT_TEMPLATES["general-report"]
 
 
 def main() -> None:

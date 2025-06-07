@@ -556,9 +556,8 @@ class PlanningOrchestrator(BaseGroupChatManager):
         step_triage = json.loads(step_triage_response)
 
         # Broadcast the next step
-        instruction_or_question = step_triage["instruction_or_question"]["answer"]
         message = TextMessage(
-            content=instruction_or_question,
+            content=current_step_content,
             source=self._name,
         )
         self._plan_manager.add_message_to_step(
@@ -575,7 +574,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
             content=json.dumps(
                 {
                     "tool": next_speaker,
-                    "instruction": instruction_or_question,
+                    "instruction": current_step_content,
                     "stepId": current_step_id,
                 },
                 indent=4,
