@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Type, TypeVar
 
 from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.conditions import TextMessageTermination
+from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_core.models import ModelFamily, ModelInfo
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import (
@@ -116,6 +118,7 @@ class PlanningWorkflow:
         cls,
         config_path: str,
         team_config_path: str,
+        mode: str = "deep_research",
         template_work_dir: str | None = None,
     ):
         self = cls()
@@ -314,7 +317,21 @@ class PlanningWorkflow:
             "general_agent": general_agent,
         }
 
-        # participants list dynamically based on team.toml
+        # Select participants based on mode
+        if mode == "general":
+            self.team = RoundRobinGroupChat(
+                participants=[general_agent],
+                termination_condition=TextMessageTermination("general_agent"),
+            )
+            return self
+        elif mode == "web_search":
+            self.team = RoundRobinGroupChat(
+                participants=[surfer, general_agent],
+                termination_condition=TextMessageTermination("general_agent"),
+            )
+            return self
+
+        # deep_research mode: use all participants
         participants = []
         for member in team_members:
             if member in agent_mapping:
