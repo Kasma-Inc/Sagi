@@ -128,11 +128,11 @@ class PlanningWorkflow:
 
         # TeamMember enum dynamically from team.toml
         team_members = list(team_config["team"].values())
-        TeamMembers = Enum("TeamMembers", team_members)
+        # TeamMembers = Enum("TeamMembers", team_members)
 
         class StepTriageNextSpeakerResponse(BaseModel):
-            reason: str
-            answer: TeamMembers
+            instruction: str
+            answer: Literal[tuple(team_members)]
 
         class StepTriageResponse(BaseModel):
             next_speaker: StepTriageNextSpeakerResponse

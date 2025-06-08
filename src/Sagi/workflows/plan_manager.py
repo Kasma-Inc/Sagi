@@ -73,6 +73,37 @@ class Step(BaseModel):
         )
 
 
+class Group(BaseModel):
+    group_id: str
+    group_description: str
+    group_summary: str
+
+    def dump(self) -> Dict:
+        return {
+            "group_id": self.group_id,
+            "group_description": self.group_description,
+            "group_summary": self.group_summary,
+        }
+
+    @classmethod
+    def load(cls, data: Dict) -> "Group":
+        return cls(
+            group_id=data["group_id"],
+            group_description=data["group_description"],
+            group_summary=data["group_summary"],
+        )
+
+    def update_summary(self, summary: str) -> None:
+        """
+        Update the group summary.
+        """
+        existing_summary = self.group_summary
+        if existing_summary:
+            self.group_summary = f"{existing_summary}\n{summary}"
+        else:
+            self.group_summary = summary
+
+
 class Plan(BaseModel):
     """
     Represents a plan consisting of multiple steps, identified by a unique ID.
@@ -96,6 +127,7 @@ class Plan(BaseModel):
         default_factory=OrderedDict
     )  # Initialize as empty OrderedDict
     group_template_ids: Dict[int, Optional[str]] = Field(default_factory=dict)
+    groups: OrderedDict[str, Group] = Field(default_factory=OrderedDict)
 
     def get_current_step(self) -> Optional[Tuple[str, str]]:
         """
@@ -290,6 +322,16 @@ class Plan(BaseModel):
     def get_group_template_id(self, group_id: int) -> Optional[str]:
         return self.group_template_ids.get(group_id, None)
 
+    def get_current_group_description(self) -> str:
+        """
+        Get the description of a group.
+        """
+        if not self.get_current_step():
+            return ""
+        current_step_id, _ = self.get_current_step()
+        current_group_id = self.steps[current_step_id].group_id
+        return self.groups[current_group_id].group_description
+
 
 class PlanHistory(BaseModel):
     """
@@ -439,6 +481,18 @@ class PlanManager:
                 template_id=template_id,
             )
 
+        def append_group(
+            groups: Dict[str, Group],
+            group_id: int,
+            group_description: str,
+        ):
+            groups[f"group_{group_id}"] = Group(
+                group_id=f"group_{group_id}",
+                group_description=group_description,
+                group_summary="",
+                is_visited=False,
+            )
+
         def validate_model_response(model_response: str) -> None:
             """
             Validate the model response format.
@@ -481,12 +535,13 @@ class PlanManager:
         validate_model_response(model_response)
         current_plan_groups = json.loads(model_response)["groups"]
 
-        steps, group_template_ids, step_id, group_id = {}, {}, 0, 0
+        steps, group_template_ids, step_id, group_id, groups = {}, {}, 0, 0, {}
         for group in current_plan_groups:
             group_name = group["name"]
             group_description = group["description"]
             tasks_added = False
             template_id = group.get("template_id", None)
+            append_group(groups, group_id, group_description)
             if group.get("data_collection_task"):
                 content = group["data_collection_task"]
                 append_step(steps, step_id, content, group_id, template_id)
@@ -513,6 +568,7 @@ class PlanManager:
             awaiting_confirmation=True,
             summary=None,
             group_template_ids=group_template_ids,
+            groups=groups,
         )
 
     def confirm_plan(self) -> None:
@@ -587,6 +643,14 @@ class PlanManager:
         if self._current_plan:
             return self._current_plan.get_current_step()
         return None
+
+    def get_current_group_description(self) -> str:
+        """
+        Get the description of the current group.
+        """
+        if self._current_plan:
+            return self._current_plan.get_current_group_description()
+        return ""
 
     def add_message_to_step(
         self, step_id: str, message: BaseAgentEvent | BaseChatMessage
@@ -834,3 +898,28 @@ class PlanManager:
             return self._current_plan.group_template_ids.get(group_id, None)
         else:
             raise ValueError("No running plan")
+
+    def update_group_summary(self, step_id: str, summary: str) -> None:
+        """
+        Update the group summary.
+        """
+        group_id = self._current_plan.steps[step_id].group_id
+        self._current_plan.groups[group_id].update_summary(summary)
+
+    def get_all_groups_in_plan(self) -> List[Group]:
+        """
+        Get all groups in the current plan.
+        """
+        return [group.group_description for group in self._current_plan.groups.values()]
+
+    def get_previous_group_summary(self) -> str:
+        """
+        Get the previous group summary.
+        """
+        return "\n".join(
+            [
+                f"{group.group_description}: {group.group_summary}"
+                for group in self._current_plan.groups.values()
+                if group.group_summary != ""
+            ]
+        )

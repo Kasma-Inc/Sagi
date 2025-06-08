@@ -30,11 +30,19 @@ from autogen_agentchat.teams._group_chat._base_group_chat_manager import (
 from autogen_agentchat.teams._group_chat._events import (
     GroupChatAgentResponse,
     GroupChatRequestPublish,
+    GroupChatReset,
     GroupChatStart,
     GroupChatTermination,
 )
 from autogen_agentchat.utils import content_to_str, remove_images
-from autogen_core import CancellationToken, DefaultTopicId, MessageContext, event, rpc
+from autogen_core import (
+    AgentId,
+    CancellationToken,
+    DefaultTopicId,
+    MessageContext,
+    event,
+    rpc,
+)
 from autogen_core.models import (
     AssistantMessage,
     ChatCompletionClient,
@@ -58,6 +66,7 @@ from Sagi.utils.prompt import (
     get_expand_plan_prompt,
     get_final_answer_prompt,
     get_high_level_ppt_plan_prompt,
+    get_new_group_description_prompt,
     get_reflection_step_completion_prompt,
     get_step_triage_prompt,
     get_template_selection_prompt,
@@ -463,6 +472,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         else:
             current_step_id, current_step_content = current_step
 
+        # Check if the step is complete
         context = self.messages_to_context(
             self._plan_manager.get_messages_of_current_step()
         )
@@ -489,6 +499,8 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 source="StepCompletionNotifier",
             )
             self._plan_manager.add_reflection_to_step(current_step_id, reason)
+            # TODO: kindly to handle the group summary update, change the reason to the true summary
+            self._plan_manager.update_group_summary(current_step_id, reason)
             await self._output_message_queue.put(step_completion_message)
 
             # Find the next pending step after completing the current one
@@ -501,10 +513,21 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 return
             else:
                 current_step_id, current_step_content = current_step
+        else:
+            if self._plan_manager.get_step_progress_counter(current_step_id) > 0:
+                self._plan_manager.add_message_to_step(
+                    step_id=current_step_id,
+                    message=TextMessage(
+                        content=reason,
+                        source="StepReflection",
+                    ),
+                )
 
         # Initialize or increment the counter
         if self._plan_manager.get_step_progress_counter(current_step_id) == 0:
+            # Start a new step
             self._plan_manager.set_step_state(current_step_id, "in_progress")
+            # Notify the frontend that a new step has started
             step_start_json = {
                 "stepId": current_step_id,
                 "content": current_step_content,
@@ -515,6 +538,13 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 source="NewStepNotifier",
             )
             await self._output_message_queue.put(step_start_message)
+        else:
+            # Add the reflection to the model_context for the non-first attempt
+            await self.publish_message(
+                GroupChatAgentResponse(agent_response=Response(chat_message=reason)),
+                topic_id=DefaultTopicId(type=self._group_topic_type),
+                cancellation_token=cancellation_token,
+            )
 
         # Check if the plan has been in progress for too long
         self._plan_manager.increment_step_counter(current_step_id)
@@ -537,6 +567,8 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 source="StepCompletionNotifier",
             )
             self._plan_manager.add_reflection_to_step(current_step_id, reason)
+            # TODO: kindly to handle the group summary update, change the reason to the true summary
+            self._plan_manager.update_group_summary(current_step_id, reason)
             await self._output_message_queue.put(step_failed_message)
 
             # Find the next pending step
@@ -566,26 +598,14 @@ class PlanningOrchestrator(BaseGroupChatManager):
         )
         step_triage = json.loads(step_triage_response)
 
-        # Broadcast the next step
-        message = TextMessage(
-            content=current_step_content,
-            source=self._name,
-        )
-        self._plan_manager.add_message_to_step(
-            step_id=current_step_id,
-            message=message,
-        )
-
-        next_speaker = self._participant_names[
-            step_triage["next_speaker"]["answer"] - 1
-        ]
+        next_speaker = step_triage["next_speaker"]["answer"]
         logging.info(f"Next Speaker: {next_speaker}")
 
         step_running_message = TextMessage(
             content=json.dumps(
                 {
                     "tool": next_speaker,
-                    "instruction": current_step_content,
+                    "instruction": step_triage["next_speaker"]["instruction"],
                     "stepId": current_step_id,
                 },
                 indent=4,
@@ -595,20 +615,52 @@ class PlanningOrchestrator(BaseGroupChatManager):
         # Log it to the output queue.
         await self._output_message_queue.put(step_running_message)
 
-        # Broadcast it
-        await self.publish_message(  # Broadcast
-            GroupChatAgentResponse(agent_response=Response(chat_message=message)),
-            topic_id=DefaultTopicId(type=self._group_topic_type),
-            cancellation_token=cancellation_token,
-        )
+        messages_for_current_step = [
+            TextMessage(
+                content=f"You are now focusing on solving the following step: {current_step_content}",
+                source=self._name,
+            ),
+            TextMessage(
+                content=get_new_group_description_prompt(
+                    task=self._plan_manager.get_task(),
+                    groups_in_plan=self._plan_manager.get_all_groups_in_plan(),
+                    previous_group_summary=self._plan_manager.get_previous_group_summary(),
+                    group_description=self._plan_manager.get_current_group_description(),
+                ),
+                source=self._name,
+            ),
+        ]
+        if self._plan_manager.get_step_progress_counter(current_step_id) > 0:
+            messages_for_current_step.append(
+                TextMessage(
+                    content="Recall that so far, you have tried the following attempts:\n",
+                    source=self._name,
+                )
+            )
+            messages_for_current_step.extend(
+                self._plan_manager.get_messages_of_current_step()
+            )
 
-        # Check if the next speaker is valid
         # TODO: handle the case where the next speaker is not in the team
         if next_speaker not in self._participant_name_to_topic_type:
             raise ValueError(
                 f"Invalid next speaker: {next_speaker} from the step triage, participants are: {self._participant_names}"
             )
         participant_topic_type = self._participant_name_to_topic_type[next_speaker]
+
+        # Clear the message buffer for agent since we record the messages via self._plan_manager
+        await self.send_message(
+            GroupChatReset(),
+            recipient=AgentId(type=participant_topic_type, key=next_speaker),
+        )
+
+        # Set the _buffer_message of the participant to the messages_for_current_step
+        await self.publish_message(  # Broadcast
+            GroupChatStart(messages=messages_for_current_step),
+            topic_id=DefaultTopicId(type=participant_topic_type),
+            cancellation_token=cancellation_token,
+        )
+
         await self.publish_message(
             GroupChatRequestPublish(),
             topic_id=DefaultTopicId(type=participant_topic_type),

@@ -288,3 +288,6 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             yield result
         if isinstance(self._code_executor, StreamDockerCommandLineCodeExecutor):
             await self._code_executor.stop()
+
+    async def on_reset(self, cancellation_token: CancellationToken) -> None:
+        await self._model_context.clear()

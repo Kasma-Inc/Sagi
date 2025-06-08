@@ -35,7 +35,7 @@ def get_step_triage_prompt(
 
             {{
                 "next_speaker": {{
-                    "reason": string,
+                    "instruction": string,
                     "answer": string (select from: {names})
                 }},
             }}
@@ -228,3 +228,44 @@ def get_expand_plan_prompt(*, task: str, slide_content: str) -> str:
     }}
     """
     return template.format(task=task, slide_content=slide_content)
+
+
+def get_new_group_description_prompt(
+    *,
+    task: str,
+    groups_in_plan: list[str],
+    previous_group_summary: list[str],
+    group_description: str,
+) -> str:
+    """Generates a prompt template for new group description.
+
+    Args:
+        task: The current task
+        groups_in_plan: The groups in the plan
+        previous_group_summary: The summary of the previous group
+        group_description: The description of the current group
+    """
+    template = """
+    The context of the step is as follows:
+    
+    Recall that you are working on the following request:
+
+    ## User Query:
+    {task}
+
+    There is a confirmed plan for solving the request, which contains the following groups:
+    {groups_in_plan}
+    
+    So far, you have completed the following groups:
+    {previous_group_summary}
+
+    You are currently focusing on the following group:
+    ## Group Description:
+    {group_description}
+    """
+    return template.format(
+        group_description=group_description,
+        groups_in_plan=groups_in_plan,
+        task=task,
+        previous_group_summary=previous_group_summary,
+    )
