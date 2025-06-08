@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import logging
 import os
+from typing import Any, Dict, List
 
 from autogen_agentchat.messages import BaseMessage
 from autogen_agentchat.ui import Console
@@ -97,6 +98,61 @@ def _default_to_text(self) -> str:
 BaseMessage.to_text = _default_to_text
 
 
+def display_intent_suggestions(suggestions: List[Dict[str, Any]]) -> None:
+    logging.info(
+        "\n📝 Expanded request into the following possible intents. Please select one:"
+    )
+    logging.info("=" * 60)
+
+    for i, suggestion in enumerate(suggestions, 1):
+        logging.info(f"[{i}] {suggestion['intent']}")
+
+
+def get_user_choice(suggestions: List[Dict[str, Any]], original_input: str) -> str:
+    """get user choice and return the selected request"""
+    while True:
+        try:
+            choice = input(
+                "Please select an option (enter number, or press Enter to use original input): "
+            ).strip()
+
+            if choice == "":
+                logging.info(f"✅ Using original input: {original_input}")
+                return original_input
+
+            choice_num = int(choice)
+            if 1 <= choice_num <= len(suggestions):
+                selected_suggestion = suggestions[choice_num - 1]
+                selected_query = selected_suggestion["intent"]
+                logging.info(f"✅ Selected: {selected_suggestion['intent']}")
+                logging.info(f"   Will execute: {selected_query}")
+                return selected_query
+            else:
+                logging.error("❌ Invalid choice, please try again")
+
+        except ValueError:
+            logging.error("❌ Please enter a valid number")
+
+
+async def intent_recognition(workflow: PlanningWorkflow, user_request: str) -> str:
+    """process with intent recognition and return the selected request"""
+    try:
+        logging.info("🤔 Analyzing your intent, please wait...")
+        intent_response = await workflow.recognize_intent(user_request)
+
+        display_intent_suggestions(intent_response["suggestions"])
+        selected_query = get_user_choice(intent_response["suggestions"], user_request)
+
+        logging.info("\n" + "=" * 60)
+        logging.info("🚀 Starting task execution...\n")
+        return selected_query
+
+    except Exception as e:
+        logging.error(f"❌ Intent recognition failed: {e}")
+        logging.info("🔄 Continuing with original input...")
+        return user_request
+
+
 async def main_cmd(args: argparse.Namespace):
 
     workflow = await PlanningWorkflow.create(
@@ -106,13 +162,21 @@ async def main_cmd(args: argparse.Namespace):
         mode=args.mode,
     )
 
+    user_request = None
+
     try:
         while True:
             user_input = input("User: ")
             if user_input.lower() in ("quit", "exit", "q"):
                 break
 
-            await asyncio.create_task(Console(workflow.run_workflow(user_input)))
+            # Perform intent recognition if user_request is not set
+            if user_request is None:
+                user_request = await intent_recognition(workflow, user_input)
+                await asyncio.create_task(Console(workflow.run_workflow(user_request)))
+            else:
+                await asyncio.create_task(Console(workflow.run_workflow(user_input)))
+
     finally:
         await workflow.cleanup()
         logging.info("Workflow cleaned up.")

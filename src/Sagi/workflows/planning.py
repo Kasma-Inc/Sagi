@@ -1,3 +1,4 @@
+import json
 import os
 from contextlib import AsyncExitStack
 from enum import Enum
@@ -25,6 +26,7 @@ from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor im
 from Sagi.tools.web_search_agent import WebSearchAgent
 from Sagi.utils.json_handler import get_template_num
 from Sagi.utils.load_config import load_toml_with_env_vars
+from Sagi.utils.prompt import get_intent_recognition_prompt
 from Sagi.workflows.planning_group_chat import PlanningGroupChat
 
 DEFAULT_WORK_DIR = "coding_files"
@@ -56,6 +58,14 @@ class PlanningResponse(BaseModel):
 class ReflectionResponse(BaseModel):
     is_complete: Literal["true", "false"]
     reason: str
+
+
+class IntentOption(BaseModel):
+    intent: str
+
+
+class IntentRecognitionResponse(BaseModel):
+    suggestions: List[IntentOption]
 
 
 class MCPSessionManager:
@@ -185,6 +195,12 @@ class PlanningWorkflow:
             ModelClientFactory.create_model_client(
                 config_planning_client, response_format=Group
             )
+        )
+
+        # Initialize intent recognition client
+        config_intent_client = config["model_clients"]["intent_recognition_client"]
+        self.intent_recognition_model_client = ModelClientFactory.create_model_client(
+            config_intent_client, response_format=IntentRecognitionResponse
         )
 
         # Initialize template selection client if template_work_dir is provided
@@ -353,6 +369,30 @@ class PlanningWorkflow:
             template_work_dir=template_work_dir,  # Add template work directory parameter
         )
         return self
+
+    async def recognize_intent(self, user_request: str) -> IntentRecognitionResponse:
+        """Recognize user intent and provide expanded query suggestions"""
+
+        intent_recognition_prompt = get_intent_recognition_prompt(task=user_request)
+        try:
+            intent_recognition_agent = AssistantAgent(
+                name="intent_recognition_agent",
+                model_client=self.intent_recognition_model_client,
+                description="a intent recognition agent that provides answer for simple questions.",
+                system_message=intent_recognition_prompt,
+            )
+            task_response = await intent_recognition_agent.run(task=user_request)
+            client_response = json.loads(task_response.messages[1].content)
+            return client_response
+        except Exception:
+            # Fallback: return original input if intent recognition fails
+            return IntentRecognitionResponse(
+                suggestions=[
+                    IntentOption(
+                        intent=user_request,
+                    )
+                ],
+            )
 
     def run_workflow(self, user_input: str):
         return self.team.run_stream(task=user_input)
