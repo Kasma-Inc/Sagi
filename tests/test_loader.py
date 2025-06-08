@@ -1,8 +1,5 @@
-from pathlib import Path
-from unittest.mock import Mock
-
-import pytest
 from urllib import request as urlrequest
+
 
 from Sagi.utils.pdf_mineru_loader import parse_markify_markdown
 
@@ -22,10 +19,13 @@ def test_load_pdf_mineru(tmp_path, monkeypatch):
     class FakeResponse:
         def __init__(self, data: bytes):
             self._data = data
+
         def read(self) -> bytes:
             return self._data
+
         def __enter__(self):
             return self
+
         def __exit__(self, exc_type, exc, tb):
             pass
 
