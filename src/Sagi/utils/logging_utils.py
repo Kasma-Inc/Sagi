@@ -12,7 +12,16 @@ class LLMFilter(logging.Filter):
             record.msg, (LLMStreamStartEvent, LLMStreamEndEvent, LLMCallEvent)
         ):
             return True
+        elif record.filename == "cli.py":
+            return True
         return False
+
+
+class CLIOnlyFilter(logging.Filter):
+    """Filter that only allows logs from cli.py"""
+
+    def filter(self, record):
+        return record.filename == "cli.py"
 
 
 class ReadableFormatter(logging.Formatter):
@@ -157,10 +166,19 @@ def setup_logging():
     )
     file_handler.addFilter(LLMFilter())
 
-    # Create logger and add handler
+    # Create console handler for terminal output (only cli.py logs)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    )
+    console_handler.addFilter(CLIOnlyFilter())  # Only cli.py logs to terminal
+
+    # Create logger and add handlers
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     logger.addHandler(file_handler)
+    logger.addHandler(console_handler)  # Add console output
 
     # For trace logging with filter
     trace_logger = logging.getLogger(TRACE_LOGGER_NAME)
