@@ -237,35 +237,32 @@ class PlanningWorkflow:
         )
         domain_specific_tools = await mcp_server_tools(prompt_server_params)
 
-        # ========== Uncomment below code block if you want to use rag_agent ==========
-        # hirag_server_params = StdioServerParams(
-        #     command="uv",
-        #     args=[
-        #         "--directory",
-        #         os.path.join(mcp_server_path, "hirag_mcp"),
-        #         "run",
-        #         "python",
-        #         "server.py",
-        #     ],
-        #     read_timeout_seconds=100,
-        # )
+        hirag_server_params = StdioServerParams(
+            command="mcp-hirag-tool",
+            args=[],
+            read_timeout_seconds=100,
+            env={
+                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
+                "OPENAI_BASE_URL": os.getenv("OPENAI_BASE_URL"),
+                "VOYAGE_API_KEY": os.getenv("VOYAGE_API_KEY"),
+            },
+        )
 
-        # self.hirag_retrival = await self.session_manager.create_session(
-        #     "hirag_retrival", create_mcp_server_session(hirag_server_params)
-        # )
-        # await self.hirag_retrival.initialize()
-        # hirag_retrival_tools = await mcp_server_tools(
-        #     hirag_server_params, session=self.hirag_retrival
-        # )
+        self.hirag_retrival = await self.session_manager.create_session(
+            "hirag_retrival", create_mcp_server_session(hirag_server_params)
+        )
+        await self.hirag_retrival.initialize()
+        hirag_retrival_tools = await mcp_server_tools(
+            hirag_server_params, session=self.hirag_retrival
+        )
 
-        # rag_agent = AssistantAgent(
-        #     name="retrieval_agent",
-        #     description="a retrieval agent that provides relevant information from the internal database.",
-        #     model_client=self.orchestrator_model_client,
-        #     tools=hirag_retrival_tools,  # type: ignore
-        #     system_message="You are a information retrieval agent that provides relevant information from the internal database.",
-        # )
-        # ========== Uncomment above code block if you want to use rag_agent ==========
+        rag_agent = AssistantAgent(
+            name="retrieval_agent",
+            description="a retrieval agent that provides relevant information from the internal database.",
+            model_client=self.orchestrator_model_client,
+            tools=hirag_retrival_tools,  # type: ignore
+            system_message="You are a information retrieval agent that provides relevant information from the internal database.",
+        )
 
         # for new feat: domain specific prompt
         domain_specific_agent = AssistantAgent(
@@ -315,6 +312,7 @@ class PlanningWorkflow:
             "web_search": surfer,
             "CodeExecutor": code_executor,
             "general_agent": general_agent,
+            "retrieval_agent": rag_agent,
         }
 
         # Select participants based on mode
