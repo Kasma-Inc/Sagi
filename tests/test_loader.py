@@ -1,6 +1,5 @@
 from urllib import request as urlrequest
 
-
 from Sagi.utils.pdf_mineru_loader import parse_markify_markdown
 
 
