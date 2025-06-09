@@ -385,6 +385,10 @@ class PlanningWorkflow:
         )
         return self
 
+    def set_language(self, language: str) -> None:
+        if hasattr(self.team, "set_language"):
+            self.team.set_language(language)
+
     def run_workflow(self, user_input: str):
         return self.team.run_stream(task=user_input)
 

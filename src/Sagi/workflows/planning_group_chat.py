@@ -195,6 +195,9 @@ class PlanningGroupChat(BaseGroupChat):
             language=self._language,
         )
 
+    def set_language(self, language: str) -> None:
+        self._language = language
+
     async def load_chat_id(self, chat_id: str) -> None:
         for participant in self._participants:
             if isinstance(participant, StreamCodeExecutorAgent):
