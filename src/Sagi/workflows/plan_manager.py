@@ -283,6 +283,7 @@ class Plan(BaseModel):
                 self.shared_context
             ),  # Convert OrderedDict to regular dict for serialization
             "group_template_ids": self.group_template_ids,
+            "groups": {group_id: group.dump() for group_id, group in self.groups.items()},
         }
 
     @classmethod
@@ -317,6 +318,9 @@ class Plan(BaseModel):
                 data.get("shared_context", {})
             ),  # Convert dict back to OrderedDict
             group_template_ids=data.get("group_template_ids", {}),
+            groups=OrderedDict(
+                (group_id, Group.load(group)) for group_id, group in data.get("groups", {}).items()
+            ),
         )
 
     def get_group_template_id(self, group_id: int) -> Optional[str]:
@@ -560,6 +564,7 @@ class PlanManager:
                 step_id += 1
             group_template_ids[group_id] = template_id
             group_id += 1
+
         # Create new plan
         self._current_plan = Plan(
             plan_id=f"plan_{uuid.uuid4()}",

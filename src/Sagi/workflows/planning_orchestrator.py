@@ -56,6 +56,7 @@ from pydantic import BaseModel, Field
 from Sagi.tools.stream_code_executor.stream_code_executor import (
     CodeFileMessage,
 )
+from Sagi.utils.hirag_message import hirag_message_to_llm_message
 from Sagi.utils.json_handler import (
     format_file_content,
     format_slide_info,
@@ -457,6 +458,8 @@ class PlanningOrchestrator(BaseGroupChatManager):
             elif m.source == self._name:
                 assert isinstance(m, TextMessage | ToolCallSummaryMessage)
                 context.append(AssistantMessage(content=m.content, source=m.source))
+            elif m.source == "retrieval_agent":
+                context.append(hirag_message_to_llm_message(m))
             else:
                 assert isinstance(
                     m, (TextMessage, MultiModalMessage, ToolCallSummaryMessage)
@@ -654,6 +657,11 @@ class PlanningOrchestrator(BaseGroupChatManager):
             recipient=AgentId(type=participant_topic_type, key=next_speaker),
         )
 
+        # content = self.messages_to_context(messages_for_current_step)
+        messages_for_current_step = [
+            hirag_message_to_llm_message(m) if m.source == "retrieval_agent" else m
+            for m in messages_for_current_step
+        ]
         # Set the _buffer_message of the participant to the messages_for_current_step
         await self.publish_message(  # Broadcast
             GroupChatStart(messages=messages_for_current_step),

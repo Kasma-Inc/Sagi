@@ -83,4 +83,5 @@ async def test_lancedb():
         table=async_table,
         topk=5,
     )
+    breakpoint()
     assert len(result) > 0
