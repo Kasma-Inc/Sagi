@@ -64,12 +64,16 @@ from Sagi.utils.json_handler import (
 )
 from Sagi.utils.prompt import (
     get_appended_plan_prompt,
+    get_appended_plan_prompt_cn,
     get_expand_plan_prompt,
     get_final_answer_prompt,
+    get_final_answer_prompt_cn,
     get_high_level_ppt_plan_prompt,
     get_new_group_description_prompt,
     get_reflection_step_completion_prompt,
+    get_reflection_step_completion_prompt_cn,
     get_step_triage_prompt,
+    get_step_triage_prompt_cn,
     get_template_selection_prompt,
 )
 from Sagi.workflows.plan_manager import PlanManager
@@ -113,6 +117,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         user_proxy: Any | None = None,
         domain_specific_agent: Any | None = None,
         template_work_dir: str | None = None,
+        language: str = "en",
     ):
         super().__init__(
             name=name,
@@ -143,15 +148,19 @@ class PlanningOrchestrator(BaseGroupChatManager):
         self._single_group_planning_model_client = single_group_planning_model_client
         self._group_chat_manager_topic_type = group_chat_manager_topic_type
         self._prompt_templates = {}  # to store domain specific prompts
+        self._language = language
         self._plan_manager = PlanManager()  # Initialize plan manager
 
-        # Produce a team description. Each agent sould appear on a single line.
+        # Produce a team description. Each agent should appear on a single line with emphasized index number.
         self._team_description = ""
-        for topic_type, description in zip(
-            self._participant_names, self._participant_descriptions, strict=True
+        for index, (topic_type, description) in enumerate(
+            zip(self._participant_names, self._participant_descriptions, strict=True)
         ):
             self._team_description += (
-                re.sub(r"\s+", " ", f"{topic_type}: {description}").strip() + "\n"
+                re.sub(
+                    r"\s+", " ", f"**{index + 1} - ** {topic_type}: {description}"
+                ).strip()
+                + "\n"
             )
         self._team_description = self._team_description.strip()
         # TODO: register the new message type in a systematic way
@@ -422,11 +431,18 @@ class PlanningOrchestrator(BaseGroupChatManager):
         # Collect facts using the extracted method
         facts_message = await self._get_facts_message(task, ctx)
 
-        plan_prompt = get_appended_plan_prompt(
-            current_task=task,
-            contexts_history=formatted_history,
-            team_composition=self._team_description,
-        )
+        if self._language == "en":
+            plan_prompt = get_appended_plan_prompt(
+                current_task=task,
+                contexts_history=formatted_history,
+                team_composition=self._team_description,
+            )
+        else:
+            plan_prompt = get_appended_plan_prompt_cn(
+                current_task=task,
+                contexts_history=formatted_history,
+                team_composition=self._team_description,
+            )
         await self._get_plan_and_feedback(
             task, plan_prompt, facts_message, self._planning_model_client, ctx
         )
@@ -598,12 +614,25 @@ class PlanningOrchestrator(BaseGroupChatManager):
 
             self._plan_manager.set_step_state(current_step_id, "in_progress")
 
-        step_triage_prompt = get_step_triage_prompt(
-            task=self._plan_manager.get_task(),
-            current_plan=current_step_content,
-            names=self._participant_names,
-            team_description=self._team_description,
+        # Create indexed names list for step triage prompt
+        indexed_names = "\n".join(
+            [f"{i+1} - {name}" for i, name in enumerate(self._participant_names)]
         )
+
+        if self._language == "en":
+            step_triage_prompt = get_step_triage_prompt(
+                task=self._plan_manager.get_task(),
+                current_plan=current_step_content,
+                indexed_names=indexed_names,
+                team_description=self._team_description,
+            )
+        else:
+            step_triage_prompt = get_step_triage_prompt_cn(
+                task=self._plan_manager.get_task(),
+                current_plan=current_step_content,
+                indexed_names=indexed_names,
+                team_description=self._team_description,
+            )
         context.append(UserMessage(content=step_triage_prompt, source=self._name))
 
         step_triage_response = await self._llm_create(
@@ -755,9 +784,16 @@ class PlanningOrchestrator(BaseGroupChatManager):
         )
 
         # Create a reflection prompt
-        reflection_prompt = get_reflection_step_completion_prompt(
-            current_plan=current_plan_content, conversation_context=formatted_context
-        )
+        if self._language == "en":
+            reflection_prompt = get_reflection_step_completion_prompt(
+                current_plan=current_plan_content,
+                conversation_context=formatted_context,
+            )
+        else:
+            reflection_prompt = get_reflection_step_completion_prompt_cn(
+                current_plan=current_plan_content,
+                conversation_context=formatted_context,
+            )
 
         reflection_context = [UserMessage(content=reflection_prompt, source=self._name)]
 
@@ -775,11 +811,17 @@ class PlanningOrchestrator(BaseGroupChatManager):
         cancellation_token: CancellationToken,
     ) -> dict:
 
-        # Create a message asking for appropriate templates
-        message = TextMessage(
-            content=f"Based on this task, please determine the most appropriate prompt template type and provide it:\n\n{task_description}",
-            source=self._name,
-        )
+        # Create a message asking for appropriate templates (English Version)
+        if self._language == "en":
+            message = TextMessage(
+                content=f"Based on this task, please determine the most appropriate prompt template type (English Version) and provide it:\n\n{task_description}",
+                source=self._name,
+            )
+        else:
+            message = TextMessage(
+                content=f"请根据本任务确定最合适的提示模板类型（中文版）并提供：\n\n{task_description}",
+                source=self._name,
+            )
 
         # Get response from the domain specific agent
         response = await self._domain_specific_agent.on_messages(
@@ -808,9 +850,14 @@ class PlanningOrchestrator(BaseGroupChatManager):
         )
 
         # Get the final answer
-        final_answer_prompt = get_final_answer_prompt(
-            task=self._plan_manager.get_task()
-        )
+        if self._language == "en":
+            final_answer_prompt = get_final_answer_prompt(
+                task=self._plan_manager.get_task()
+            )
+        else:
+            final_answer_prompt = get_final_answer_prompt_cn(
+                task=self._plan_manager.get_task()
+            )
         context.append(UserMessage(content=final_answer_prompt, source=self._name))
 
         final_answer_response = await self._llm_create(

@@ -65,6 +65,14 @@ def parse_args():
         default="deep_research",
         help="Operation mode: deep_research (full functionality), general (general agent only), or web_search (web search only)",
     )
+
+    parser.add_argument(
+        "--language",
+        type=str,
+        choices=["en", "cn"],
+        default="en",
+        help="Language: en (English), cn (Chinese)",
+    )
     return parser.parse_args()
 
 
@@ -104,6 +112,7 @@ async def main_cmd(args: argparse.Namespace):
         args.team_config,
         template_work_dir=args.template_work_dir,
         mode=args.mode,
+        language=args.language,
     )
 
     try:
