@@ -37,7 +37,7 @@ from Sagi.utils.prompt import (
 )
 from Sagi.workflows.planning_group_chat import PlanningGroupChat
 
-DEFAULT_WORK_DIR = "coding_files/popmart"
+DEFAULT_WORK_DIR = "coding_files"
 DEFAULT_MCP_SERVER_PATH = "src/Sagi/mcp_server/"
 DEFAULT_WEB_SEARCH_MAX_RETRIES = 3
 DEFAULT_CODE_MAX_RETRIES = 3
@@ -143,7 +143,7 @@ class PlanningWorkflow:
 
         class StepTriageNextSpeakerResponse(BaseModel):
             instruction: str
-            answer: Literal[tuple(team_members)] # type: ignore
+            answer: Literal[tuple(team_members)]  # type: ignore
 
         class StepTriageResponse(BaseModel):
             next_speaker: StepTriageNextSpeakerResponse

@@ -151,16 +151,13 @@ class PlanningOrchestrator(BaseGroupChatManager):
         self._language = language
         self._plan_manager = PlanManager()  # Initialize plan manager
 
-        # Produce a team description. Each agent should appear on a single line with emphasized index number.
+        # Produce a team description. Each agent sould appear on a single line.
         self._team_description = ""
-        for index, (topic_type, description) in enumerate(
-            zip(self._participant_names, self._participant_descriptions, strict=True)
+        for topic_type, description in zip(
+            self._participant_names, self._participant_descriptions, strict=True
         ):
             self._team_description += (
-                re.sub(
-                    r"\s+", " ", f"**{index + 1} - ** {topic_type}: {description}"
-                ).strip()
-                + "\n"
+                re.sub(r"\s+", " ", f"{topic_type}: {description}").strip() + "\n"
             )
         self._team_description = self._team_description.strip()
         # TODO: register the new message type in a systematic way
@@ -614,23 +611,18 @@ class PlanningOrchestrator(BaseGroupChatManager):
 
             self._plan_manager.set_step_state(current_step_id, "in_progress")
 
-        # Create indexed names list for step triage prompt
-        indexed_names = "\n".join(
-            [f"{i+1} - {name}" for i, name in enumerate(self._participant_names)]
-        )
-
         if self._language == "en":
             step_triage_prompt = get_step_triage_prompt(
                 task=self._plan_manager.get_task(),
                 current_plan=current_step_content,
-                indexed_names=indexed_names,
+                names=self._participant_names,
                 team_description=self._team_description,
             )
         else:
             step_triage_prompt = get_step_triage_prompt_cn(
                 task=self._plan_manager.get_task(),
                 current_plan=current_step_content,
-                indexed_names=indexed_names,
+                names=self._participant_names,
                 team_description=self._team_description,
             )
         context.append(UserMessage(content=step_triage_prompt, source=self._name))

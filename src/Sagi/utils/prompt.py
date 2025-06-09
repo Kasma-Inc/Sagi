@@ -7,14 +7,14 @@ Normal texts with images slide: Content slides that combine text with images or 
 
 
 def get_step_triage_prompt(
-    *, task: str, current_plan: str, indexed_names: list[str], team_description: str
+    *, task: str, current_plan: str, names: list[str], team_description: str
 ) -> str:
     """Generates a prompt template for triaging the step execution to the right team member.
 
     Args:
         task: Description of the main task.
         current_plan: Currently executing sub-task.
-        indexed_names: List of available team members to select from.
+        names: List of available team members to select from.
     """
     template = """
         Recall we are working on the following request:
@@ -29,7 +29,7 @@ def get_step_triage_prompt(
           
         To make progress on the request, please answer the following questions, including necessary reasoning:
 
-            - Who should speak next? You MUST select from {indexed_names}
+            - Who should speak next? You MUST select from {names}
             - What instruction or question would you give this team member? (Phrase as if speaking directly to them, and include any specific information they may need)
 
         Please output an answer in pure JSON format according to the following schema. The JSON object must be parsable as-is. DO NOT OUTPUT ANYTHING OTHER THAN JSON, AND DO NOT DEVIATE FROM THIS SCHEMA:
@@ -37,7 +37,7 @@ def get_step_triage_prompt(
             {{
                 "next_speaker": {{
                     "instruction": string,
-                    "answer": string (select from: {indexed_names})
+                    "answer": string (select from: {names})
                 }},
             }}
         ```
@@ -48,13 +48,13 @@ def get_step_triage_prompt(
     return template.format(
         task=task,
         current_plan=current_plan,
-        indexed_names=indexed_names,
+        names=", ".join(names),
         team_description=team_description,
     )
 
 
 def get_step_triage_prompt_cn(
-    *, task: str, current_plan: str, indexed_names: list[str], team_description: str
+    *, task: str, current_plan: str, names: list[str], team_description: str
 ) -> str:
     """
     生成一个提示模板，用于将步骤执行分配给合适的团队成员。
@@ -78,7 +78,7 @@ def get_step_triage_prompt_cn(
         
         为了推进请求的处理，请回答以下问题，并提供必要的理由：
 
-            - 下一个应该发言的人是谁？你必须从 {indexed_names} 中选择。
+            - 下一个应该发言的人是谁？你必须从 {names} 中选择。
             - 你想要给这个团队成员的指令或问题是什么？（像直接对他们说话一样措辞，并包括他们可能需要的任何特定信息）
 
         请按照以下模式以纯 JSON 格式输出答案。JSON 对象必须可以直接解析。不要输出任何非 JSON 的内容，也不要偏离这个模式：
@@ -86,7 +86,7 @@ def get_step_triage_prompt_cn(
             {{
                 "next_speaker": {{
                     "instruction": 字符串的指令或问题,
-                    "answer": 选择的发言人的名字 (从 {indexed_names} 中选择)
+                    "answer": 选择的发言人的名字 (从 {names} 中选择)
                 }},
             }}
         ```
@@ -97,7 +97,7 @@ def get_step_triage_prompt_cn(
     return template.format(
         task=task,
         current_plan=current_plan,
-        indexed_names=indexed_names,
+        names=", ".join(names),
         team_description=team_description,
     )
 
@@ -417,6 +417,8 @@ def get_new_group_description_prompt(
     {previous_group_summary}
     """
     return template
+
+
 def get_code_executor_prompt() -> str:
     """system prompt for code executor"""
     template = """
