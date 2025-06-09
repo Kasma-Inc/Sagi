@@ -255,12 +255,16 @@ class PlanningWorkflow:
         hirag_retrival_tools = await mcp_server_tools(
             hirag_server_params, session=self.hirag_retrival
         )
+        hirag_retrival_tools = [
+            tool for tool in hirag_retrival_tools if tool.name == "hi_search"
+        ]
 
         rag_agent = AssistantAgent(
             name="retrieval_agent",
             description="a retrieval agent that provides relevant information from the internal database.",
-            model_client=self.orchestrator_model_client,
+            model_client=self.single_tool_use_model_client,
             tools=hirag_retrival_tools,  # type: ignore
+            # reflect_on_tool_use=True,  # enable llm summary for contents returned by hi_search
             system_message="You are a information retrieval agent that provides relevant information from the internal database.",
         )
 

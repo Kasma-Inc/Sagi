@@ -459,7 +459,11 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 assert isinstance(m, TextMessage | ToolCallSummaryMessage)
                 context.append(AssistantMessage(content=m.content, source=m.source))
             elif m.source == "retrieval_agent":
-                context.append(hirag_message_to_llm_message(m))
+                try:
+                    context.append(UserMessage(content=m.content, source=m.source))
+                except Exception as e:
+                    logging.error(f"Error in hirag_message_to_llm_message: {e}")
+                    context.append(m)
             else:
                 assert isinstance(
                     m, (TextMessage, MultiModalMessage, ToolCallSummaryMessage)
@@ -544,7 +548,13 @@ class PlanningOrchestrator(BaseGroupChatManager):
         else:
             # Add the reflection to the model_context for the non-first attempt
             await self.publish_message(
-                GroupChatAgentResponse(agent_response=Response(chat_message=reason)),
+                GroupChatAgentResponse(
+                    agent_response=Response(
+                        chat_message=TextMessage(
+                            content=reason, source="StepReflection"
+                        )
+                    )
+                ),
                 topic_id=DefaultTopicId(type=self._group_topic_type),
                 cancellation_token=cancellation_token,
             )
@@ -633,7 +643,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 source=self._name,
             ),
         ]
-        if self._plan_manager.get_step_progress_counter(current_step_id) > 0:
+        if len(self._plan_manager.get_messages_of_current_step()) > 0:
             messages_for_current_step.append(
                 TextMessage(
                     content="Recall that so far, you have tried the following attempts:\n",
@@ -658,10 +668,14 @@ class PlanningOrchestrator(BaseGroupChatManager):
         )
 
         # content = self.messages_to_context(messages_for_current_step)
-        messages_for_current_step = [
-            hirag_message_to_llm_message(m) if m.source == "retrieval_agent" else m
-            for m in messages_for_current_step
-        ]
+        try:
+            messages_for_current_step = [
+                hirag_message_to_llm_message(m) if m.source == "retrieval_agent" else m
+                for m in messages_for_current_step
+            ]
+        except Exception as e:
+            logging.error(f"Error in hirag_message_to_llm_message: {e}")
+
         # Set the _buffer_message of the participant to the messages_for_current_step
         await self.publish_message(  # Broadcast
             GroupChatStart(messages=messages_for_current_step),

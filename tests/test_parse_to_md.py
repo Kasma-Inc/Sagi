@@ -1,5 +1,7 @@
-from hirag_prod.loader import load_document
 import os
+
+from hirag_prod.loader import load_document
+
 
 def test_load_docx_mineru():
     document_path = f"{os.path.dirname(__file__)}/Guide-to-U.S.-Healthcare-System.pdf"

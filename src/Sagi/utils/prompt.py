@@ -234,7 +234,7 @@ def get_new_group_description_prompt(
     *,
     task: str,
     groups_in_plan: list[str],
-    previous_group_summary: list[str],
+    previous_group_summary: str,
     group_description: str,
 ) -> str:
     """Generates a prompt template for new group description.
@@ -253,19 +253,19 @@ def get_new_group_description_prompt(
     ## User Query:
     {task}
 
-    There is a confirmed plan for solving the request, which contains the following groups:
-    {groups_in_plan}
-    
-    So far, you have completed the following groups:
-    {previous_group_summary}
+    There is a confirmed plan for solving the request, which contains the following groups: \n
+    {groups_in_plan_str}
 
-    You are currently focusing on the following group:
-    ## Group Description:
+    You are currently focusing on the following group: \n
     {group_description}
-    """
-    return template.format(
+    """.format(
         group_description=group_description,
-        groups_in_plan=groups_in_plan,
+        groups_in_plan_str="\n".join(groups_in_plan),
         task=task,
-        previous_group_summary=previous_group_summary,
     )
+    if len(previous_group_summary) > 0:
+        template += f"""
+    So far, you have completed the following groups: \n
+    {previous_group_summary}
+    """
+    return template

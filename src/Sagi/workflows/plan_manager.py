@@ -283,7 +283,9 @@ class Plan(BaseModel):
                 self.shared_context
             ),  # Convert OrderedDict to regular dict for serialization
             "group_template_ids": self.group_template_ids,
-            "groups": {group_id: group.dump() for group_id, group in self.groups.items()},
+            "groups": {
+                group_id: group.dump() for group_id, group in self.groups.items()
+            },
         }
 
     @classmethod
@@ -319,7 +321,8 @@ class Plan(BaseModel):
             ),  # Convert dict back to OrderedDict
             group_template_ids=data.get("group_template_ids", {}),
             groups=OrderedDict(
-                (group_id, Group.load(group)) for group_id, group in data.get("groups", {}).items()
+                (group_id, Group.load(group))
+                for group_id, group in data.get("groups", {}).items()
             ),
         )
 
