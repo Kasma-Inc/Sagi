@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import AsyncGenerator, List, Literal
+from typing import AsyncGenerator, List, Literal, Optional
 
 from autogen_agentchat.messages import BaseTextChatMessage
 from autogen_core import CancellationToken
@@ -30,6 +30,9 @@ class CodeResultBlockMessage(BaseTextChatMessage):
 class StreamCodeExecutor(CodeExecutor):
     @abstractmethod
     async def execute_code_blocks_stream(
-        self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
+        self,
+        chat_id: Optional[str],
+        code_blocks: List[CodeBlock],
+        cancellation_token: CancellationToken,
     ) -> AsyncGenerator[CodeFileMessage | CodeResult, None]:
         pass

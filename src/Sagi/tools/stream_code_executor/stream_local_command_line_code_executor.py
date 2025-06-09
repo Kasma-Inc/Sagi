@@ -63,18 +63,24 @@ class StreamLocalCommandLineCodeExecutor(
         )
 
     async def execute_code_blocks_stream(
-        self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
+        self,
+        chat_id: Optional[str],
+        code_blocks: List[CodeBlock],
+        cancellation_token: CancellationToken,
     ) -> AsyncGenerator[CodeFileMessage | CustomCommandLineCodeResult, None]:
         if not self._setup_functions_complete:
             await self._setup_functions(cancellation_token)
 
         async for result in self._execute_code_dont_check_setup_stream(
-            code_blocks, cancellation_token
+            chat_id, code_blocks, cancellation_token
         ):
             yield result
 
     async def _execute_code_dont_check_setup_stream(
-        self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
+        self,
+        chat_id: Optional[str],
+        code_blocks: List[CodeBlock],
+        cancellation_token: CancellationToken,
     ) -> AsyncGenerator[CodeFileMessage | CustomCommandLineCodeResult, None]:
         logs_all: str = ""
         file_names: List[Path] = []
@@ -124,7 +130,10 @@ class StreamLocalCommandLineCodeExecutor(
 
                 filename = f"tmp_code_{code_hash}.{ext}"
 
-            written_file = (self.work_dir / filename).resolve()
+            if chat_id:
+                written_file = (self.work_dir / chat_id / filename).resolve()
+            else:
+                written_file = (self.work_dir / filename).resolve()
 
             # Ensure parent directory exists
             written_file.parent.mkdir(parents=True, exist_ok=True)
@@ -180,11 +189,14 @@ class StreamLocalCommandLineCodeExecutor(
                 source=self.__class__.__name__,
             )
             # Create a subprocess and run
+            cwd: Path = self.work_dir
+            if chat_id:
+                cwd = (cwd / chat_id).resolve()
             task = asyncio.create_task(
                 asyncio.create_subprocess_exec(
                     program,
                     *extra_args,
-                    cwd=self.work_dir,
+                    cwd=cwd,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     env=env,

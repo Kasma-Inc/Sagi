@@ -12,6 +12,9 @@ from autogen_core import AgentRuntime, AgentType, TypeSubscription
 from autogen_core.models import ChatCompletionClient
 from pydantic import Field
 
+from Sagi.tools.stream_code_executor.stream_code_executor_agent import (
+    StreamCodeExecutorAgent,
+)
 from Sagi.workflows.planning_orchestrator import PlanningOrchestrator
 
 
@@ -188,6 +191,11 @@ class PlanningGroupChat(BaseGroupChat):
             template_based_planning_model_client=self._template_based_planning_model_client,
             single_group_planning_model_client=self._single_group_planning_model_client,
         )
+
+    async def load_chat_id(self, chat_id: str) -> None:
+        for participant in self._participants:
+            if isinstance(participant, StreamCodeExecutorAgent):
+                participant.chat_id = chat_id
 
     async def save_state(self) -> Mapping[str, Any]:
         base_state = await super().save_state()
