@@ -3,7 +3,8 @@ import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Mapping
+import uuid
+from typing import Any, Dict, List, Mapping, Optional
 
 from autogen_agentchat import TRACE_LOGGER_NAME
 from autogen_agentchat.agents import UserProxyAgent
@@ -197,6 +198,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         model_client,
         messages,
         cancellation_token,
+        source_name: Optional[str] = None,
     ):
         """Stream response from a model and collect the full content.
         Args:
@@ -214,13 +216,17 @@ class PlanningOrchestrator(BaseGroupChatManager):
             cancellation_token=cancellation_token,
         )
 
+        cur_stream_id = str(uuid.uuid4())
         async for response in stream:
             if isinstance(response, str):
                 chunk_event = ModelClientStreamingChunkEvent(
-                    content=response, source=self._name
+                    content=response,
+                    source=self._name if not source_name else source_name,
+                    metadata={
+                        "stream_id": cur_stream_id,
+                    },
                 )
-                # Add to message queue
-                content += response
+                await self._output_message_queue.put(chunk_event)
             else:
                 content = response.content
 
@@ -276,7 +282,10 @@ class PlanningOrchestrator(BaseGroupChatManager):
         facts_prompt = self._prompt_templates["facts_prompt"].format(task=task)
         facts_conversation = [UserMessage(content=facts_prompt, source=self._name)]
         facts_response = await self._llm_create(
-            self._orchestrator_model_client, facts_conversation, ctx.cancellation_token
+            self._orchestrator_model_client,
+            facts_conversation,
+            ctx.cancellation_token,
+            source_name="PlanningStage",
         )
         return AssistantMessage(content=facts_response, source=self._name)
 
@@ -300,7 +309,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
             ),
         ]
         plan_response = await self._llm_create(
-            client, conversation, ctx.cancellation_token
+            client, conversation, ctx.cancellation_token, source_name="PlanningStage"
         )
         self._plan_manager.new_plan(task=task, model_response=plan_response)
         await self._get_user_feedback_on_plan(self._user_proxy, ctx.cancellation_token)
@@ -349,6 +358,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
             self._template_based_planning_model_client,
             [SystemMessage(content=high_level_ppt_plan_prompt, source=self._name)],
             ctx.cancellation_token,
+            source_name="PlanningStage",
         )
 
         template_based_high_level_ppt_plan_enum = json.loads(
@@ -370,6 +380,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 self._single_group_planning_model_client,
                 [SystemMessage(content=expand_plan_prompt, source=self._name)],
                 ctx.cancellation_token,
+                source_name="PlanningStage",
             )
             expand_single_group = json.loads(expand_single_group_response)
 
@@ -640,7 +651,10 @@ class PlanningOrchestrator(BaseGroupChatManager):
             )
         )
         plan_response = await self._llm_create(
-            self._planning_model_client, planning_conversation, cancellation_token
+            self._planning_model_client,
+            planning_conversation,
+            cancellation_token,
+            source_name="PlanningStage",
         )
         self._plan_manager.new_plan(
             model_response=plan_response,
@@ -785,11 +799,18 @@ class PlanningOrchestrator(BaseGroupChatManager):
         else:
             return remove_images(messages)
 
-    async def _llm_create(self, client, conversation: list, cancellation_token) -> str:
+    async def _llm_create(
+        self,
+        client,
+        conversation: list,
+        cancellation_token,
+        source_name: Optional[str] = None,
+    ) -> str:
         """Send conversation to LLM client and return the string content."""
         response = await self._stream_from_model(
             model_client=client,
             messages=conversation,
             cancellation_token=cancellation_token,
+            source_name=source_name,
         )
         return response
