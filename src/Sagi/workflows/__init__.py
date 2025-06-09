@@ -1,11 +1,9 @@
-from Sagi.workflows.plan_manager import PlanManager
-from Sagi.workflows.planning import PlanningWorkflow
-from Sagi.workflows.planning_group_chat import PlanningGroupChat
-from Sagi.workflows.planning_orchestrator import PlanningOrchestrator
+from .planning.planning import PlanningWorkflow
+from .analyzing.analyzing import AnalyzingWorkflow
+workflowName = PlanningWorkflow | AnalyzingWorkflow
 
 __all__ = [
-    "PlanManager",
-    "PlanningOrchestrator",
     "PlanningWorkflow",
-    "PlanningGroupChat",
+    "AnalyzingWorkflow",
+    "workflowName",
 ]

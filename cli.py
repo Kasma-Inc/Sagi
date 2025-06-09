@@ -14,7 +14,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.semconv.resource import ResourceAttributes
 
 from Sagi.utils.logging_utils import setup_logging
-from Sagi.workflows.planning import PlanningWorkflow
+from Sagi.workflows.planning.planning import PlanningWorkflow
 
 # Create logging directory if it doesn't exist
 os.makedirs("logging", exist_ok=True)

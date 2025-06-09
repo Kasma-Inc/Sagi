@@ -1,6 +1,6 @@
 import pytest
 
-from Sagi.workflows.planning import PlanningWorkflow
+from Sagi.workflows.planning.planning import PlanningWorkflow
 
 
 @pytest.mark.asyncio
