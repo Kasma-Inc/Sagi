@@ -1,4 +1,4 @@
-from typing import AsyncGenerator, List, Sequence
+from typing import AsyncGenerator, List, Optional, Sequence
 
 from autogen_agentchat.agents import CodeExecutorAgent
 from autogen_agentchat.agents._code_executor_agent import RetryDecision
@@ -57,6 +57,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             sources=sources,
         )
         self._code_executor: StreamCodeExecutor = stream_code_executor
+        self.chat_id: Optional[str] = None
 
     async def on_messages_stream(
         self, messages: Sequence[BaseChatMessage], cancellation_token: CancellationToken
@@ -273,7 +274,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
         if isinstance(self._code_executor, StreamDockerCommandLineCodeExecutor):
             await self._code_executor.start()
         async for result in self._code_executor.execute_code_blocks_stream(
-            code_blocks, cancellation_token=cancellation_token
+            self.chat_id, code_blocks, cancellation_token=cancellation_token
         ):
             if isinstance(result, CodeResult):
                 if result.output.strip() == "":
@@ -287,3 +288,6 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             yield result
         if isinstance(self._code_executor, StreamDockerCommandLineCodeExecutor):
             await self._code_executor.stop()
+
+    async def on_reset(self, cancellation_token: CancellationToken) -> None:
+        await self._model_context.clear()

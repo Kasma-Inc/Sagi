@@ -147,14 +147,19 @@ Plan requirements:
 
 Please output in JSON format, conforming to the following structure:
 
-  groups: [
-      name: Group Task Name,
-      description: Group Task Description,
-      data_collection_task: Data Collection Task Description,
-      code_executor_task: Description of code task to be performed based on the collected data
-    ,
-      ...more groups
+```
+{{
+  "groups": [
+    {{
+      "name": "Group Task Name",
+      "description": "Group Task Description",
+      "data_collection_task": "Data Collection Task Description",
+      "code_executor_task": "Description of code task to be performed based on the collected data"
+    }},
+    ... (repeat for each section)
   ]
+}}
+```
 
 REMEMBER: EACH GROUP TASK MUST SAVE THE PPT AFTER APPENDING THE SLIDE.
 """
@@ -261,16 +266,314 @@ USER QUERY: "Create a report on analyzing Tesla's stock price performance"
 }}
 ```
 
-# Context
-
-- This prompt is for automatic generation of detailed report-creation plans by section.
-- The plan is to be implemented by a team using procedural code and markdown.
-- Delimiters and structure are set for clarity and easy parsing.
-
 # Final instructions and prompt to think step by step
 
 Think through the user request and the team's skills before designing the plan.  
 Break the report into logical sections, clarifying objectives and data needs at each stage.  
 For every group, specify actionable collection instructions and precise markdown handling tasks.  
 Ensure the overall flow is clear and optimized for collaboration and modular section-building.
+"""
+
+
+GENERAL_FACTS_PROMPT_CN = """
+请用中文回答。
+
+下面我将给您一个请求。在开始处理请求之前，请您尽力回答以下预调查。请记住，您是一个百科全书，因此应该有丰富的知识储备可供借鉴。
+
+请求如下：
+
+{task}
+
+以下是预调查：
+
+请列出请求中给出的任何具体事实或数据。可能没有。
+请列出可能需要查找的任何事实，以及具体在哪里可以找到它们。在某些情况下，请求本身会提及权威来源。
+请列出可能需要推导（例如，通过逻辑推论、模拟或计算）的任何事实。
+请列出从记忆中回忆、直觉、有充分理由的猜测等推测出的任何事实。
+回答此调查时，请记住事实通常是具体的名称、日期、统计数据等。您的回答应使用以下标题：
+
+1. 已给出或已验证的事实
+2. 待查找的事实
+3. 待推导的事实
+4. 经验性猜测
+
+请勿包含任何其他标题或部分。请勿在未被要求时列出后续步骤或计划。
+"""
+
+GENERAL_PLAN_PROMPT_CN = """
+请用中文回答。
+
+太棒了。为了处理这个请求，我们组建了以下团队：
+
+{team}
+
+用户查询：{task}
+
+您是一名专业的规划助理。
+根据团队构成、用户查询以及已知和未知的事实，请制定一个处理用户查询的计划。请记住，没有要求所有团队成员都参与——某个团队成员的专业知识可能不适用于此任务。
+
+每个计划组应包含以下元素：
+
+1. name: 此组任务的简短标题
+2. description: 对组目标的详细解释。
+3. data_collection_task: 收集此组任务所需数据的具体说明（可选）
+4. code_executor_task: 对代码执行器应做什么的描述，只需详细描述即可，无需实际代码块。（可选）
+"""
+
+
+GENERAL_REPORT_PLAN_PROMPT_CN = """
+请用中文回答
+
+# 角色与目标
+
+您是一名专业的报告创建规划助理。
+您的任务是根据用户查询：
+
+{task}
+
+和团队构成：
+
+{team}
+
+设计一个结构化、分步的计划，用于生成一份全面的报告。该计划必须概述清晰的组任务部分，分配数据收集和执行子任务，并遵守基于Markdown的交付要求。
+
+# 说明
+
+- 分析用户查询和团队构成，将报告分解为逻辑、连贯的部分（组任务）。
+- 对于每个组，定义：
+  - 简洁的部分标题。
+  - 对该部分目标和预期内容的详细描述。
+  - 针对该组重点的数据收集说明。
+  - 关于使用代码启用工具（例如Python/bash）创建或附加Markdown部分的执行器说明，确保Markdown文件逐节构建并在每一步之后保存
+- 确保部分顺序逻辑地呈现信息（例如，引言、方法、分析、建议、结论），并与用户意图保持一致。
+- 每个组任务按顺序将其输出附加到Markdown报告中。
+- 以指定的JSON格式输出结构化的报告创建计划。
+
+## 更详细说明的子类别
+
+- 团队分析：检查团队构成，以利用相关专业知识完成报告的每个部分。
+- 部分排序：按逻辑顺序排列报告部分，使其层层递进（背景 → 方法 → 分析 → 洞察）。
+- 数据收集具体性：提供清晰、可操作的说明，说明数据来源（例如，数据库、API、文献回顾）。
+- 执行器任务精确性：指定执行器是启动Markdown文件（第一部分）还是附加到/保存它（后续部分）；酌情引用工具/脚本。
+- 模块化：每个组的任务都应易于并行化或串行输出聚合。
+
+# 推理步骤
+
+1. 解析用户查询以提取报告主题、目标和所需分析。
+2. 将报告分解为主题部分，并与团队专业知识对齐。
+3. 对于每个部分：
+   - 定义部分标题（简洁、信息丰富）。
+   - 编写详细描述，概述目的和内容。
+   - 分配数据收集任务，详细说明数据类型和来源。
+   - 编写精确的执行器说明，用于Markdown文件处理。
+4. 逻辑地排序所有部分，以提高可读性和叙事流畅性。
+5. 以所需的JSON结构输出计划。
+
+# 输出格式
+
+以JSON结构返回报告创建计划：
+```
+{{
+  "groups": [
+    {{
+      "name": "部分标题",
+      "description": "部分目标和内容摘要",
+      "data_collection_task": "本部分的数据收集说明",
+      "code_executor_task": "生成或附加Markdown并保存的说明"
+    }},
+    // ... (为每个部分重复)
+  ]
+}}
+```
+
+# 示例
+
+
+用户查询：“创建一份分析特斯拉股票价格表现的报告”
+
+```
+{{
+  "groups": [
+    {{
+      "name": "引言",
+      "description": "概述报告目标、范围以及特斯拉在股市中的相关性。",
+      "data_collection_task": "研究并总结特斯拉的业务概览和近期市场状况。",
+      "code_executor_task": "生成包含引言部分的初始Markdown文件并保存。"
+    }},
+    {{
+      "name": "历史股票表现",
+      "description": "详细分析特斯拉过去5年的股票价格趋势。",
+      "data_collection_task": "从金融API（例如Yahoo Finance）收集至少过去5年的历史股票价格数据。",
+      "code_executor_task": "将“历史股票表现”部分与可视化内容（图表/表格）附加到现有Markdown文件并保存。"
+    }},
+    {{
+      "name": "关键驱动因素分析",
+      "description": "讨论影响特斯拉股票的主要因素（内部和外部）。",
+      "data_collection_task": "识别并总结影响价格变动的事件、财务状况和外部趋势。",
+      "code_executor_task": "将分析结果作为新的Markdown部分附加并保存文件。"
+    }},
+    {{
+      "name": "预测与建议",
+      "description": "提供未来业绩的洞察和投资建议。",
+      "data_collection_task": "获取分析师预测，汇总专家意见，并综合潜在情景。",
+      "code_executor_task": "将包含建议的最终部分附加到Markdown文件并保存。"
+    }},
+    // ...更多组
+  ]
+}}
+```
+
+# 最终说明和逐步思考提示
+
+1. 在设计计划之前，请仔细思考用户请求和团队的技能。
+2. 将报告分解为逻辑部分，在每个阶段阐明目标和数据需求。
+3. 对于每个组，指定可操作的收集说明和精确的Markdown处理任务。
+4. 确保整体流程清晰，并针对协作和模块化部分构建进行优化。
+"""
+
+GENERAL_PPT_PLAN_PROMPT_CN = """
+请用中文回答。
+
+太棒了。为了创建请求中概述的演示文稿，我们组建了以下团队：
+
+{team}
+
+用户查询：{task}
+
+您是一名专业的PPT创建规划助理。
+根据团队构成、用户查询，请生成一个详细的PowerPoint演示文稿创建计划，并遵循以下结构要求：
+
+每个计划组应包含以下元素：
+
+名称：此组任务的简短标题
+描述：对组目标和内容的详细解释
+数据收集任务：收集此组任务所需数据的具体说明（可选）
+代码执行器任务：描述代码应如何处理数据、生成幻灯片、将其附加到PPT并保存PPT（可选）
+计划要求：
+
+每个组任务应生成一张幻灯片，将其附加到PPT并保存PPT。
+包括常见的PPT元素，例如标题、正文、项目符号列表、视觉元素（图表、图像等）。
+代码任务应描述使用Python（以及matplotlib、seaborn、plotly等可视化库）或bash来安装依赖项的操作。
+代码任务描述应足够清晰，以便根据收集到的数据指导未来的代码生成。
+请以JSON格式输出，并符合以下结构：
+
+```
+{{
+  "groups": [
+    {{
+      "name": "组任务名称",
+      "description": "组任务描述",
+      "data_collection_task": "数据收集任务描述",
+      "code_executor_task": "根据收集到的数据执行的代码任务描述"
+    }},
+    ... (更多组)
+  ]
+}}
+```
+请记住：每个组任务在附加幻灯片后都必须保存PPT。
+"""
+
+FINANCIAL_PPT_FACTS_PROMPT_CN = """
+请用中文回答。
+
+下面我将为您呈现一个与创建金融PowerPoint演示文稿相关的请求。在开始处理请求之前，请您尽力回答以下预调查。请记住，您拥有专业金融分析师和策略师（例如，特许金融分析师CFA级别）的知识，并具备严谨的分析能力，因此请运用您对金融、市场和数据解读的深刻理解。请求如下：
+
+{task}
+
+以下是预调查：
+
+请列出请求中直接给出的任何特定财务数据、公司名称、报告期、目标指标或限制条件。可能没有。
+请列出可能需要查找的任何特定财务数据点、市场信息、经济指标、监管细节或公司特定信息。请指明潜在的权威来源（例如，SEC备案文件如10-K/10-Q、彭博社、路孚特Eikon、公司投资者关系网站、中央银行数据库、特定行业报告、具名分析师研究报告）。
+请列出可能需要推导（例如，计算市盈率或股本回报率等财务比率、执行折现现金流（DCF）分析、进行敏感性分析、计算复合年增长率（CAGR）、根据假设预测未来业绩、整合来自多个来源的数据）的任何财务数据、比率、预测、估值或分析。
+请列出基于您的财务专业知识、回忆的知识或有充分理由的估计（例如，对未来利率的假设、对市场增长的估计、对管理层质量的定性评估、基于行业知识的潜在并购协同效应）的任何假设、定性评估、市场情绪或潜在趋势。
+回答此调查时，请记住事实通常是具体的名称、日期、财务数据、比率、经济数据点等。您的回答应使用以下标题：
+
+1. 已给出或已验证的事实
+2. 待查找的事实
+3. 待推导的事实
+4. 经验性猜测/假设
+请勿包含任何其他标题或部分。请勿在未被要求时列出后续步骤或计划。
+"""
+
+FINANCIAL_PPT_PLAN_PROMPT_CN = """
+请用中文回答。
+
+太棒了。为了创建请求中概述的财务演示文稿，我们组建了以下团队：
+
+{team}
+
+用户查询：{task}
+
+您是一名专业的财务PPT创建规划助理。
+根据团队构成、用户查询，请生成一个详细的财务PowerPoint演示文稿创建计划，并遵循以下结构要求：
+
+每个计划组应包含以下元素：
+
+1. name: 此组任务的简短标题
+2. description: 对组目标的详细解释
+3. data_collection_task: 收集此组任务所需数据的具体说明（可选）
+4. code_executor_task: 描述代码应如何处理数据、生成幻灯片、将其附加到PPT并保存PPT（可选）
+计划要求：
+
+每个组任务应生成一张幻灯片，将其附加到PPT并保存PPT。
+包括常见的财务PPT元素，例如标题、财务指标、项目符号列表、视觉元素（图表、图形、财务表格等）。
+代码部分应主要使用Python（以及matplotlib、seaborn、plotly、pandas_datareader等可视化库）或bash来安装依赖项。
+确保代码实用且可执行，能够完成财务数据处理和幻灯片生成任务。
+重点关注财务分析、股票表现、公司估值、市场趋势、投资建议和财务预测。
+请以JSON格式输出，并符合以下结构：
+
+```
+{{
+  "groups": [
+    {{
+      "name": "组任务名称",
+      "description": "组任务描述",
+      "data_collection_task": "数据收集任务描述",
+      "code_executor_task": "根据收集到的数据执行的代码任务描述"
+    }},
+    ... (更多组)
+  ]
+}}
+```
+
+特斯拉股票分析演示文稿示例：
+
+```
+{{
+  "groups": [
+    {{
+      "name": "公司概览",
+      "description": "创建标题幻灯片，简要概览特斯拉，包括其股票代码、所属行业和成立日期。",
+      "data_collection_task": "查找特斯拉股票代码（TSLA）、成立日期、总部地点和CEO信息。",
+      "code_executor_task": "创建PPT并添加带有特斯拉名称、股票代码和基本公司信息的标题幻灯片。保存PPT以备后续添加。"
+    }},
+    {{
+      "name": "股票价格表现",
+      "description": "创建一张幻灯片，显示特斯拉过去5年的股票价格表现，并突出显示关键里程碑。",
+      "data_collection_task": "从Yahoo Finance API检索特斯拉5年历史股票价格数据，并识别关键公司里程碑。",
+      "code_executor_task": "使用yfinance下载特斯拉5年股票价格数据。创建显示收盘价随时间变化的折线图。在图表上标记重要的公司里程碑。将图表添加到演示文稿中的新幻灯片，并附上适当的标题和轴标签。请记住将幻灯片附加到PPT并保存PPT。"
+    }},
+    {{
+      "name": "财务指标",
+      "description": "创建一张幻灯片，分析特斯拉的关键财务指标，包括营收增长、利润率、市盈率和每股收益。",
+      "data_collection_task": "收集特斯拉过去3年的损益表、资产负债表和关键财务比率。",
+      "code_executor_task": "使用yfinance从特斯拉财务报表中提取财务指标。创建格式化表格，显示过去3年的营收、净收入、利润率、市盈率和每股收益数据。将表格添加到新幻灯片，并附上适当的标题和简要分析文本。请记住将幻灯片附加到PPT并保存PPT。"
+    }},
+    {{
+      "name": "市场地位与竞争",
+      "description": "创建一张幻灯片，分析特斯拉在电动汽车行业的市场地位、市场份额和主要竞争对手。",
+      "data_collection_task": "研究特斯拉在电动汽车行业的市场份额，并识别其主要竞争对手及其市场份额。",
+      "code_executor_task": "创建饼图，显示特斯拉及其主要竞争对手在全球电动汽车市场份额的分布。将图表添加到新幻灯片。包括一个文本框，突出显示特斯拉在行业中的竞争优势，例如品牌认知度、电池技术、充电基础设施和软件能力。请记住将幻灯片附加到PPT并保存PPT。"
+    }},
+    {{
+      "name": "投资建议",
+      "description": "创建一张幻灯片，包含投资建议、目标价格和关键投资论点。",
+      "data_collection_task": "分析当前估值指标、增长预测和风险因素，以制定投资建议。",
+      "code_executor_task": "创建最后一张幻灯片，用醒目、彩色的文字清晰地显示投资建议（买入/持有/卖出）。包括一个目标价格及潜在上涨百分比。添加项目符号，概述关键投资论点，包括增长潜力、技术优势和潜在风险。以专业的格式设置幻灯片，保持字体和颜色一致。请记住将幻灯片附加到PPT并保存PPT。"
+    }},
+    ... (更多组)
+  ]
+}}
+```
+请记住：每个组任务在附加幻灯片后都必须保存PPT。
 """

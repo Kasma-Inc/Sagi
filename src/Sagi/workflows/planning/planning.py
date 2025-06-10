@@ -25,7 +25,17 @@ from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor im
 from Sagi.tools.web_search_agent import WebSearchAgent
 from Sagi.utils.json_handler import get_template_num
 from Sagi.utils.load_config import load_toml_with_env_vars
-from Sagi.workflows.planning.planning_group_chat import PlanningGroupChat
+from Sagi.utils.prompt import (
+    get_code_executor_prompt,
+    get_code_executor_prompt_cn,
+    get_domain_specific_agent_prompt,
+    get_domain_specific_agent_prompt_cn,
+    get_general_agent_prompt,
+    get_general_agent_prompt_cn,
+    get_rag_agent_prompt,
+    get_rag_agent_prompt_cn,
+)
+from Sagi.workflows.planning_group_chat import PlanningGroupChat
 
 DEFAULT_WORK_DIR = "coding_files"
 DEFAULT_MCP_SERVER_PATH = "src/Sagi/mcp_server/"
@@ -120,6 +130,7 @@ class PlanningWorkflow:
         team_config_path: str,
         mode: str = "deep_research",
         template_work_dir: str | None = None,
+        language: str = "en",
     ):
         self = cls()
 
@@ -128,11 +139,11 @@ class PlanningWorkflow:
 
         # TeamMember enum dynamically from team.toml
         team_members = list(team_config["team"].values())
-        TeamMembers = Enum("TeamMembers", team_members)
+        # TeamMembers = Enum("TeamMembers", team_members)
 
         class StepTriageNextSpeakerResponse(BaseModel):
-            reason: str
-            answer: TeamMembers
+            instruction: str
+            answer: Literal[tuple(team_members)]  # type: ignore
 
         class StepTriageResponse(BaseModel):
             next_speaker: StepTriageNextSpeakerResponse
@@ -255,13 +266,20 @@ class PlanningWorkflow:
         hirag_retrival_tools = await mcp_server_tools(
             hirag_server_params, session=self.hirag_retrival
         )
+        hirag_retrival_tools = [
+            tool for tool in hirag_retrival_tools if tool.name == "hi_search"
+        ]
 
         rag_agent = AssistantAgent(
             name="retrieval_agent",
             description="a retrieval agent that provides relevant information from the internal database.",
-            model_client=self.orchestrator_model_client,
+            model_client=self.single_tool_use_model_client,
             tools=hirag_retrival_tools,  # type: ignore
-            system_message="You are a information retrieval agent that provides relevant information from the internal database.",
+            system_message=(
+                get_rag_agent_prompt()
+                if language == "en"
+                else get_rag_agent_prompt_cn()
+            ),
         )
 
         # for new feat: domain specific prompt
@@ -269,14 +287,22 @@ class PlanningWorkflow:
             name="prompt_template_expert",
             model_client=self.single_tool_use_model_client,
             tools=domain_specific_tools,  # type: ignore
-            system_message="You are a prompt expert that provides structured templates for different domains.",
+            system_message=(
+                get_domain_specific_agent_prompt()
+                if language == "en"
+                else get_domain_specific_agent_prompt_cn()
+            ),
         )
 
         general_agent = AssistantAgent(
             name="general_agent",
             model_client=self.orchestrator_model_client,
             description="a general agent that provides answer for simple questions.",
-            system_message="You are a general AI assistant that provides answer for simple questions.",
+            system_message=(
+                get_general_agent_prompt()
+                if language == "en"
+                else get_general_agent_prompt_cn()
+            ),
         )
 
         surfer = WebSearchAgent(
@@ -293,7 +319,11 @@ class PlanningWorkflow:
         code_executor = StreamCodeExecutorAgent(
             name="CodeExecutor",
             description="a code executor agent that can generate and execute Python and shell scripts to assist in code based tasks such as generating files, appending files, calculating data, etc.",
-            system_message="You are a Code Execution Agent. Your role is to generate and execute Python code and shell scripts based on user instructions, ensuring correctness, efficiency, and minimal errors. Handle edge cases gracefully. Python code should be provided in ```python code blocks, and sh shell scripts should be provided in ```sh code blocks for execution.",
+            system_message=(
+                get_code_executor_prompt()
+                if language == "en"
+                else get_code_executor_prompt_cn()
+            ),
             # stream_code_executor=StreamLocalCommandLineCodeExecutor(work_dir=work_dir),
             stream_code_executor=StreamDockerCommandLineCodeExecutor(
                 work_dir=work_dir,
@@ -351,8 +381,13 @@ class PlanningWorkflow:
             ),
             single_group_planning_model_client=self.single_group_planning_model_client,
             template_work_dir=template_work_dir,  # Add template work directory parameter
+            language=language,
         )
         return self
+
+    def set_language(self, language: str) -> None:
+        if hasattr(self.team, "set_language"):
+            self.team.set_language(language)
 
     def run_workflow(self, user_input: str):
         return self.team.run_stream(task=user_input)

@@ -12,7 +12,10 @@ from autogen_core import AgentRuntime, AgentType, TypeSubscription
 from autogen_core.models import ChatCompletionClient
 from pydantic import Field
 
-from Sagi.workflows.planning.planning_orchestrator import PlanningOrchestrator
+from Sagi.tools.stream_code_executor.stream_code_executor_agent import (
+    StreamCodeExecutorAgent,
+)
+from Sagi.workflows.planning_orchestrator import PlanningOrchestrator
 
 
 class PlanningChatState(TeamState):
@@ -42,6 +45,7 @@ class PlanningGroupChat(BaseGroupChat):
         template_selection_model_client: ChatCompletionClient,
         template_based_planning_model_client: ChatCompletionClient,
         single_group_planning_model_client: ChatCompletionClient,
+        language: str = "en",
     ):
         super().__init__(
             participants,
@@ -55,7 +59,7 @@ class PlanningGroupChat(BaseGroupChat):
         # Validate the participants.
         if len(participants) == 0:
             raise ValueError(
-                "At least one participant is required for MagenticOneGroupChat."
+                "At least one participant is required for PlanningGroupChat."
             )
         # Initialize the model clients.
         self._orchestrator_model_client = orchestrator_model_client
@@ -74,6 +78,7 @@ class PlanningGroupChat(BaseGroupChat):
             template_based_planning_model_client
         )
         self._single_group_planning_model_client = single_group_planning_model_client
+        self._language = language
 
     async def _init(self, runtime: AgentRuntime) -> None:
         # Constants for the group chat manager.
@@ -187,7 +192,16 @@ class PlanningGroupChat(BaseGroupChat):
             template_selection_model_client=self._template_selection_model_client,
             template_based_planning_model_client=self._template_based_planning_model_client,
             single_group_planning_model_client=self._single_group_planning_model_client,
+            language=self._language,
         )
+
+    def set_language(self, language: str) -> None:
+        self._language = language
+
+    async def load_chat_id(self, chat_id: str) -> None:
+        for participant in self._participants:
+            if isinstance(participant, StreamCodeExecutorAgent):
+                participant.chat_id = chat_id
 
     async def save_state(self) -> Mapping[str, Any]:
         base_state = await super().save_state()

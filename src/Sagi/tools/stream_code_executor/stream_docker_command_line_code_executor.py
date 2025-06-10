@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os.path
 from asyncio import Event
 from hashlib import sha256
 from pathlib import Path
@@ -76,7 +77,10 @@ class StreamDockerCommandLineCodeExecutor(
         )
 
     async def execute_code_blocks_stream(
-        self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
+        self,
+        chat_id: Optional[str],
+        code_blocks: List[CodeBlock],
+        cancellation_token: CancellationToken,
     ) -> AsyncGenerator[
         CodeFileMessage | CodeResultBlockMessage | CommandLineCodeResult, None
     ]:
@@ -84,12 +88,15 @@ class StreamDockerCommandLineCodeExecutor(
             await self._setup_functions(cancellation_token)
 
         async for result in self._execute_code_dont_check_setup_stream(
-            code_blocks, cancellation_token
+            chat_id, code_blocks, cancellation_token
         ):
             yield result
 
     async def _execute_code_dont_check_setup_stream(
-        self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
+        self,
+        chat_id: Optional[str],
+        code_blocks: List[CodeBlock],
+        cancellation_token: CancellationToken,
     ) -> AsyncGenerator[CodeFileMessage | CustomCommandLineCodeResult, None]:
         if self._container is None or not self._running:
             raise ValueError(
@@ -146,7 +153,10 @@ class StreamDockerCommandLineCodeExecutor(
 
                     filename = f"tmp_code_{code_hash}.{ext}"
 
-                written_file = (self.work_dir / filename).resolve()
+                if chat_id:
+                    written_file = (self.work_dir / chat_id / filename).resolve()
+                else:
+                    written_file = (self.work_dir / filename).resolve()
 
                 # Ensure parent directory exists
                 written_file.parent.mkdir(parents=True, exist_ok=True)
@@ -174,7 +184,7 @@ class StreamDockerCommandLineCodeExecutor(
                 )
 
                 async for result in self._execute_command_stream(
-                    command, cancellation_token
+                    chat_id, command, cancellation_token
                 ):
                     if isinstance(result, CodeResult):
                         last_exit_code = int(result.exit_code)
@@ -217,15 +227,24 @@ class StreamDockerCommandLineCodeExecutor(
             )
 
     async def _execute_command_stream(
-        self, command: List[str], cancellation_token: CancellationToken
+        self,
+        chat_id: Optional[str],
+        command: List[str],
+        cancellation_token: CancellationToken,
     ) -> AsyncGenerator[CodeResultBlockMessage | CodeResult, None]:
         if self._container is None or not self._running:
             raise ValueError(
                 "Container is not running. Must first be started with either start or a context manager."
             )
+        workdir_in_container: str = "/workspace"
+        if chat_id:
+            workdir_in_container = os.path.join(workdir_in_container, chat_id)
         exec_id: str = (
             await asyncio.to_thread(
-                self._container.client.api.exec_create, self._container.id, command
+                self._container.client.api.exec_create,
+                self._container.id,
+                command,
+                workdir=workdir_in_container,
             )
         )["Id"]
         result: CancellableStream = await asyncio.to_thread(
