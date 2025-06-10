@@ -1,4 +1,3 @@
-
 import pytest
 
 from Sagi.workflows.analyzing.analyzing import AnalyzingWorkflow
