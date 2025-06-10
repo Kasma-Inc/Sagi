@@ -47,6 +47,7 @@ from Sagi.tools.stream_code_executor.stream_code_executor import (
 from Sagi.utils.prompt import (
     get_appended_plan_prompt,
     get_final_answer_prompt,
+    get_final_answer_prompt_cn,
     get_step_triage_prompt,
 )
 from Sagi.workflows.analyzing.analyze_manager import AnalyzeManager
@@ -263,12 +264,21 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
             "steps": [
                 {
                     "name": "Query Database",
-                    "description": f"Here is the task: {{{task}}}. If the task involves obtaining data from the database 'transaction_data', please generate a valid SQL SELECT statement to retrieve the data from the table. Use the pg_query tool via the MCP server to run the query and return the results. If the task does not require querying the transaction_data, please report a warning. No analysis is required at this stage.",
+                    "description": f"Here is the task: {{{task}}}. When querying the database, it is essential to avoid excessive data volume. The upperbound of the number of entries during the query is 30" +
+                    "please generate a valid SQL SELECT statement to retrieve the data from the table. " +
+                    "Use the pg_query tool via the MCP server to run the query and return the results. \n" +
+                    "If the task relate to 'transaction Risk_Control' obtain data from the database 'transaction_data' only. Column names include: TransactionID,AccountID,TransactionAmount,TransactionDate,TransactionType,Location,DeviceID,IP Address,MerchantID,Channel,CustomerAge,CustomerOccupation,TransactionDuration,LoginAttempts,AccountBalance,PreviousTransactionDate\n"  +
+                    "else if the task relate to 'loan credit examine', obtain data from 'loan_people_data'. only. Column names include: CustomerID,Name,Age,Gender,AccountBalance,TransactionCount3Months,TransactionCount1Year,InterestRate,AmountWantToLoan\n" +
+                    "otherwise warning can not find suitable table" +
+                    "No analysis is required at this stage."
                 },
                 {
                     "name": "Analyze Retrieved Entries",
-                    "description": "Analyze the table result from the previous step, which contains transaction data. Based on the content of the rows, provide a brief summary or insight. Additionally, offer regulatory recommendations or suggestions based on the patterns, anomalies, or trends observed in the data.",
-                },
+                    "description": "Analyze the table result from the previous step, which contains either transaction data ('transaction_data') or loan_people_data ('loan_people_data'). " +
+                    "Based on the content of the rows, provide a brief summary or insight. " +"For 'Risk_Control' tasks, assess potential risks in the transactions by evaluating indicators such as transaction amounts, frequency, and unusual patterns. Provide a risk score or categorization for each transaction, explaining the reasoning behind the risk assessment. Identify any transactions that appear suspicious or deviate from normal patterns, and justify why they are considered risky based on the data." +
+                    "For 'Credit_Examine' tasks, evaluate each individual's creditworthiness by analyzing their transaction history, borrowing behavior, and financial stability. Generate a credit score(determined score value) for each individual and provide a brief explanation of the factors contributing to that score. Highlight any financial behaviors or patterns that indicate potential for loan approval or rejection." +
+                    "Additionally, offer recommendations or suggestions based on the findings from either dataset."                    
+                }
             ]
         }
         model_response_string = json.dumps(model_response)
@@ -545,7 +555,7 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
 
         prompt_dict = {
             "plan_prompt": "You are a database expert. Use the available tools to query a PostgreSQL database and return concise, correct results. {task}",
-            "analyze_prompt": "The data has now been queried. Please generate risk monitoring suggestions based on the indicators. ",
+            "analyze_prompt": "The data has now been queried. Based on the indicators in the dataset: \n- For 'Risk_Control', generate risk monitoring suggestions, focusing on identifying anomalies, trends, or potential risks. \n- For 'Credit_Examine', generate credit assessment suggestions, analyzing borrowing patterns, creditworthiness, and financial behavior.",
         }
         return prompt_dict
 
