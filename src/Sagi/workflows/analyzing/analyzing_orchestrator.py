@@ -262,7 +262,7 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
             "steps": [
                 {
                     "name": "Query Database",
-                    "description": f"Here is the task: {{task}}. If the task involves obtaining data from the database 'transaction_data', please generate a valid SQL SELECT statement to retrieve the data from the table. Use the pg_query tool via the MCP server to run the query and return the results. If the task does not require querying the transaction_data, please report a warning. No analysis is required at this stage."
+                    "description": f"Here is the task: {{{task}}}. If the task involves obtaining data from the database 'transaction_data', please generate a valid SQL SELECT statement to retrieve the data from the table. Use the pg_query tool via the MCP server to run the query and return the results. If the task does not require querying the transaction_data, please report a warning. No analysis is required at this stage."
                 },
                 {
                     "name": "Analyze Retrieved Entries",
@@ -316,6 +316,7 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
     async def _orchestrate_step(self, cancellation_token: CancellationToken) -> None:
         current_step = self._analyze_manager.get_current_step()
         if current_step is None:
+            await self._prepare_final_answer("All steps completed.", cancellation_token)
             return
         else:
             current_step_id, current_step_content = current_step
@@ -332,13 +333,19 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
 
         logging.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
         logging.info(current_step)
+        logging.info(current_step_content)
         logging.info(context)
         logging.info(filtered_context)
         logging.info("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
-
-        is_complete, reason = await self._check_step_completion(
-            current_step_content, filtered_context, cancellation_token
-        )
+        if context == []:
+            is_complete = False
+        else:
+            is_complete = True
+        reason = "NULL"
+        # is_complete, reason = await self._check_step_completion(
+        #     current_step_content, filtered_context, cancellation_token
+        # )
+        logging.info(is_complete)
 
         if is_complete:
             self._analyze_manager.set_step_state(current_step_id, "completed")
@@ -359,6 +366,7 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
             current_step = self._analyze_manager.get_current_step()
 
             if current_step is None:
+                await self._prepare_final_answer("All steps completed.", cancellation_token)
                 return
             else:
                 current_step_id, current_step_content = current_step
@@ -404,6 +412,7 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
 
             # If there's no next pending step, we're done
             if current_step is None:
+                await self._prepare_final_answer("All steps completed.", cancellation_token)
                 return
             else:
                 current_step_id, current_step_content = current_step
@@ -419,19 +428,15 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         
         context.append(UserMessage(content=step_triage_prompt, source=self._name))
 
-
-
         step_triage_response = await self._llm_create(
             self._analyzing_model_client, context, cancellation_token
         )
-        logging.info(step_triage_response)
-        logging.info("aaaaaaaaaaaaaaaaaaaaaaa")
         step_triage = json.loads(step_triage_response)
 
-        # Broadcast the next step
-        instruction_or_question = step_triage["instruction_or_question"]["answer"]
+        logging.info("")
+        logging.info(current_step_content)
         message = TextMessage(
-            content=instruction_or_question,
+            content=current_step_content,
             source=self._name,
         )
         self._analyze_manager.add_message_to_step(
@@ -442,11 +447,13 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         next_speaker = step_triage["next_speaker"]["answer"]
         logging.info(f"Next Speaker: {next_speaker}")
 
+        logging.info("**********************8")
+        logging.info(current_step_content)
         step_running_message = TextMessage(
             content=json.dumps(
                 {
                     "tool": next_speaker,
-                    "instruction": instruction_or_question,
+                    "instruction": current_step_content,
                     "stepId": current_step_id,
                 },
                 indent=4,
@@ -509,7 +516,11 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
 
         # reason = reflection.get("reason", "No reason provided")
         # return reflection.get("is_complete", "false") == "true", reason
-        return "true", "No reason provided"
+        logging.info(current_plan_content)
+        if current_plan_content==None:
+            return "False", "No reason provided"
+        else:
+            return "True", "No reason provided"
 
     async def _get_prompt_templates(
         self,
@@ -577,3 +588,57 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
             cancellation_token=cancellation_token,
         )
         return response
+
+
+    async def _prepare_final_answer(
+        self, reason: str, cancellation_token: CancellationToken
+    ) -> None:
+        """Prepare the final answer for the task."""
+        context = self.messages_to_context(
+            self._analyze_manager.get_messages_of_current_plan()
+        )
+
+        # Get the final answer
+        final_answer_prompt = get_final_answer_prompt(
+            task=self._analyze_manager.get_task()
+        )
+        context.append(UserMessage(content=final_answer_prompt, source=self._name))
+
+        final_answer_response = await self._llm_create(
+            self._analyzing_model_client, context, cancellation_token
+        )
+
+        message = TextMessage(
+            content=json.dumps(
+                {
+                    "content": final_answer_response,
+                    "planId": self._analyze_manager.get_current_plan_id(),
+                },
+                indent=4,
+            ),
+            source="final_answer",
+        )
+
+        self._analyze_manager.add_summary_to_plan(
+            summary=message.content,
+        )
+
+        # Clear the current plan to prepare for the next round
+        self._analyze_manager.commit_plan()
+
+        # Log it to the output queue.
+        await self._output_message_queue.put(message)
+
+        # Broadcast
+        await self.publish_message(
+            GroupChatAgentResponse(agent_response=Response(chat_message=message)),
+            topic_id=DefaultTopicId(type=self._group_topic_type),
+            cancellation_token=cancellation_token,
+        )
+
+        if self._termination_condition is not None:
+            await self._termination_condition.reset()
+        # Signal termination
+        await self._signal_termination(StopMessage(content=reason, source=self._name))
+
+        
