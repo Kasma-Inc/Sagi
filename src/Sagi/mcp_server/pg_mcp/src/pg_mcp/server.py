@@ -11,11 +11,10 @@ if not DB_URL:
     raise RuntimeError("DATABASE_URL is not set in environment variables.")
 
 @mcp.tool("pg_query")
-async def run_pg_query() -> str:
-    query = 'select * from "Transaction_data" limit 5'
-
-    # if not query.lower().startswith("select"):
-    #     return ToolResponse(output={"result": "Only SELECT queries are allowed."})
+async def run_pg_query(query: str) -> str:
+    
+    if not query.strip().lower().startswith("select"):
+        return ToolResponse(output={"result": "Only SELECT queries are allowed."})
 
     try:
         conn = await asyncpg.connect(DB_URL)
