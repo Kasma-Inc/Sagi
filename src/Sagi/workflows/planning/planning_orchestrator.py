@@ -576,7 +576,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         self._plan_manager.increment_step_counter(current_step_id)
 
         # If the plan has been in progress for more than 5 iterations, mark it as completed
-        if self._plan_manager.get_step_progress_counter(current_step_id) >= 5:
+        if self._plan_manager.get_step_progress_counter(current_step_id) >= 2:
             await self._log_message(
                 f"Plan '{current_step}' has been in progress for 5 iterations. Marking as completed."
             )
@@ -613,14 +613,14 @@ class PlanningOrchestrator(BaseGroupChatManager):
 
         if self._language == "en":
             step_triage_prompt = get_step_triage_prompt(
-                task=self._plan_manager.get_task(),
+                # task=self._plan_manager.get_task(),
                 current_plan=current_step_content,
                 names=self._participant_names,
                 team_description=self._team_description,
             )
         else:
             step_triage_prompt = get_step_triage_prompt_cn(
-                task=self._plan_manager.get_task(),
+                # task=self._plan_manager.get_task(),
                 current_plan=current_step_content,
                 names=self._participant_names,
                 team_description=self._team_description,

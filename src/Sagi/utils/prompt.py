@@ -7,7 +7,7 @@ Normal texts with images slide: Content slides that combine text with images or 
 
 
 def get_step_triage_prompt(
-    *, task: str, current_plan: str, names: list[str], team_description: str
+    *, current_plan: str, names: list[str], team_description: str
 ) -> str:
     """Generates a prompt template for triaging the step execution to the right team member.
 
@@ -17,9 +17,6 @@ def get_step_triage_prompt(
         names: List of available team members to select from.
     """
     template = """
-        Recall we are working on the following request:
-
-        {task}
 
         We are executing the following sub-task based on the plan:
         {current_plan}
@@ -46,7 +43,7 @@ def get_step_triage_prompt(
     """
 
     return template.format(
-        task=task,
+        # task=task,
         current_plan=current_plan,
         names=", ".join(names),
         team_description=team_description,
@@ -54,7 +51,7 @@ def get_step_triage_prompt(
 
 
 def get_step_triage_prompt_cn(
-    *, task: str, current_plan: str, names: list[str], team_description: str
+    *, current_plan: str, names: list[str], team_description: str
 ) -> str:
     """
     生成一个提示模板，用于将步骤执行分配给合适的团队成员。
@@ -65,9 +62,6 @@ def get_step_triage_prompt_cn(
             indexed_names: 可供选择的团队成员名单。
     """
     template = """
-        回顾我们正在处理的以下请求：
-
-        {task}
 
         根据计划，我们正在执行以下子任务：
         {current_plan}
@@ -95,7 +89,7 @@ def get_step_triage_prompt_cn(
     """
 
     return template.format(
-        task=task,
+        # task=task,
         current_plan=current_plan,
         names=", ".join(names),
         team_description=team_description,
