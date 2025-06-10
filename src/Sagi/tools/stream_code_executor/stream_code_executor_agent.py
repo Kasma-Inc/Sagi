@@ -8,6 +8,7 @@ from autogen_agentchat.messages import (
     BaseChatMessage,
     CodeExecutionEvent,
     CodeGenerationEvent,
+    ModelClientStreamingChunkEvent,
     TextMessage,
     ThoughtEvent,
 )
@@ -130,8 +131,16 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             CodeBlockErrorHistory(
                 code_blocks=None,  # No code blocks at the first stage
                 shell_commands=None,  # No command blocks at the first stage
-                error="This is the first stage. The instruction for the code executor agent is:\n " + "\n ".join(message_texts) + "\n The code has not been generated yet.",
+                error="This is the first stage. The code has not been generated yet. Please follow the instructions above to generate the code.",
                 previous_state=-1,
+            )
+        )
+
+        # Add the instruction messages to the model context
+        await model_context.add_message(
+            UserMessage(
+                content=f"Current Instructions with the previous messages history:\n{'\n'.join(message_texts)}",
+                source=agent_name,
             )
         )
 
@@ -153,14 +162,6 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             await model_context.add_message(
                 UserMessage(
                     content=self.error_history_prompt(current_history_path),
-                    source=agent_name,
-                )
-            )
-
-            # to help the model to understand the current instruction more cleaerly
-            await model_context.add_message(
-                UserMessage(
-                    content=f"Current Instructions:\n{'\n'.join(message_texts)}",
                     source=agent_name,
                 )
             )
@@ -318,6 +319,22 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
 
             # If execution was successful or last retry, then exit
             if result.exit_code == 0 or nth_try == max_retries_on_error:
+                if nth_try == max_retries_on_error and result.exit_code != 0:
+                    # If we reached the maximum number of retries and the exit code is still non-zero, we break the loop
+                    yield Response(
+                        chat_message=TextMessage(
+                            content=f"Reached maximum retries ({max_retries_on_error}) with exit code {result.exit_code}. The model's response was: {model_result.content}",
+                            source=agent_name,
+                        )
+                    )
+
+                    model_context.add_message(
+                        SystemMessage(
+                            content=f"Reached maximum retries ({max_retries_on_error}) with exit code {result.exit_code}. The model's response was: {model_result.content}",
+                            source=agent_name,
+                        )
+                    )
+                    
                 break
 
             # Reset context only when we know that the code will be executed again (in order to add the new history tree)
@@ -358,7 +375,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
         # Always reflect on the execution result
         async for (
             reflection_response
-        ) in CodeExecutorAgent._reflect_on_code_block_results_flow(
+        ) in StreamCodeExecutorAgent._reflect_on_code_block_results_flow(
             system_messages=system_messages,
             model_client=model_client,
             model_client_stream=model_client_stream,
@@ -390,8 +407,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                 else:
                     result.description = result.output
             yield result
-        if isinstance(self._code_executor, StreamDockerCommandLineCodeExecutor):
-            await self._code_executor.stop()
+
 
     async def on_reset(self, cancellation_token: CancellationToken) -> None:
         await self._model_context.clear()
@@ -413,8 +429,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             " - children_error_nodes: recursive list of CodeBlockErrorHistory objects (tree structure)\n"
             "   representing previously failed solution attempts at that stage\n"
             " - previous_state: index of parent state (0-based)\n\n"
-            "First try fixing the last stage (leaf node in the current path). If too difficult, go back to earlier stages "
-            "but avoid methods already in children_error_nodes.\n\n"
+            "First try fixing the last stage (leaf node in the current path). If too difficult, go back to earlier stages but avoid methods already in children_error_nodes.\n\n"
             "Current error path:\n" +
             "\n".join(
                 f" Stage {i}:\n"
@@ -425,8 +440,82 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                 for i in range(len(current_history_path))
             ) +
             "\n\nPLEASE Write PREVIOUS_STATE: <number> to indicate which stage to continue from (unless you are trying to reflect the process, you don't need to specify previous state).\n\n"
-            "For environment issues (including shell command issues), write ENVIRONMENT_ISSUE (don't provide the code blocks) and write the *shell command* (sh) as the response message to fix the issue.\n"
-            "For non-environment issues, write the code blocks to fix the issue\n"
+            "For environment issues (including missing packages):\n"
+            "1. Write ENVIRONMENT_ISSUE on a separate line\n"
+            "2. Follow it with a proper code block like this:\n"
+            "```sh\n"
+            "pip install package_name\n"
+            "```\n"
+            "3. PREVIOUS_STATE: <number> to indicate which stage to continue from, for the environment issue, the previous state must NOT be 0, because there will be no code blocks\n\n"
+            "For non-environment issues:\n"
+            "1. Write the code to fix the issue in a code block\n"
+            "2. PREVIOUS_STATE: <number> to indicate which stage to continue from, for the non environment issue, the previous state can be any number\n\n"
             "Now generate code to fix the issue. If no solution exists, write PREVIOUS_STATE: -1\n"
             "NOTE: you don't need to create the all new codeblocks by yourself, you can refer to the previous messages or error path (if available), and make some changes from them."
+        )
+
+
+    @classmethod
+    async def _reflect_on_code_block_results_flow(
+        cls,
+        system_messages: List[SystemMessage],
+        model_client: ChatCompletionClient,
+        model_client_stream: bool,
+        model_context: ChatCompletionContext,
+        agent_name: str,
+        inner_messages: List[BaseAgentEvent | BaseChatMessage],
+    ) -> AsyncGenerator[Response | ModelClientStreamingChunkEvent | ThoughtEvent, None]:
+        """
+        If reflect_on_code_block_results=True, we do another inference based on tool results
+        and yield the final text response (or streaming chunks).
+        """
+        reflection_prompt = (
+            "Reflect briefly ( <= 4 sentences ) on the code execution results. "
+            "If the process was error, please state clearly that the code was errored. "
+            "If the process was successful, please state clearly that the code was successful.\n"
+            "IMPORTANT: do NOT repeat the code blocks!!!\n"
+            "Remember: you are reflection agent, you do NOT have to provide PREVIOUS_STATE or ENVIRONMENT_ISSUE, you can just reflect on the process.\n"
+        )
+
+        all_messages = system_messages + await model_context.get_messages() + [UserMessage(content=reflection_prompt, source=agent_name)]
+        llm_messages = cls._get_compatible_context(model_client=model_client, messages=all_messages)
+
+        reflection_result: Optional[CreateResult] = None
+
+        if model_client_stream:
+            async for chunk in model_client.create_stream(llm_messages):
+                if isinstance(chunk, CreateResult):
+                    reflection_result = chunk
+                elif isinstance(chunk, str):
+                    yield ModelClientStreamingChunkEvent(content=chunk, source=agent_name)
+                else:
+                    raise RuntimeError(f"Invalid chunk type: {type(chunk)}")
+        else:
+            reflection_result = await model_client.create(llm_messages)
+
+        if not reflection_result or not isinstance(reflection_result.content, str):
+            raise RuntimeError("Reflect on tool use produced no valid text response.")
+
+        # --- NEW: If the reflection produced a thought, yield it ---
+        if reflection_result.thought:
+            thought_event = ThoughtEvent(content=reflection_result.thought, source=agent_name)
+            yield thought_event
+            inner_messages.append(thought_event)
+
+        # Add to context (including thought if present)
+        await model_context.add_message(
+            AssistantMessage(
+                content=reflection_result.content,
+                source=agent_name,
+                thought=getattr(reflection_result, "thought", None),
+            )
+        )
+
+        yield Response(
+            chat_message=TextMessage(
+                content=reflection_result.content,
+                source=agent_name,
+                models_usage=reflection_result.usage,
+            ),
+            inner_messages=inner_messages,
         )

@@ -43,6 +43,7 @@ def get_step_triage_prompt(
         ```
         
         **IMPORTANT NOTE**: If you need to create files or add content to existing files, please select the 'CodeExecutor' to implement this using Python.
+        **IMPORTANT NODE**: If you need to prepare the data or information for creating/adding information to the files, please select the 'general_agent' to collect the data, because at this stage, no files should be created or added to.
     """
 
     return template.format(
