@@ -139,7 +139,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
         # Add the instruction messages to the model context
         await model_context.add_message(
             UserMessage(
-                content=f"Current Instructions with the previous messages history:\n{'\n'.join(message_texts)}",
+                content="Current Instructions with the previous messages history:\n" + "\n".join(message_texts),
                 source=agent_name,
             )
         )
