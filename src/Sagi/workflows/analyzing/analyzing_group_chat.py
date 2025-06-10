@@ -163,7 +163,7 @@ class AnalyzingGroupChat(BaseGroupChat):
 
     def set_language(self, language: str) -> None:
         self._language = language
-        
+
     async def save_state(self) -> Mapping[str, Any]:
         base_state = await super().save_state()
         state = AnalyzingChatState(

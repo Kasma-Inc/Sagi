@@ -11,13 +11,13 @@ from autogen_ext.tools.mcp import (
 )
 from pydantic import BaseModel
 
+from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.utils.prompt import (
-    get_pg_agent_prompt,
-    get_pg_agent_prompt_cn,
     get_analyze_general_agent_prompt,
     get_analyze_general_agent_prompt_cn,
+    get_pg_agent_prompt,
+    get_pg_agent_prompt_cn,
 )
-from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.workflows.analyzing.analyzing_group_chat import AnalyzingGroupChat
 
 
@@ -137,9 +137,7 @@ class AnalyzingWorkflow:
             model_client=self.pg_model_client,
             tools=pg_tools,
             system_message=(
-                get_pg_agent_prompt()
-                if language == "en"
-                else get_pg_agent_prompt_cn()
+                get_pg_agent_prompt() if language == "en" else get_pg_agent_prompt_cn()
             ),
         )
 
@@ -169,6 +167,7 @@ class AnalyzingWorkflow:
     def set_language(self, language: str) -> None:
         if hasattr(self.team, "set_language"):
             self.team.set_language(language)
+
     def run_workflow(self, user_input: str):
         return self.team.run_stream(task=user_input)
 
