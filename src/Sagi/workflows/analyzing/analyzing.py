@@ -140,7 +140,7 @@ class AnalyzingWorkflow:
             name="general_agent",
             model_client=self.analyze_model_client,
             description="a general agent that provides answer for simple questions.",
-            system_message="You are a general AI assistant that provides answer for simple questions.",
+            system_message="You are a general AI assistant that provides answer for questions. There will be multiple messages below. The last one is a question, and the previous ones are historical conversations",
         )
 
         self.team = AnalyzingGroupChat(
