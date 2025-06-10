@@ -46,9 +46,11 @@ from Sagi.tools.stream_code_executor.stream_code_executor import (
 )
 from Sagi.utils.prompt import (
     get_appended_plan_prompt,
+    get_appended_plan_prompt_cn,
     get_final_answer_prompt,
     get_final_answer_prompt_cn,
     get_step_triage_prompt,
+    get_step_triage_prompt_cn,
 )
 from Sagi.workflows.analyzing.analyze_manager import AnalyzeManager
 
@@ -85,6 +87,7 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         pg_model_client: ChatCompletionClient,
         step_triage_model_client: ChatCompletionClient,
         user_proxy: Any | None = None,
+        language: str = "en",
     ):
         super().__init__(
             name=name,
@@ -105,6 +108,7 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         self._user_proxy = user_proxy
         self._group_chat_manager_topic_type = group_chat_manager_topic_type
         self._prompt_templates = {}  # to store prompts
+        self._language = language
         self._analyze_manager = AnalyzeManager()
 
         # Produce a team description. Each agent sould appear on a single line.
@@ -260,27 +264,52 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
             team=self._team_description,
             task=task,
         )
-        model_response = {
-            "steps": [
-                {
-                    "name": "Query Database",
-                    "description": f"Here is the task: {{{task}}}. When querying the database, it is essential to avoid excessive data volume. The upperbound of the number of entries during the query is 30" +
-                    "please generate a valid SQL SELECT statement to retrieve the data from the table. " +
-                    "Use the pg_query tool via the MCP server to run the query and return the results. \n" +
-                    "If the task relate to 'transaction Risk_Control' obtain data from the database 'transaction_data' only. Column names include: TransactionID,AccountID,TransactionAmount,TransactionDate,TransactionType,Location,DeviceID,IP Address,MerchantID,Channel,CustomerAge,CustomerOccupation,TransactionDuration,LoginAttempts,AccountBalance,PreviousTransactionDate\n"  +
-                    "else if the task relate to 'loan credit examine', obtain data from 'loan_people_data'. only. Column names include: CustomerID,Name,Age,Gender,AccountBalance,TransactionCount3Months,TransactionCount1Year,InterestRate,AmountWantToLoan\n" +
-                    "otherwise warning can not find suitable table" +
-                    "No analysis is required at this stage."
-                },
-                {
-                    "name": "Analyze Retrieved Entries",
-                    "description": "Analyze the table result from the previous step, which contains either transaction data ('transaction_data') or loan_people_data ('loan_people_data'). " +
-                    "Based on the content of the rows, provide a brief summary or insight. " +"For 'Risk_Control' tasks, assess potential risks in the transactions by evaluating indicators such as transaction amounts, frequency, and unusual patterns. Provide a risk score or categorization for each transaction, explaining the reasoning behind the risk assessment. Identify any transactions that appear suspicious or deviate from normal patterns, and justify why they are considered risky based on the data." +
-                    "For 'Credit_Examine' tasks, evaluate each individual's creditworthiness by analyzing their transaction history, borrowing behavior, and financial stability. Generate a credit score(determined score value) for each individual and provide a brief explanation of the factors contributing to that score. Highlight any financial behaviors or patterns that indicate potential for loan approval or rejection." +
-                    "Additionally, offer recommendations or suggestions based on the findings from either dataset."                    
-                }
-            ]
-        }
+        if self._language == "en":
+            model_response = {
+                "steps": [
+                    {
+                        "name": "Query Database",
+                        "description": f"Here is the task: {{{task}}}. When querying the database, it is essential to avoid excessive data volume. The upperbound of the number of entries during the query is 30" +
+                        "please generate a valid SQL SELECT statement to retrieve the data from the table. " +
+                        "Use the pg_query tool via the MCP server to run the query and return the results. \n" +
+                        "If the task relate to 'transaction Risk_Control' obtain data from the database 'transaction_data' only. Column names include: TransactionID,AccountID,TransactionAmount,TransactionDate,TransactionType,Location,DeviceID,IP Address,MerchantID,Channel,CustomerAge,CustomerOccupation,TransactionDuration,LoginAttempts,AccountBalance,PreviousTransactionDate\n"  +
+                        "else if the task relate to 'loan credit examine', obtain data from 'loan_people_data'. only. Column names include: CustomerID,Name,Age,Gender,AccountBalance,TransactionCount3Months,TransactionCount1Year,InterestRate,AmountWantToLoan\n" +
+                        "otherwise warning can not find suitable table" +
+                        "No analysis is required at this stage."
+                    },
+                    {
+                        "name": "Analyze Retrieved Entries",
+                        "description": "Analyze the table result from the previous step, which contains either transaction data ('transaction_data') or loan_people_data ('loan_people_data'). " +
+                        "Based on the content of the rows, provide a brief summary or insight. " +"For 'Risk_Control' tasks, assess potential risks in the transactions by evaluating indicators such as transaction amounts, frequency, and unusual patterns. Provide a risk score or categorization for each transaction, explaining the reasoning behind the risk assessment. Identify any transactions that appear suspicious or deviate from normal patterns, and justify why they are considered risky based on the data." +
+                        "For 'Credit_Examine' tasks, evaluate each individual's creditworthiness by analyzing their transaction history, borrowing behavior, and financial stability. Generate a credit score(determined score value) for each individual and provide a brief explanation of the factors contributing to that score. Highlight any financial behaviors or patterns that indicate potential for loan approval or rejection." +
+                        "Additionally, offer recommendations or suggestions based on the findings from dataset."                    
+                    }
+                ]
+            }
+        else: 
+            model_response = {
+                "steps": [
+                    {
+                        "name": "查询数据库",
+                        "description": f"这是任务：{{{task}}}。在查询数据库时，必须避免过多的数据量。查询时的条目上限为30。" +
+                        "请生成一个有效的SQL SELECT语句来从表中检索数据。 " +
+                        "通过MCP服务器使用pg_query工具运行查询并返回结果。 \n" +
+                        "如果任务与'交易风险控制'相关，请仅从'database transaction_data'中获取数据。列名包括：TransactionID,AccountID,TransactionAmount,TransactionDate,TransactionType,Location,DeviceID,IP Address,MerchantID,Channel,CustomerAge,CustomerOccupation,TransactionDuration,LoginAttempts,AccountBalance,PreviousTransactionDate\n" +
+                        "如果任务与'贷款信用评估'相关，请仅从'loan_people_data'获取数据。列名包括：CustomerID,Name,Age,Gender,AccountBalance,TransactionCount3Months,TransactionCount1Year,InterestRate,AmountWantToLoan\n" +
+                        "否则，警告：找不到适合的表" +
+                        "此阶段无需进行分析。"
+                    },
+                    {
+                        "name": "分析检索到的条目",
+                        "description": "分析上一步中的表格结果，包含'交易数据'（'transaction_data'）或'贷款人员数据'（'loan_people_data'）。" +
+                        "根据行内容，提供简要的总结或洞察。" +
+                        "对于'风险控制'任务，通过评估交易金额、频率和异常模式等指标来评估交易的潜在风险。为每笔交易提供一个风险评分或分类，并解释风险评估的理由。识别任何看起来可疑或与正常模式偏离的交易，并解释为什么它们被视为风险，基于数据给出判断依据。" +
+                        "对于'信用评估'任务，通过分析每个人的交易历史、借款行为和财务稳定性来评估其信用。为每个人生成一个信用评分（确定的评分值），并简要解释影响该评分的因素。突出任何可能表明贷款批准或拒绝的财务行为或模式。" +
+                        "此外，根据数据集的发现，提供建议。"
+                    }
+                ]
+            } 
+
         model_response_string = json.dumps(model_response)
 
         self._analyze_manager.new_plan(task=task, model_response=model_response_string)
@@ -294,11 +323,18 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         task = await self._compose_task(message)
         formatted_history = self._analyze_manager.get_analyze_history_str()
 
-        analyze_prompt = get_appended_plan_prompt(
-            current_task=task,
-            contexts_history=formatted_history,
-            team_composition=self._team_description,
-        )
+        if self._language == "en":
+            analyze_prompt = get_appended_plan_prompt(
+                current_task=task,
+                contexts_history=formatted_history,
+                team_composition=self._team_description,
+            )
+        else:
+            analyze_prompt = get_appended_plan_prompt_cn(
+                current_task=task,
+                contexts_history=formatted_history,
+                team_composition=self._team_description,
+            )
         self._analyze_manager.new_plan(task=task, model_response=plan_response)  #!!
 
     def messages_to_context(
@@ -431,12 +467,20 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
 
             self._analyze_manager.set_step_state(current_step_id, "in_progress")
 
-        step_triage_prompt = get_step_triage_prompt(  #!!
-            task=self._analyze_manager.get_task(),
-            current_plan=current_step_content,
-            names=self._participant_names,
-            team_description=self._team_description,
-        )
+        if self._language == "en":
+            step_triage_prompt = get_step_triage_prompt(  #!!
+                task=self._analyze_manager.get_task(),
+                current_plan=current_step_content,
+                names=self._participant_names,
+                team_description=self._team_description,
+            )
+        else :
+            step_triage_prompt = get_step_triage_prompt_cn(
+                task=self._analyze_manager.get_task(),
+                current_plan=current_step_content,
+                names=self._participant_names,
+                team_description=self._team_description,
+            )
 
         context.append(UserMessage(content=step_triage_prompt, source=self._name))
 
@@ -552,11 +596,16 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         # )
         # tool_response = json.loads(response.chat_message.content)[0].get("text")
         # prompt_dict = json.loads(tool_response)
-
-        prompt_dict = {
-            "plan_prompt": "You are a database expert. Use the available tools to query a PostgreSQL database and return concise, correct results. {task}",
-            "analyze_prompt": "The data has now been queried. Based on the indicators in the dataset: \n- For 'Risk_Control', generate risk monitoring suggestions, focusing on identifying anomalies, trends, or potential risks. \n- For 'Credit_Examine', generate credit assessment suggestions, analyzing borrowing patterns, creditworthiness, and financial behavior.",
-        }
+        if self._language == "en":
+            prompt_dict = {
+                "plan_prompt": "You are a database expert. Use the available tools to query a PostgreSQL database and return concise, correct results. {task}",
+                "analyze_prompt": "The data has now been queried. Based on the indicators in the dataset: \n- For 'Risk_Control', generate risk monitoring suggestions, focusing on identifying anomalies, trends, or potential risks. \n- For 'Credit_Examine', generate credit assessment suggestions, analyzing borrowing patterns, creditworthiness, and financial behavior.",
+            }
+        else:
+            prompt_dict = {
+                "plan_prompt": "你是一个数据库专家。使用可用的工具查询PostgreSQL数据库，并返回简洁、正确的结果。 {task}",
+                "analyze_prompt": "数据现在已经被查询过了。根据数据集中的指标：\n-对于“Risk_Control”，生成风险监控建议，重点是识别异常、趋势或潜在风险。\n-对于“credit_examination”，生成信用评估建议，分析借款模式、信誉和财务行为。",
+            }
         return prompt_dict
 
     async def load_state(self, state: Mapping[str, Any]) -> None:
@@ -612,9 +661,14 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         )
 
         # Get the final answer
-        final_answer_prompt = get_final_answer_prompt(
-            task=self._analyze_manager.get_task()
-        )
+        if self._language == "en":
+            final_answer_prompt = get_final_answer_prompt(
+                task=self._analyze_manager.get_task()
+            )
+        else:
+            final_answer_prompt = get_final_answer_prompt_cn(
+                task=self._analyze_manager.get_task()
+            )
         context.append(UserMessage(content=final_answer_prompt, source=self._name))
 
         final_answer_response = await self._llm_create(

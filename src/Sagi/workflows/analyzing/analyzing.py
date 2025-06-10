@@ -11,6 +11,12 @@ from autogen_ext.tools.mcp import (
 )
 from pydantic import BaseModel
 
+from Sagi.utils.prompt import (
+    get_pg_agent_prompt,
+    get_pg_agent_prompt_cn,
+    get_analyze_general_agent_prompt,
+    get_analyze_general_agent_prompt_cn,
+)
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.workflows.analyzing.analyzing_group_chat import AnalyzingGroupChat
 
@@ -104,6 +110,7 @@ class AnalyzingWorkflow:
     async def create(
         cls,
         config_path: str,
+        language: str = "en",
     ):
         self = cls(config_path)
 
@@ -130,9 +137,9 @@ class AnalyzingWorkflow:
             model_client=self.pg_model_client,
             tools=pg_tools,
             system_message=(
-                "You are a database expert. Use the available tools to query a PostgreSQL "
-                "database and return concise, correct results. Format SQL properly. "
-                "Only use the provided tools to answer questions about the database."
+                get_pg_agent_prompt()
+                if language == "en"
+                else get_pg_agent_prompt_cn()
             ),
         )
 
@@ -140,7 +147,11 @@ class AnalyzingWorkflow:
             name="general_agent",
             model_client=self.analyze_model_client,
             description="a general agent that provides answer for simple questions.",
-            system_message="You are a general AI assistant that provides answer for questions. There will be multiple messages below. The last one is a question, and the previous ones are historical conversations",
+            system_message=(
+                get_analyze_general_agent_prompt()
+                if language == "en"
+                else get_analyze_general_agent_prompt_cn()
+            ),
         )
 
         self.team = AnalyzingGroupChat(
@@ -151,9 +162,13 @@ class AnalyzingWorkflow:
             analyzing_model_client=self.analyze_model_client,
             pg_model_client=self.pg_model_client,
             step_triage_model_client=self.step_triage_model_client,
+            language=language,
         )
         return self
 
+    def set_language(self, language: str) -> None:
+        if hasattr(self.team, "set_language"):
+            self.team.set_language(language)
     def run_workflow(self, user_input: str):
         return self.team.run_stream(task=user_input)
 

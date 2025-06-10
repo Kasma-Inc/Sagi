@@ -32,6 +32,7 @@ class AnalyzingGroupChat(BaseGroupChat):
         analyzing_model_client: ChatCompletionClient,
         pg_model_client: ChatCompletionClient,
         step_triage_model_client: ChatCompletionClient,
+        language: str = "en",
     ):
         super().__init__(
             participants,
@@ -50,6 +51,7 @@ class AnalyzingGroupChat(BaseGroupChat):
         self._analyzing_model_client = analyzing_model_client
         self._pg_model_client = pg_model_client
         self._step_triage_model_client = step_triage_model_client
+        self._language = language
 
     async def _init(self, runtime: AgentRuntime) -> None:
         # Constants for the group chat manager.
@@ -156,8 +158,12 @@ class AnalyzingGroupChat(BaseGroupChat):
             analyzing_model_client=self._analyzing_model_client,
             pg_model_client=self._pg_model_client,
             step_triage_model_client=self._step_triage_model_client,
+            language=self._language,
         )
 
+    def set_language(self, language: str) -> None:
+        self._language = language
+        
     async def save_state(self) -> Mapping[str, Any]:
         base_state = await super().save_state()
         state = AnalyzingChatState(
