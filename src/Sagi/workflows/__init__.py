@@ -1,5 +1,6 @@
-from .planning.planning import PlanningWorkflow
 from .analyzing.analyzing import AnalyzingWorkflow
+from .planning.planning import PlanningWorkflow
+
 workflowName = PlanningWorkflow | AnalyzingWorkflow
 
 __all__ = [

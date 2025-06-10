@@ -5,7 +5,6 @@ import re
 from typing import Any, Dict, List, Mapping
 
 from autogen_agentchat import TRACE_LOGGER_NAME
-from autogen_agentchat.agents import UserProxyAgent
 from autogen_agentchat.base import Response, TerminationCondition
 from autogen_agentchat.messages import (
     AgentEvent,
@@ -38,7 +37,6 @@ from autogen_core.models import (
     ChatCompletionClient,
     FunctionExecutionResultMessage,
     LLMMessage,
-    SystemMessage,
     UserMessage,
 )
 from pydantic import BaseModel, Field
@@ -48,8 +46,6 @@ from Sagi.tools.stream_code_executor.stream_code_executor import (
 )
 from Sagi.utils.prompt import (
     get_appended_plan_prompt,
-    get_final_answer_prompt,
-    get_reflection_step_completion_prompt,
     get_step_triage_prompt,
 )
 from Sagi.workflows.analyzing.analyze_manager import AnalyzeManager
@@ -86,6 +82,7 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         analyzing_model_client: ChatCompletionClient,
         pg_model_client: ChatCompletionClient,
         user_proxy: Any | None = None,
+        step_triage_model_client: ChatCompletionClient | None = None,
     ):
         super().__init__(
             name=name,
@@ -118,6 +115,7 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         self._team_description = self._team_description.strip()
         # TODO: register the new message type in a systematic way
         self._message_factory.register(CodeFileMessage)
+        self._step_triage_model_client = step_triage_model_client
 
     async def reset(self) -> None:
         """Reset the group chat manager."""
@@ -202,9 +200,11 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         if message.agent_response.inner_messages is not None:
             for inner_message in message.agent_response.inner_messages:
                 delta.append(inner_message)
-                inner_message.metadata["step_id"] = (
-                    self._analyze_manager.get_current_step()[0] #!!
-                )
+                inner_message.metadata[
+                    "step_id"
+                ] = self._analyze_manager.get_current_step()[
+                    0
+                ]  #!!
                 await self._output_message_queue.put(inner_message)
 
         # # For web app
@@ -268,7 +268,6 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
                     "name": "Analyze Retrieved Entries",
                     "description": "Use a language model to analyze the table result from the previous step. Provide a brief summary or insight based on the content of the rows.",
                 },
-
             ]
         }
         model_response_string = json.dumps(model_response)
@@ -289,9 +288,8 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
             contexts_history=formatted_history,
             team_composition=self._team_description,
         )
-        self._analyze_manager.new_plan(task=task, model_response=plan_response) #!!
+        self._analyze_manager.new_plan(task=task, model_response=plan_response)  #!!
 
-    
     def messages_to_context(
         self, messages: List[BaseAgentEvent | BaseChatMessage]
     ) -> List[LLMMessage]:
@@ -319,7 +317,6 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
             return
         else:
             current_step_id, current_step_content = current_step
-        
 
         context = self.messages_to_context(
             self._analyze_manager.get_messages_of_current_step()
@@ -410,19 +407,17 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
 
             self._analyze_manager.set_step_state(current_step_id, "in_progress")
 
-        step_triage_prompt = get_step_triage_prompt( #!!
+        step_triage_prompt = get_step_triage_prompt(  #!!
             task=self._analyze_manager.get_task(),
             current_plan=current_step_content,
             names=self._participant_names,
             team_description=self._team_description,
         )
-        
+
         context.append(UserMessage(content=step_triage_prompt, source=self._name))
 
-
-
         step_triage_response = await self._llm_create(
-            self._analyzing_model_client, context, cancellation_token
+            self._step_triage_model_client, context, cancellation_token
         )
         logging.info(step_triage_response)
         logging.info("aaaaaaaaaaaaaaaaaaaaaaa")
@@ -538,7 +533,9 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
 
     async def load_state(self, state: Mapping[str, Any]) -> None:
         orchestrator_state = AnalyzingOrchestratorState.model_validate(state)
-        self._analyze_manager = AnalyzeManager.load(orchestrator_state.analyze_manager_state)
+        self._analyze_manager = AnalyzeManager.load(
+            orchestrator_state.analyze_manager_state
+        )
 
     async def save_state(self) -> Mapping[str, Any]:
         state = AnalyzingOrchestratorState(

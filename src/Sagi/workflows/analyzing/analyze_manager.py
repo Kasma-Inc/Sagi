@@ -491,7 +491,7 @@ class AnalyzeManager:
             plan_id=f"plan_{uuid.uuid4()}",
             task=task,
             steps=steps,
-            awaiting_confirmation=False, #!!
+            awaiting_confirmation=False,  #!!
             summary=None,
         )
 

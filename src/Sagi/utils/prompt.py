@@ -49,6 +49,54 @@ def get_step_triage_prompt(
     )
 
 
+def get_step_triage_prompt_with_instruction(
+    *, task: str, current_plan: str, names: list[str], team_description: str
+) -> str:
+    """Generates a prompt template for triaging the step execution to the right team member.
+
+    Args:
+        task: Description of the main task.
+        current_plan: Currently executing sub-task.
+        names: List of available team members to select from.
+    """
+    template = """
+        Recall we are working on the following request:
+
+        {task}
+
+        We are executing the following sub-task based on the plan:
+        {current_plan}
+
+        The team members are:
+        {team_description}
+        To make progress on the request, please answer the following questions, including necessary reasoning:
+
+            - Who should speak next? (select from: {names})
+            - What instruction or question would you give this team member? (Phrase as if speaking directly to them, and include any specific information they may need)
+
+        Please output an answer in pure JSON format according to the following schema. The JSON object must be parsable as-is. DO NOT OUTPUT ANYTHING OTHER THAN JSON, AND DO NOT DEVIATE FROM THIS SCHEMA:
+
+            {{
+                "next_speaker": {{
+                    "reason": string,
+                    "answer": string (select from: {names})
+                }},
+                "instruction_or_question": {{
+                    "reason": string, 
+                    "answer": string
+                }}
+            }}
+            
+    """
+
+    return template.format(
+        task=task,
+        current_plan=current_plan,
+        names=", ".join(names),
+        team_description=team_description,
+    )
+
+
 def get_reflection_step_completion_prompt(
     *, current_plan: str, conversation_context: str
 ) -> str:

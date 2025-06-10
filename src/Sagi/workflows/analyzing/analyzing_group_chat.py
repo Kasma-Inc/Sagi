@@ -1,7 +1,6 @@
 import asyncio
 from typing import Any, Callable, List, Mapping
 
-from autogen_agentchat.agents import AssistantAgent, UserProxyAgent
 from autogen_agentchat.base import ChatAgent, TerminationCondition
 from autogen_agentchat.messages import AgentEvent, ChatMessage
 from autogen_agentchat.state import TeamState
@@ -32,6 +31,7 @@ class AnalyzingGroupChat(BaseGroupChat):
         runtime: AgentRuntime | None = None,
         analyzing_model_client: ChatCompletionClient,
         pg_model_client: ChatCompletionClient,
+        step_triage_model_client: ChatCompletionClient,
     ):
         super().__init__(
             participants,
@@ -49,6 +49,7 @@ class AnalyzingGroupChat(BaseGroupChat):
             )
         self._analyzing_model_client = analyzing_model_client
         self._pg_model_client = pg_model_client
+        self._step_triage_model_client = step_triage_model_client
 
     async def _init(self, runtime: AgentRuntime) -> None:
         # Constants for the group chat manager.
@@ -154,6 +155,7 @@ class AnalyzingGroupChat(BaseGroupChat):
             emit_team_events=self._emit_team_events,
             analyzing_model_client=self._analyzing_model_client,
             pg_model_client=self._pg_model_client,
+            step_triage_model_client=self._step_triage_model_client,
         )
 
     async def save_state(self) -> Mapping[str, Any]:

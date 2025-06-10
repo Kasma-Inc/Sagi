@@ -1,29 +1,18 @@
 import os
 from contextlib import AsyncExitStack
-from pathlib import Path
-from typing import List, Literal, Optional
+from typing import Literal
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ModelFamily, ModelInfo
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import (
     StdioServerParams,
-    create_mcp_server_session,
     mcp_server_tools,
 )
 from pydantic import BaseModel
 
-from Sagi.tools.stream_code_executor.stream_code_executor_agent import (
-    StreamCodeExecutorAgent,
-)
-from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor import (
-    StreamDockerCommandLineCodeExecutor,
-)
-from Sagi.tools.web_search_agent import WebSearchAgent
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.workflows.analyzing.analyzing_group_chat import AnalyzingGroupChat
-
-
 
 
 class MCPSessionManager:
@@ -43,10 +32,9 @@ class MCPSessionManager:
         self.sessions.clear()
 
 
-
 class AnalyzingWorkflow:
     def __init__(self, config_path: str):
-        
+
         config = load_toml_with_env_vars(config_path)
 
         config_analyze_client = config["model_clients"]["analyze_client"]
@@ -73,7 +61,6 @@ class AnalyzingWorkflow:
                 max_tokens=config_analyze_client["max_tokens"],
             )
 
-            
         config_pg_client = config["model_clients"]["pg_client"]
         if "model_info" in config_pg_client:
             model_info = config_pg_client["model_info"]
@@ -98,6 +85,27 @@ class AnalyzingWorkflow:
                 max_tokens=config_pg_client["max_tokens"],
             )
 
+        class StepTriageNextSpeakerResponse(BaseModel):
+            reason: str
+            answer: Literal["pg_agent", "general_agent"]
+
+        class StepTriageInstructionOrQuestionResponse(BaseModel):
+            reason: str
+            answer: str
+
+        class StepTriageResponse(BaseModel):
+            next_speaker: StepTriageNextSpeakerResponse
+            instruction_or_question: StepTriageInstructionOrQuestionResponse
+
+        config_step_triage_client = config["model_clients"]["step_triage_client"]
+        self.step_triage_model_client = OpenAIChatCompletionClient(
+            model=config_step_triage_client["model"],
+            base_url=config_step_triage_client["base_url"],
+            api_key=config_step_triage_client["api_key"],
+            max_tokens=config_step_triage_client["max_tokens"],
+            response_format=StepTriageResponse,
+        )
+
     @classmethod
     async def create(
         cls,
@@ -113,13 +121,12 @@ class AnalyzingWorkflow:
             command="uv",
             args=[
                 "--directory",
-                os.path.join(
-                    mcp_server_path, "pg_mcp/src/pg_mcp"
-                ),
+                os.path.join(mcp_server_path, "pg_mcp/src/pg_mcp"),
                 "run",
                 "/chatbot/Sagi/.venv/bin/python",
                 "server.py",
             ],
+            env={"DATABASE_URL": os.getenv("DATABASE_URL")},
         )
         pg_tools = await mcp_server_tools(prompt_server_params)
 
@@ -141,17 +148,17 @@ class AnalyzingWorkflow:
             description="a general agent that provides answer for simple questions.",
             system_message="You are a general AI assistant that provides answer for simple questions.",
         )
-        
+
         self.team = AnalyzingGroupChat(
             participants=[
                 pg_agent,
                 general_agent,
             ],
             analyzing_model_client=self.analyze_model_client,
-            pg_model_client=self.pg_model_client, 
+            pg_model_client=self.pg_model_client,
+            step_triage_model_client=self.step_triage_model_client,
         )
         return self
-
 
     def run_workflow(self, user_input: str):
         return self.team.run_stream(task=user_input)
