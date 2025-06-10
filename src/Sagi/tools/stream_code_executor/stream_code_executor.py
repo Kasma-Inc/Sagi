@@ -7,6 +7,7 @@ from autogen_core import CancellationToken
 from autogen_core.code_executor import CodeBlock, CodeExecutor, CodeResult
 from autogen_ext.code_executors._common import CommandLineCodeResult
 
+from pydantic import BaseModel
 
 class CodeFileMessage(BaseTextChatMessage):
     code_file: str
@@ -36,3 +37,27 @@ class StreamCodeExecutor(CodeExecutor):
         cancellation_token: CancellationToken,
     ) -> AsyncGenerator[CodeFileMessage | CodeResult, None]:
         pass
+
+
+@dataclass
+class CodeBlockErrorHistory():
+    code_blocks: List[CodeBlock]
+    shell_commands: List[CodeBlock]
+    error: str
+    previous_state: int
+
+    # this is the node in the tree-liked structure, where the error occurred.
+    # this contains the error children nodes (and the children nodes also contains their error children, and so on)
+    # represented as the tree structure
+    children_error_nodes: List['CodeBlockErrorHistory'] = None
+
+
+    def __post_init__(self):
+        if self.children_error_nodes is None:
+            self.children_error_nodes = []
+
+@dataclass
+class CodeStepHistory():
+    instruction: str
+    code_blocks: List[CodeBlock]
+    result: str
