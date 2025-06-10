@@ -1,5 +1,6 @@
-import requests
 import uuid
+
+import requests
 
 url = "http://localhost:8001/api/chat?protocol=data"
 headers = {
@@ -15,11 +16,11 @@ data = {
         "parts": [],
         "toolInvocations": [],
         "createdAt": "2025-06-08T12:00:00",
-        "experimental_attachments": []
+        "experimental_attachments": [],
     },
     "selectedChatModel": "gpt-4",
     "search": False,
-    "workflow": "analyzing"
+    "workflow": "analyzing",
 }
 
 response = requests.post(url, json=data, headers=headers)

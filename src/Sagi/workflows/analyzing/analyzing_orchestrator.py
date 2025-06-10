@@ -5,7 +5,6 @@ import re
 from typing import Any, Dict, List, Mapping
 
 from autogen_agentchat import TRACE_LOGGER_NAME
-from autogen_agentchat.agents import UserProxyAgent
 from autogen_agentchat.base import Response, TerminationCondition
 from autogen_agentchat.messages import (
     AgentEvent,
@@ -38,7 +37,6 @@ from autogen_core.models import (
     ChatCompletionClient,
     FunctionExecutionResultMessage,
     LLMMessage,
-    SystemMessage,
     UserMessage,
 )
 from pydantic import BaseModel, Field
@@ -49,7 +47,6 @@ from Sagi.tools.stream_code_executor.stream_code_executor import (
 from Sagi.utils.prompt import (
     get_appended_plan_prompt,
     get_final_answer_prompt,
-    get_reflection_step_completion_prompt,
     get_step_triage_prompt,
 )
 from Sagi.workflows.analyzing.analyze_manager import AnalyzeManager
@@ -202,9 +199,11 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         if message.agent_response.inner_messages is not None:
             for inner_message in message.agent_response.inner_messages:
                 delta.append(inner_message)
-                inner_message.metadata["step_id"] = (
-                    self._analyze_manager.get_current_step()[0] #!!
-                )
+                inner_message.metadata[
+                    "step_id"
+                ] = self._analyze_manager.get_current_step()[
+                    0
+                ]  #!!
                 await self._output_message_queue.put(inner_message)
 
         # # For web app
@@ -262,13 +261,12 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
             "steps": [
                 {
                     "name": "Query Database",
-                    "description": f"Here is the task: {{{task}}}. If the task involves obtaining data from the database 'transaction_data', please generate a valid SQL SELECT statement to retrieve the data from the table. Use the pg_query tool via the MCP server to run the query and return the results. If the task does not require querying the transaction_data, please report a warning. No analysis is required at this stage."
+                    "description": f"Here is the task: {{{task}}}. If the task involves obtaining data from the database 'transaction_data', please generate a valid SQL SELECT statement to retrieve the data from the table. Use the pg_query tool via the MCP server to run the query and return the results. If the task does not require querying the transaction_data, please report a warning. No analysis is required at this stage.",
                 },
                 {
                     "name": "Analyze Retrieved Entries",
                     "description": "Analyze the table result from the previous step, which contains transaction data. Based on the content of the rows, provide a brief summary or insight. Additionally, offer regulatory recommendations or suggestions based on the patterns, anomalies, or trends observed in the data.",
                 },
-
             ]
         }
         model_response_string = json.dumps(model_response)
@@ -289,9 +287,8 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
             contexts_history=formatted_history,
             team_composition=self._team_description,
         )
-        self._analyze_manager.new_plan(task=task, model_response=plan_response) #!!
+        self._analyze_manager.new_plan(task=task, model_response=plan_response)  #!!
 
-    
     def messages_to_context(
         self, messages: List[BaseAgentEvent | BaseChatMessage]
     ) -> List[LLMMessage]:
@@ -320,7 +317,6 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
             return
         else:
             current_step_id, current_step_content = current_step
-        
 
         context = self.messages_to_context(
             self._analyze_manager.get_messages_of_current_step()
@@ -366,7 +362,9 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
             current_step = self._analyze_manager.get_current_step()
 
             if current_step is None:
-                await self._prepare_final_answer("All steps completed.", cancellation_token)
+                await self._prepare_final_answer(
+                    "All steps completed.", cancellation_token
+                )
                 return
             else:
                 current_step_id, current_step_content = current_step
@@ -412,20 +410,22 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
 
             # If there's no next pending step, we're done
             if current_step is None:
-                await self._prepare_final_answer("All steps completed.", cancellation_token)
+                await self._prepare_final_answer(
+                    "All steps completed.", cancellation_token
+                )
                 return
             else:
                 current_step_id, current_step_content = current_step
 
             self._analyze_manager.set_step_state(current_step_id, "in_progress")
 
-        step_triage_prompt = get_step_triage_prompt( #!!
+        step_triage_prompt = get_step_triage_prompt(  #!!
             task=self._analyze_manager.get_task(),
             current_plan=current_step_content,
             names=self._participant_names,
             team_description=self._team_description,
         )
-        
+
         context.append(UserMessage(content=step_triage_prompt, source=self._name))
 
         step_triage_response = await self._llm_create(
@@ -517,7 +517,7 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         # reason = reflection.get("reason", "No reason provided")
         # return reflection.get("is_complete", "false") == "true", reason
         logging.info(current_plan_content)
-        if current_plan_content==None:
+        if current_plan_content == None:
             return "False", "No reason provided"
         else:
             return "True", "No reason provided"
@@ -549,7 +549,9 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
 
     async def load_state(self, state: Mapping[str, Any]) -> None:
         orchestrator_state = AnalyzingOrchestratorState.model_validate(state)
-        self._analyze_manager = AnalyzeManager.load(orchestrator_state.analyze_manager_state)
+        self._analyze_manager = AnalyzeManager.load(
+            orchestrator_state.analyze_manager_state
+        )
 
     async def save_state(self) -> Mapping[str, Any]:
         state = AnalyzingOrchestratorState(
@@ -588,7 +590,6 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
             cancellation_token=cancellation_token,
         )
         return response
-
 
     async def _prepare_final_answer(
         self, reason: str, cancellation_token: CancellationToken
@@ -640,5 +641,3 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
             await self._termination_condition.reset()
         # Signal termination
         await self._signal_termination(StopMessage(content=reason, source=self._name))
-
-        

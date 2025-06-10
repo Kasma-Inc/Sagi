@@ -9,23 +9,19 @@ This script tests the PostgreSQL MCP Tool server (pg_query). It:
 """
 
 import asyncio
-import json
 import logging
 import os
-import re
-
-from dotenv import load_dotenv
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
 from autogen_core import CancellationToken
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import StdioServerParams, mcp_server_tools
+from dotenv import load_dotenv
 
 # Logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -53,7 +49,7 @@ async def test_pg_query_tool():
     model_client = OpenAIChatCompletionClient(
         model="gpt-4o",
         api_key=os.getenv("OPENAI_API_KEY"),
-        base_url=os.getenv("OPENAI_API_BASE_URL")  # Optional
+        base_url=os.getenv("OPENAI_API_BASE_URL"),  # Optional
     )
 
     # Step 3: Create agent with pg_query tool
@@ -61,15 +57,14 @@ async def test_pg_query_tool():
         name="pg_query_agent",
         model_client=model_client,
         tools=pg_tools,
-        system_message="You are a data analyst assistant. Use the tools to query the database and answer questions."
+        system_message="You are a data analyst assistant. Use the tools to query the database and answer questions.",
     )
 
     # Step 4: Send query to agent
     logger.info("Sending query to agent...")
     user_query = "What are the data in the first six rows of the table transaction_data?"  # You can change this
     response = await pg_agent.on_messages(
-        [TextMessage(content=user_query, source="test_user")],
-        CancellationToken()
+        [TextMessage(content=user_query, source="test_user")], CancellationToken()
     )
 
     logger.info("Agent response:")

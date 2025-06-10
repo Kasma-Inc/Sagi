@@ -1,7 +1,6 @@
 import asyncio
 from typing import Any, Callable, List, Mapping
 
-from autogen_agentchat.agents import AssistantAgent, UserProxyAgent
 from autogen_agentchat.base import ChatAgent, TerminationCondition
 from autogen_agentchat.messages import AgentEvent, ChatMessage
 from autogen_agentchat.state import TeamState
