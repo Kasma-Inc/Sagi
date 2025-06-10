@@ -12,41 +12,31 @@ from autogen_core import AgentRuntime, AgentType, TypeSubscription
 from autogen_core.models import ChatCompletionClient
 from pydantic import Field
 
-from Sagi.workflows.planning_orchestrator import PlanningOrchestrator
+from Sagi.workflows.analyzing.analyzing_orchestrator import AnalyzingOrchestrator
 
 
-class PlanningChatState(TeamState):
+class AnalyzingChatState(TeamState):
     """State for a team of agents."""
 
     agent_states: Mapping[str, Any] = Field(default_factory=dict)
-    type: str = Field(default="PlanningChatState")
+    type: str = Field(default="AnalyzingChatState")
 
 
-class PlanningGroupChat(BaseGroupChat):
+class AnalyzingGroupChat(BaseGroupChat):
     def __init__(
         self,
         participants: List[ChatAgent],
-        orchestrator_model_client: ChatCompletionClient,
         *,
         termination_condition: TerminationCondition | None = None,
         max_turns: int | None = None,
         runtime: AgentRuntime | None = None,
-        planning_model_client: ChatCompletionClient,  # for json plan output
-        reflection_model_client: ChatCompletionClient,  # for reflection
-        step_triage_model_client: ChatCompletionClient,
-        user_proxy: UserProxyAgent | None = None,  # for new feat: human in the loop
-        domain_specific_agent: (
-            AssistantAgent | None
-        ) = None,  # for new feat: domain specific prompt
-        template_work_dir: str | None = None,  # for template working directory
-        template_selection_model_client: ChatCompletionClient,
-        template_based_planning_model_client: ChatCompletionClient,
-        single_group_planning_model_client: ChatCompletionClient,
+        analyzing_model_client: ChatCompletionClient,
+        pg_model_client: ChatCompletionClient,
     ):
         super().__init__(
             participants,
-            group_chat_manager_name="PlanningOrchestrator",
-            group_chat_manager_class=PlanningOrchestrator,
+            group_chat_manager_name="AnalyzingOrchestrator",
+            group_chat_manager_class=AnalyzingOrchestrator,
             termination_condition=termination_condition,
             max_turns=max_turns,
             runtime=runtime,
@@ -57,23 +47,8 @@ class PlanningGroupChat(BaseGroupChat):
             raise ValueError(
                 "At least one participant is required for MagenticOneGroupChat."
             )
-        # Initialize the model clients.
-        self._orchestrator_model_client = orchestrator_model_client
-        self._planning_model_client = planning_model_client  # for json plan output
-        self._reflection_model_client = (
-            reflection_model_client  # for new feat: reflection
-        )
-        self._step_triage_model_client = step_triage_model_client
-        self._user_proxy = user_proxy  # for new feat: human in the loop
-        self._domain_specific_agent = (
-            domain_specific_agent  # for new feat: domain specific prompt
-        )
-        self._template_work_dir = template_work_dir  # for template working directory
-        self._template_selection_model_client = template_selection_model_client
-        self._template_based_planning_model_client = (
-            template_based_planning_model_client
-        )
-        self._single_group_planning_model_client = single_group_planning_model_client
+        self._analyzing_model_client = analyzing_model_client
+        self._pg_model_client = pg_model_client
 
     async def _init(self, runtime: AgentRuntime) -> None:
         # Constants for the group chat manager.
@@ -163,8 +138,8 @@ class PlanningGroupChat(BaseGroupChat):
         ],
         termination_condition: TerminationCondition | None,
         max_turns: int | None,
-    ) -> Callable[[], PlanningOrchestrator]:
-        return lambda: PlanningOrchestrator(
+    ) -> Callable[[], AnalyzingOrchestrator]:
+        return lambda: AnalyzingOrchestrator(
             name=name,
             group_topic_type=group_topic_type,
             output_topic_type=output_topic_type,
@@ -174,24 +149,16 @@ class PlanningGroupChat(BaseGroupChat):
             participant_descriptions=participant_descriptions,
             max_turns=max_turns,
             message_factory=self._message_factory,
-            orchestrator_model_client=self._orchestrator_model_client,
             output_message_queue=output_message_queue,
             termination_condition=termination_condition,
             emit_team_events=self._emit_team_events,
-            planning_model_client=self._planning_model_client,
-            reflection_model_client=self._reflection_model_client,  # for new feat: reflection
-            step_triage_model_client=self._step_triage_model_client,
-            user_proxy=self._user_proxy,  # for new feat: human in the loop
-            domain_specific_agent=self._domain_specific_agent,  # for new feat: domain specific prompt
-            template_work_dir=self._template_work_dir,  # for template working directory
-            template_selection_model_client=self._template_selection_model_client,
-            template_based_planning_model_client=self._template_based_planning_model_client,
-            single_group_planning_model_client=self._single_group_planning_model_client,
+            analyzing_model_client=self._analyzing_model_client,
+            pg_model_client=self._pg_model_client,
         )
 
     async def save_state(self) -> Mapping[str, Any]:
         base_state = await super().save_state()
-        state = PlanningChatState(
+        state = AnalyzingChatState(
             agent_states=base_state["agent_states"],
         )
         return state.model_dump()

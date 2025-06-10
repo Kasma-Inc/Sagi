@@ -25,7 +25,7 @@ from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor im
 from Sagi.tools.web_search_agent import WebSearchAgent
 from Sagi.utils.json_handler import get_template_num
 from Sagi.utils.load_config import load_toml_with_env_vars
-from Sagi.workflows.planning_group_chat import PlanningGroupChat
+from Sagi.workflows.planning.planning_group_chat import PlanningGroupChat
 
 DEFAULT_WORK_DIR = "coding_files"
 DEFAULT_MCP_SERVER_PATH = "src/Sagi/mcp_server/"
