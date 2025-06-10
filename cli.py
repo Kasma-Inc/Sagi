@@ -21,7 +21,7 @@ os.makedirs("logging", exist_ok=True)
 setup_logging()
 
 DEFAULT_TEAM_CONFIG_PATH = "src/Sagi/workflows/team.toml"
-DEFAULT_CONFIG_PATH = "src/Sagi/workflows/planning.toml"
+DEFAULT_CONFIG_PATH = "src/Sagi/workflows/planning/planning.toml"
 
 
 def parse_args():
