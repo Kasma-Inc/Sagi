@@ -1,5 +1,6 @@
 import os
 from contextlib import AsyncExitStack
+from typing import Literal
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ModelFamily, ModelInfo
@@ -8,6 +9,7 @@ from autogen_ext.tools.mcp import (
     StdioServerParams,
     mcp_server_tools,
 )
+from pydantic import BaseModel
 
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.workflows.analyzing.analyzing_group_chat import AnalyzingGroupChat
@@ -59,6 +61,21 @@ class AnalyzingWorkflow:
                 max_tokens=config_analyze_client["max_tokens"],
             )
 
+        class StepTriageNextSpeakerResponse(BaseModel):
+            instruction: str
+            answer: Literal["pg_agent", "general_agent"]  # type: ignore
+
+        class StepTriageResponse(BaseModel):
+            next_speaker: StepTriageNextSpeakerResponse
+
+        self.step_triage_model_client = OpenAIChatCompletionClient(
+            model=config["model_clients"]["step_triage_client"]["model"],
+            base_url=config["model_clients"]["step_triage_client"]["base_url"],
+            api_key=config["model_clients"]["step_triage_client"]["api_key"],
+            max_tokens=config["model_clients"]["step_triage_client"]["max_tokens"],
+            response_format=StepTriageResponse,
+        )
+
         config_pg_client = config["model_clients"]["pg_client"]
         if "model_info" in config_pg_client:
             model_info = config_pg_client["model_info"]
@@ -103,6 +120,7 @@ class AnalyzingWorkflow:
                 "/chatbot/Sagi/.venv/bin/python",
                 "server.py",
             ],
+            env={"DATABASE_URL": os.getenv("DATABASE_URL")},
         )
         pg_tools = await mcp_server_tools(prompt_server_params)
 
@@ -132,6 +150,7 @@ class AnalyzingWorkflow:
             ],
             analyzing_model_client=self.analyze_model_client,
             pg_model_client=self.pg_model_client,
+            step_triage_model_client=self.step_triage_model_client,
         )
         return self
 

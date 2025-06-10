@@ -82,6 +82,7 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         emit_team_events: bool,
         analyzing_model_client: ChatCompletionClient,
         pg_model_client: ChatCompletionClient,
+        step_triage_model_client: ChatCompletionClient,
         user_proxy: Any | None = None,
     ):
         super().__init__(
@@ -99,6 +100,7 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         )
         self._analyzing_model_client = analyzing_model_client
         self._pg_model_client = pg_model_client
+        self._step_triage_model_client = step_triage_model_client
         self._user_proxy = user_proxy
         self._group_chat_manager_topic_type = group_chat_manager_topic_type
         self._prompt_templates = {}  # to store prompts
@@ -429,7 +431,7 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         context.append(UserMessage(content=step_triage_prompt, source=self._name))
 
         step_triage_response = await self._llm_create(
-            self._analyzing_model_client, context, cancellation_token
+            self._step_triage_model_client, context, cancellation_token
         )
         step_triage = json.loads(step_triage_response)
 

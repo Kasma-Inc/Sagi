@@ -35,7 +35,7 @@ from Sagi.utils.prompt import (
     get_rag_agent_prompt,
     get_rag_agent_prompt_cn,
 )
-from Sagi.workflows.planning_group_chat import PlanningGroupChat
+from Sagi.workflows.planning.planning_group_chat import PlanningGroupChat
 
 DEFAULT_WORK_DIR = "coding_files"
 DEFAULT_MCP_SERVER_PATH = "src/Sagi/mcp_server/"

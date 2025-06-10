@@ -5,8 +5,14 @@
     api_key = "${OPENAI_API_KEY}"
     max_tokens = 16000
 
-  [model_clients.pg_client]
-    model = "gpt-4o-mini"
-    base_url = "${OPENAI_BASE_URL}"
-    api_key = "${OPENAI_API_KEY}"
-    max_tokens = 16000
+[model_clients.pg_client]
+  model = "gpt-4o-mini"
+  base_url = "${OPENAI_BASE_URL}"
+  api_key = "${OPENAI_API_KEY}"
+  max_tokens = 16000
+
+[model_clients.step_triage_client]
+  model = "gpt-4o-mini"
+  base_url = "${OPENAI_BASE_URL}"
+  api_key = "${OPENAI_API_KEY}"
+  max_tokens = 16000
