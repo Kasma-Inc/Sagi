@@ -5,8 +5,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Type, TypeVar
 
 from autogen_agentchat.agents import AssistantAgent
-from autogen_agentchat.conditions import TextMessageTermination
-from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_core.models import ModelFamily, ModelInfo
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import (
@@ -32,8 +30,6 @@ from Sagi.utils.prompt import (
     get_domain_specific_agent_prompt_cn,
     get_general_agent_prompt,
     get_general_agent_prompt_cn,
-    get_rag_agent_prompt,
-    get_rag_agent_prompt_cn,
 )
 from Sagi.workflows.planning.planning_group_chat import PlanningGroupChat
 
@@ -128,7 +124,6 @@ class PlanningWorkflow:
         cls,
         config_path: str,
         team_config_path: str,
-        mode: str = "deep_research",
         template_work_dir: str | None = None,
         language: str = "en",
     ):
@@ -248,39 +243,41 @@ class PlanningWorkflow:
         )
         domain_specific_tools = await mcp_server_tools(prompt_server_params)
 
-        hirag_server_params = StdioServerParams(
-            command="mcp-hirag-tool",
-            args=[],
-            read_timeout_seconds=100,
-            env={
-                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
-                "OPENAI_BASE_URL": os.getenv("OPENAI_BASE_URL"),
-                "VOYAGE_API_KEY": os.getenv("VOYAGE_API_KEY"),
-            },
-        )
+        # ========== Uncomment below code block when you pass the tests/test_hirag_agent.py test and want to use the rag_agent ==========
+        # hirag_server_params = StdioServerParams(
+        #     command="mcp-hirag-tool",
+        #     args=[],
+        #     read_timeout_seconds=100,
+        #     env={
+        #         "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
+        #         "OPENAI_BASE_URL": os.getenv("OPENAI_BASE_URL"),
+        #         "VOYAGE_API_KEY": os.getenv("VOYAGE_API_KEY"),
+        #     },
+        # )
 
-        self.hirag_retrival = await self.session_manager.create_session(
-            "hirag_retrival", create_mcp_server_session(hirag_server_params)
-        )
-        await self.hirag_retrival.initialize()
-        hirag_retrival_tools = await mcp_server_tools(
-            hirag_server_params, session=self.hirag_retrival
-        )
-        hirag_retrival_tools = [
-            tool for tool in hirag_retrival_tools if tool.name == "hi_search"
-        ]
+        # self.hirag_retrival = await self.session_manager.create_session(
+        #     "hirag_retrival", create_mcp_server_session(hirag_server_params)
+        # )
+        # await self.hirag_retrival.initialize()
+        # hirag_retrival_tools = await mcp_server_tools(
+        #     hirag_server_params, session=self.hirag_retrival
+        # )
+        # hirag_retrival_tools = [
+        #     tool for tool in hirag_retrival_tools if tool.name == "hi_search"
+        # ]
 
-        rag_agent = AssistantAgent(
-            name="retrieval_agent",
-            description="a retrieval agent that provides relevant information from the internal database.",
-            model_client=self.single_tool_use_model_client,
-            tools=hirag_retrival_tools,  # type: ignore
-            system_message=(
-                get_rag_agent_prompt()
-                if language == "en"
-                else get_rag_agent_prompt_cn()
-            ),
-        )
+        # rag_agent = AssistantAgent(
+        #     name="retrieval_agent",
+        #     description="a retrieval agent that provides relevant information from the internal database.",
+        #     model_client=self.single_tool_use_model_client,
+        #     tools=hirag_retrival_tools,  # type: ignore
+        #     system_message=(
+        #         get_rag_agent_prompt()
+        #         if language == "en"
+        #         else get_rag_agent_prompt_cn()
+        #     ),
+        # )
+        # ========== Uncomment above code block when you pass the tests/test_hirag_agent.py test and want to use the rag_agent ==========
 
         # for new feat: domain specific prompt
         domain_specific_agent = AssistantAgent(
@@ -342,24 +339,9 @@ class PlanningWorkflow:
             "web_search": surfer,
             "CodeExecutor": code_executor,
             "general_agent": general_agent,
-            "retrieval_agent": rag_agent,
+            # "retrieval_agent": rag_agent,
         }
 
-        # Select participants based on mode
-        if mode == "general":
-            self.team = RoundRobinGroupChat(
-                participants=[general_agent],
-                termination_condition=TextMessageTermination("general_agent"),
-            )
-            return self
-        elif mode == "web_search":
-            self.team = RoundRobinGroupChat(
-                participants=[surfer, general_agent],
-                termination_condition=TextMessageTermination("general_agent"),
-            )
-            return self
-
-        # deep_research mode: use all participants
         participants = []
         for member in team_members:
             if member in agent_mapping:

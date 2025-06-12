@@ -1,3 +1,7 @@
+from datetime import datetime
+
+DATE_TIME = datetime.now().strftime("%Y-%m-%d")
+
 SLIDE_CATEGORY_INFO = """
 Opening slide: The first slide that introduces the presentation, typically including the title, presenter's name, and other introductory information.
 Ending slide: The final slide that concludes the presentation, usually featuring a summary, conclusions, or a call to action, along with contact details or acknowledgments.
@@ -487,3 +491,8 @@ def get_analyze_general_agent_prompt() -> str:
 def get_analyze_general_agent_prompt_cn() -> str:
     """系统提示词，用于分析的通用代理"""
     return "你是一个为问题提供答案的通用人工智能助手。下面将有多条消息。最后一个是提问，前面几个是历史对话。"
+
+
+def get_web_search_agent_prompt() -> str:
+    """system prompt for web search agent"""
+    return f"You are a web search agent that collects data and relevant information from the web. Today is {DATE_TIME}"
