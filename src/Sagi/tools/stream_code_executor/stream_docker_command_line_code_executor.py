@@ -43,7 +43,7 @@ class StreamDockerCommandLineCodeExecutor(
         timeout: int = 60,
         work_dir: Union[Path, str, None] = None,
         bind_dir: Optional[Union[Path, str]] = None,
-        auto_remove: bool = True,
+        auto_remove: bool = True,  # Keep the auto_remove option to be true to make sure the container is deleted even if the program terminates
         stop_container: bool = True,
         device_requests: Optional[List[DeviceRequest]] = None,
         functions: Sequence[
@@ -75,6 +75,13 @@ class StreamDockerCommandLineCodeExecutor(
             init_command=init_command,
             delete_tmp_files=delete_tmp_files,
         )
+
+        # List of installed dependencies in the Docker container
+        self.docker_installed_dependencies: List[CodeBlock] = []
+
+        # for countdown functionality
+        self._countdown_task = None
+        self._countdown_running = False
 
     async def execute_code_blocks_stream(
         self,
@@ -290,3 +297,84 @@ class StreamDockerCommandLineCodeExecutor(
             exit_code = 1
 
         yield CodeResult(exit_code=exit_code, output=output)
+
+    # Add a dependency to the list of installed dependencies in the Docker container.
+    # Make sure it is a CodeBlock object, NOT list[CodeBlock].
+    def add_dependency(self, code_block: CodeBlock):
+        self.docker_installed_dependencies.append(code_block)
+
+    # Install dependencies in the Docker container.
+    async def _install_dependencies(self, cancellation_token: CancellationToken):
+        if not self._running:
+            raise ValueError("Container is not running. Must first be started.")
+
+        await self.execute_code_blocks(
+            self.docker_installed_dependencies, cancellation_token
+        )
+
+    async def countdown(self, second: int):
+        await self.stop_countdown()  # Ensure any existing countdown is stopped
+
+        print(f"** Container will be stopped in {second} second if inactive...")
+        self._countdown_running = True
+        self._countdown_task = asyncio.create_task(self._countdown_worker(second))
+
+    async def stop_countdown(self):
+        # stop the countdown if it is running
+        if (
+            self._countdown_running
+            and self._countdown_task
+            and not self._countdown_task.done()
+        ):
+            self._countdown_task.cancel()
+            try:
+                # Wait briefly for cancellation to complete
+                await asyncio.wait_for(self._countdown_task, timeout=0.5)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+
+    async def _countdown_worker(self, second: int):
+        # worker coroutine for countdown if the user does not respond
+        try:
+            await asyncio.sleep(second)
+
+            print(
+                "Countdown completed. Stopping the container due to inactivity. You can continue by entering the response.\nUser: ",
+                end="",
+            )
+            await self.stop()
+            print("Docker stopped!!")
+
+        except asyncio.CancelledError:
+            print("Countdown cancelled. Container will remain active")
+
+        finally:
+            self._countdown_running = False
+            self._countdown_task = None
+
+    async def resume_docker_container(
+        self, cancellation_token: CancellationToken = CancellationToken()
+    ):  # this will be called when user's response is received
+        await self.stop_countdown()
+        if self._running:
+            print("Docker container is already running. Resuming...")
+        else:
+            print("Start the docker constainer again...")
+            await self.start()
+            assert (
+                await self.is_running()
+            ), "Docker container should be running after start()"
+            print("Docker container started.")
+
+            if len(self.docker_installed_dependencies) > 0:
+                # Install dependencies if there are any
+                print("Installing dependencies...")
+                await self._install_dependencies(cancellation_token)
+                print("Dependencies installed.")
+            else:
+                # No dependencies to install
+                print("No dependencies have to be installed.")
+
+    # check if the container is running
+    async def is_running(self) -> bool:
+        return self._running

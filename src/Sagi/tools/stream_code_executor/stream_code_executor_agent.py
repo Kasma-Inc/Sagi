@@ -1,7 +1,7 @@
+import re
 from typing import AsyncGenerator, List, Optional, Sequence
 
 from autogen_agentchat.agents import CodeExecutorAgent
-from autogen_agentchat.agents._code_executor_agent import RetryDecision
 from autogen_agentchat.base import Response
 from autogen_agentchat.messages import (
     BaseAgentEvent,
@@ -24,16 +24,15 @@ from autogen_core.models import (
 )
 
 from Sagi.tools.stream_code_executor.stream_code_executor import (
-    CodeFileMessage,
-    StreamCodeExecutor,
     CodeBlockErrorHistory,
+    CodeFileMessage,
     CodeStepHistory,
+    StreamCodeExecutor,
 )
 from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor import (
     StreamDockerCommandLineCodeExecutor,
 )
 
-import re
 
 class StreamCodeExecutorAgent(CodeExecutorAgent):
     def __init__(
@@ -62,7 +61,9 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
         )
         self._code_executor: StreamCodeExecutor = stream_code_executor
         self.chat_id: Optional[str] = None
-        self._step_history: List[CodeStepHistory] = []  # To keep track of summary of each code execution steps
+        self._step_history: List[CodeStepHistory] = (
+            []
+        )  # To keep track of summary of each code execution steps
 
     async def on_messages_stream(
         self, messages: Sequence[BaseChatMessage], cancellation_token: CancellationToken
@@ -71,9 +72,10 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
         Process the incoming messages with the assistant agent and yield events/responses as they happen.
         """
 
-        # Start the code executor if it is a StreamDockerCommandLineCodeExecutor
         if isinstance(self._code_executor, StreamDockerCommandLineCodeExecutor):
-            await self._code_executor.start()
+            assert (
+                await self._code_executor.is_running()
+            ), "Expected StreamDockerCommandLineCodeExecutor to be running."
 
         # Gather all relevant state here
         agent_name = self.name
@@ -97,18 +99,26 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                 )
                 return
 
-            async for result in self.execute_code_block(
-                code_blocks, cancellation_token
-            ):
-                if isinstance(result, CodeFileMessage):
-                    yield result
-                elif isinstance(result, CodeResult):
-                    yield Response(
-                        chat_message=TextMessage(
-                            content=result.output,
-                            source=self.name,
+            for code_block in code_blocks:
+                async for result in self.execute_code_block(
+                    [code_block], cancellation_token
+                ):
+                    if isinstance(result, CodeFileMessage):
+                        yield result
+                    elif isinstance(result, CodeResult):
+                        yield Response(
+                            chat_message=TextMessage(
+                                content=result.output,
+                                source=self.name,
+                            )
                         )
-                    )
+
+                assert result.exit_code == 0, "Expected code execution to succeed."
+                if code_block.language == "sh" and isinstance(
+                    self._code_executor, StreamDockerCommandLineCodeExecutor
+                ):
+                    self._code_executor.add_dependency(code_block)
+
             return
 
         inner_messages: List[BaseAgentEvent | BaseChatMessage] = []
@@ -124,10 +134,13 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                 )
             )
 
-
-        current_history_path: List[CodeBlockErrorHistory] = [] # current error history path
-        message_texts = [f" - {msg.to_model_text()}" for msg in messages] # messages instruction
-        current_history_path.append( # Append the first stage of error history (root node)
+        current_history_path: List[CodeBlockErrorHistory] = (
+            []
+        )  # current error history path
+        message_texts = [
+            f" - {msg.to_model_text()}" for msg in messages
+        ]  # messages instruction
+        current_history_path.append(  # Append the first stage of error history (root node)
             CodeBlockErrorHistory(
                 code_blocks=None,  # No code blocks at the first stage
                 shell_commands=None,  # No command blocks at the first stage
@@ -139,25 +152,28 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
         # Add the instruction messages to the model context
         await model_context.add_message(
             UserMessage(
-                content="Current Instructions with the previous messages history:\n" + "\n".join(message_texts),
+                content="Current Instructions with the previous messages history:\n"
+                + "\n".join(message_texts),
                 source=agent_name,
             )
         )
 
         # Initialize code_blocks here, so that the final code_blocks after the loop can be used by refering to this variable
-        code_blocks : CodeBlock = None
+        code_blocks: CodeBlock = None
 
         # Initialize the result of the code execution, so that the final result can be used by refering to this variable
-        result_output : str = None
+        result_output: str = None
 
         for nth_try in range(
             max_retries_on_error + 1
         ):  # Do one default generation, execution and inference loop
             # Step 1: Add new user/handoff messages to the model context
-            
+
             original_messages = await model_context.save_state()
 
-            assert len(current_history_path)>0, "Expected current_history_path to be initialized."
+            assert (
+                len(current_history_path) > 0
+            ), "Expected current_history_path to be initialized."
 
             await model_context.add_message(
                 UserMessage(
@@ -207,18 +223,26 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             ), "Expected inferred model_result.content to be of type str."
 
             # Find the PREVIOUS_STATE in the model's response
-            previous_state_match = re.search(r"PREVIOUS_STATE:\s*(-?\d+)", model_result.content)
+            previous_state_match = re.search(
+                r"PREVIOUS_STATE:\s*(-?\d+)", model_result.content
+            )
 
             if not previous_state_match:
-                print("Model's response did not contain 'PREVIOUS_STATE'. Assume it to be the last stage.")
-                previous_state = len(current_history_path) - 1  # Assume the last stage if not found
+                print(
+                    "Model's response did not contain 'PREVIOUS_STATE'. Assume it to be the last stage."
+                )
+                previous_state = (
+                    len(current_history_path) - 1
+                )  # Assume the last stage if not found
             else:
                 try:
                     previous_state = int(previous_state_match.group(1))
                 except ValueError:
-                    raise ValueError("Expected 'PREVIOUS_STATE' to be a valid integer in the model's response.")
+                    raise ValueError(
+                        "Expected 'PREVIOUS_STATE' to be a valid integer in the model's response."
+                    )
 
-            if (previous_state == -1):
+            if previous_state == -1:
                 # No solution can be found, so we exit the loop
                 yield Response(
                     chat_message=TextMessage(
@@ -227,8 +251,10 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                     )
                 )
                 return
-            
-            assert (0 <= previous_state < len(current_history_path)), "Expected 'PREVIOUS_STATE' to be within the range of error history."
+
+            assert (
+                0 <= previous_state < len(current_history_path)
+            ), "Expected 'PREVIOUS_STATE' to be within the range of error history."
 
             env_issue = "ENVIRONMENT_ISSUE" in model_result.content
 
@@ -246,13 +272,18 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                 code_blocks = current_history_path[now].code_blocks
 
                 # Shell to fix the environment issue
-                command_blocks = self._extract_markdown_code_blocks(str(model_result.content))
-                shell_commands = [block for block in command_blocks if block.language == "sh"]
+                command_blocks = self._extract_markdown_code_blocks(
+                    str(model_result.content)
+                )
+                shell_commands = [
+                    block for block in command_blocks if block.language == "sh"
+                ]
 
             else:
                 # The issue arises from the code itself, so we need to extract the code blocks from the model's response
-                code_blocks = self._extract_markdown_code_blocks(str(model_result.content))
-
+                code_blocks = self._extract_markdown_code_blocks(
+                    str(model_result.content)
+                )
 
             # Step 6: Exit the loop if no code blocks found
             if not code_blocks:
@@ -312,10 +343,17 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                         )
                         yield code_execution_event
                         inner_messages.append(code_execution_event)
-                    
+
                 if result.exit_code != 0:
                     # If the code execution failed, we break the loop and store the error -> no need to continue the execution
                     break
+
+                # check if the code block is a shell command (without error) and we run in docker container command line
+                if (
+                    isinstance(self._code_executor, StreamDockerCommandLineCodeExecutor)
+                    and codeblock.language == "sh"
+                ):
+                    self._code_executor.add_dependency(codeblock)
 
             # If execution was successful or last retry, then exit
             if result.exit_code == 0 or nth_try == max_retries_on_error:
@@ -334,7 +372,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                             source=agent_name,
                         )
                     )
-                    
+
                 break
 
             # Reset context only when we know that the code will be executed again (in order to add the new history tree)
@@ -344,33 +382,41 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
 
             # Step 11: If exit code is non-zero, then we add the error to the error history
             #          and pop the current_history_path until the previous state
-    
+
             # Pop the current history path until the previous state
             while len(current_history_path) > previous_state + 1:
                 current_history_path.pop()
 
             # Create a new error node with the current code blocks/command blocks and error message
             new_error_node = CodeBlockErrorHistory(
-                shell_commands=shell_commands if env_issue else None, # If the error is due to syntax/logical issue, we don't need to store the command blocks
-                code_blocks=code_blocks if not env_issue else None, # If the error is due to environment issue, we don't need to store the code blocks
+                shell_commands=(
+                    shell_commands if env_issue else None
+                ),  # If the error is due to syntax/logical issue, we don't need to store the command blocks
+                code_blocks=(
+                    code_blocks if not env_issue else None
+                ),  # If the error is due to environment issue, we don't need to store the code blocks
                 error=f"The command {result.code_file} was executed with the following output: {result.description}",
                 previous_state=previous_state,
             )
-            
-            current_history_path[previous_state].children_error_nodes.append(new_error_node) # connect the new error node to the previous state
-            current_history_path.append(new_error_node)  # Add the new error node to the current history path
+
+            current_history_path[previous_state].children_error_nodes.append(
+                new_error_node
+            )  # connect the new error node to the previous state
+            current_history_path.append(
+                new_error_node
+            )  # Add the new error node to the current history path
 
         self._step_history.append(
             CodeStepHistory(
                 instruction="\n".join(message_texts),
                 code_blocks=code_blocks,
-                result=result_output if result_output is not None else "No code execution in this step.",
+                result=(
+                    result_output
+                    if result_output is not None
+                    else "No code execution in this step."
+                ),
             )
         )
-
-        # Stop the code executor if it is a StreamDockerCommandLineCodeExecutor
-        if isinstance(self._code_executor, StreamDockerCommandLineCodeExecutor):
-            await self._code_executor.stop()
 
         # Always reflect on the execution result
         async for (
@@ -385,14 +431,16 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
         ):
             yield reflection_response  # Last reflection_response is of type Response so it will finish the routine
 
-    async def execute_code_block( # TO DO: have to fix this function, sometimes it executes the code in the near time (conflict)
+    async def execute_code_block(  # TO DO: have to fix this function, sometimes it executes the code in the near time (conflict)
         self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
     ) -> AsyncGenerator[CodeFileMessage | CodeResult, None]:
         # Execute the code blocks.
 
-        # Ensure the code executor ir runnung
+        # Ensure the code executor is running
         if isinstance(self._code_executor, StreamDockerCommandLineCodeExecutor):
-            assert getattr(self._code_executor, '_running', False), "Expected StreamDockerCommandLineCodeExecutor to be running."
+            assert (
+                await self._code_executor.is_running()
+            ), "Expected StreamDockerCommandLineCodeExecutor to be running."
 
         async for result in self._code_executor.execute_code_blocks_stream(
             self.chat_id, code_blocks, cancellation_token=cancellation_token
@@ -408,10 +456,8 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                     result.description = result.output
             yield result
 
-
     async def on_reset(self, cancellation_token: CancellationToken) -> None:
         await self._model_context.clear()
-
 
     def history_to_model_text(self, history: CodeStepHistory) -> str:
         return (
@@ -420,7 +466,9 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             f"Result Execution: {history.result}\n"
         )
 
-    def error_history_prompt(self, current_history_path: List[CodeBlockErrorHistory]) -> str:
+    def error_history_prompt(
+        self, current_history_path: List[CodeBlockErrorHistory]
+    ) -> str:
         return (
             "Review this error history tree showing previous code execution attempts\n"
             "Each node(history path item) is a CodeBlockErrorHistory objects, formatted as :\n"
@@ -430,16 +478,16 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             "   representing previously failed solution attempts at that stage\n"
             " - previous_state: index of parent state (0-based)\n\n"
             "First try fixing the last stage (leaf node in the current path). If too difficult, go back to earlier stages but avoid methods already in children_error_nodes.\n\n"
-            "Current error path:\n" +
-            "\n".join(
+            "Current error path:\n"
+            + "\n".join(
                 f" Stage {i}:\n"
                 f" Code: {current_history_path[i].code_blocks}\n"
                 f" Error: {current_history_path[i].error}\n"
                 f" children_error_nodes: {current_history_path[i].children_error_nodes}\n"
                 f" shell_commands: {current_history_path[i].shell_commands}"
                 for i in range(len(current_history_path))
-            ) +
-            "\n\nPLEASE Write PREVIOUS_STATE: <number> to indicate which stage to continue from (unless you are trying to reflect the process, you don't need to specify previous state).\n\n"
+            )
+            + "\n\nPLEASE Write PREVIOUS_STATE: <number> to indicate which stage to continue from (unless you are trying to reflect the process, you don't need to specify previous state).\n\n"
             "For environment issues (including missing packages):\n"
             "1. Write ENVIRONMENT_ISSUE on a separate line\n"
             "2. Follow it with a proper code block like this:\n"
@@ -453,7 +501,6 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             "Now generate code to fix the issue. If no solution exists, write PREVIOUS_STATE: -1\n"
             "NOTE: you don't need to create the all new codeblocks by yourself, you can refer to the previous messages or error path (if available), and make some changes from them."
         )
-
 
     @classmethod
     async def _reflect_on_code_block_results_flow(
@@ -477,8 +524,14 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             "Remember: you are reflection agent, you do NOT have to provide PREVIOUS_STATE or ENVIRONMENT_ISSUE, you can just reflect on the process.\n"
         )
 
-        all_messages = system_messages + await model_context.get_messages() + [UserMessage(content=reflection_prompt, source=agent_name)]
-        llm_messages = cls._get_compatible_context(model_client=model_client, messages=all_messages)
+        all_messages = (
+            system_messages
+            + await model_context.get_messages()
+            + [UserMessage(content=reflection_prompt, source=agent_name)]
+        )
+        llm_messages = cls._get_compatible_context(
+            model_client=model_client, messages=all_messages
+        )
 
         reflection_result: Optional[CreateResult] = None
 
@@ -487,7 +540,9 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                 if isinstance(chunk, CreateResult):
                     reflection_result = chunk
                 elif isinstance(chunk, str):
-                    yield ModelClientStreamingChunkEvent(content=chunk, source=agent_name)
+                    yield ModelClientStreamingChunkEvent(
+                        content=chunk, source=agent_name
+                    )
                 else:
                     raise RuntimeError(f"Invalid chunk type: {type(chunk)}")
         else:
@@ -498,7 +553,9 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
 
         # --- NEW: If the reflection produced a thought, yield it ---
         if reflection_result.thought:
-            thought_event = ThoughtEvent(content=reflection_result.thought, source=agent_name)
+            thought_event = ThoughtEvent(
+                content=reflection_result.thought, source=agent_name
+            )
             yield thought_event
             inner_messages.append(thought_event)
 
