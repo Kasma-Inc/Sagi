@@ -1,10 +1,10 @@
-from .analyzing.analyzing import AnalyzingWorkflow
+from .general.general_chat import GeneralChatWorkflow
 from .planning.planning import PlanningWorkflow
 
-workflowName = PlanningWorkflow | AnalyzingWorkflow
+workflowName = PlanningWorkflow | GeneralChatWorkflow
 
 __all__ = [
     "PlanningWorkflow",
-    "AnalyzingWorkflow",
+    "GeneralChatWorkflow",
     "workflowName",
 ]

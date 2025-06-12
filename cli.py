@@ -58,13 +58,6 @@ def parse_args():
         type=str,
         help="Specify the template working directory path",
     )
-    parser.add_argument(
-        "--mode",
-        type=str,
-        choices=["deep_research", "general", "web_search"],
-        default="deep_research",
-        help="Operation mode: deep_research (full functionality), general (general agent only), or web_search (web search only)",
-    )
 
     parser.add_argument(
         "--language",
@@ -111,7 +104,6 @@ async def main_cmd(args: argparse.Namespace):
         args.config,
         args.team_config,
         template_work_dir=args.template_work_dir,
-        mode=args.mode,
         language=args.language,
     )
 
