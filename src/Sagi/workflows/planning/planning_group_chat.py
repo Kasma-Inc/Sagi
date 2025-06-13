@@ -9,6 +9,7 @@ from autogen_agentchat.teams import BaseGroupChat
 from autogen_agentchat.teams._group_chat._chat_agent_container import ChatAgentContainer
 from autogen_agentchat.teams._group_chat._events import GroupChatTermination
 from autogen_core import AgentRuntime, AgentType, TypeSubscription
+from autogen_core.code_executor import CodeBlock
 from autogen_core.models import ChatCompletionClient
 from pydantic import Field
 
@@ -23,6 +24,7 @@ class PlanningChatState(TeamState):
 
     agent_states: Mapping[str, Any] = Field(default_factory=dict)
     type: str = Field(default="PlanningChatState")
+    dependencies: List[CodeBlock] = Field(default_factory=list)
 
 
 class PlanningGroupChat(BaseGroupChat):
@@ -46,6 +48,7 @@ class PlanningGroupChat(BaseGroupChat):
         template_based_planning_model_client: ChatCompletionClient,
         single_group_planning_model_client: ChatCompletionClient,
         language: str = "en",
+        dependencies: List[CodeBlock],
     ):
         super().__init__(
             participants,
@@ -79,6 +82,7 @@ class PlanningGroupChat(BaseGroupChat):
         )
         self._single_group_planning_model_client = single_group_planning_model_client
         self._language = language
+        self._dependencies = dependencies
 
     async def _init(self, runtime: AgentRuntime) -> None:
         # Constants for the group chat manager.
@@ -207,5 +211,6 @@ class PlanningGroupChat(BaseGroupChat):
         base_state = await super().save_state()
         state = PlanningChatState(
             agent_states=base_state["agent_states"],
+            dependencies=self._dependencies,
         )
         return state.model_dump()

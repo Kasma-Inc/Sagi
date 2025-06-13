@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import logging
 import os
+import threading
 
 from autogen_agentchat.messages import BaseMessage
 from autogen_agentchat.ui import Console
@@ -13,6 +14,9 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.semconv.resource import ResourceAttributes
 
+from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor import (
+    StreamDockerCommandLineCodeExecutor,
+)
 from Sagi.utils.logging_utils import setup_logging
 from Sagi.workflows.planning.planning import PlanningWorkflow
 
@@ -104,10 +108,54 @@ def _default_to_text(self) -> str:
 
 BaseMessage.to_text = _default_to_text
 
+# to check whether the StreamDockerCommandLineCodeExecutor is used
+isDockerCommandLine = None
+
+
+""" async def setup_graceful_shutdown(stream_code_executor, workflow):
+    # Set up signal handlers to stop the container on program termination
+    loop = asyncio.get_running_loop()
+
+    # Function to handle shutdown
+    async def shutdown_handler():
+        print("\nStarting graceful shutdown...\n")
+        if isDockerCommandLine:
+            if await stream_code_executor.is_running():
+                await stream_code_executor.stop()
+
+        await workflow.cleanup()
+        loop.stop()
+ 
+    # For graceful shutdown on SIGINT (Ctrl+C) and SIGTERM
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown_handler()))
+
+    print("Graceful shutdown handlers registered") """
+
+
+async def get_input_async():
+    # Get user input without blocking the event loop
+    loop = asyncio.get_event_loop()
+    future = (
+        loop.create_future()
+    )  # placeholder for the user input that will be available later
+
+    def _get_input():
+        try:
+            result = input("User: ")
+            loop.call_soon_threadsafe(
+                future.set_result, result
+            )  # safely schedule the future result in the main loop (notify main loop)
+        except Exception as e:
+            loop.call_soon_threadsafe(future.set_exception, e)
+
+    threading.Thread(target=_get_input, daemon=True).start()
+    return await future
+
 
 async def main_cmd(args: argparse.Namespace):
 
-    workflow = await PlanningWorkflow.create(
+    workflow, stream_code_executor = await PlanningWorkflow.create(
         args.config,
         args.team_config,
         template_work_dir=args.template_work_dir,
@@ -115,11 +163,27 @@ async def main_cmd(args: argparse.Namespace):
         language=args.language,
     )
 
+    isDockerCommandLine = isinstance(
+        stream_code_executor, StreamDockerCommandLineCodeExecutor
+    )
+    if isDockerCommandLine:
+        await stream_code_executor.start()
+        print("StreamDockerCommandLine started successfully.")
+
+    # await setup_graceful_shutdown(stream_code_executor, workflow)
+
     try:
         while True:
-            user_input = input("User: ")
+
+            if isDockerCommandLine:
+                await stream_code_executor.countdown(10)
+
+            user_input = await get_input_async()
             if user_input.lower() in ("quit", "exit", "q"):
                 break
+
+            if isDockerCommandLine:
+                await stream_code_executor.resume_docker_container()
 
             await asyncio.create_task(Console(workflow.run_workflow(user_input)))
     finally:
