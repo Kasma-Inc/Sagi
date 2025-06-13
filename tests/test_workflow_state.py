@@ -1,11 +1,13 @@
 import pytest
 
-from Sagi.workflows.planning import PlanningWorkflow
+from Sagi.workflows.planning.planning import PlanningWorkflow
 
 
 @pytest.mark.asyncio
 async def test_workflow_reset():
-    workflow = await PlanningWorkflow.create("src/Sagi/workflows/planning.toml")
+    workflow = await PlanningWorkflow.create(
+        "src/Sagi/workflows/planning/planning.toml"
+    )
     async for _ in workflow.run_workflow("Hello, how are you?"):
         pass
     state0 = await workflow.team.save_state()
@@ -28,7 +30,9 @@ async def test_workflow_reset():
 
 @pytest.mark.asyncio
 async def test_workflow_load_state():
-    workflow = await PlanningWorkflow.create("src/Sagi/workflows/planning.toml")
+    workflow = await PlanningWorkflow.create(
+        "src/Sagi/workflows/planning/planning.toml"
+    )
     async for _ in workflow.run_workflow("Hello, how are you?"):
         pass
     state = await workflow.team.save_state()

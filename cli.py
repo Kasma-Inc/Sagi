@@ -18,14 +18,14 @@ from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor im
     StreamDockerCommandLineCodeExecutor,
 )
 from Sagi.utils.logging_utils import setup_logging
-from Sagi.workflows.planning import PlanningWorkflow
+from Sagi.workflows.planning.planning import PlanningWorkflow
 
 # Create logging directory if it doesn't exist
 os.makedirs("logging", exist_ok=True)
 setup_logging()
 
 DEFAULT_TEAM_CONFIG_PATH = "src/Sagi/workflows/team.toml"
-DEFAULT_CONFIG_PATH = "src/Sagi/workflows/planning.toml"
+DEFAULT_CONFIG_PATH = "src/Sagi/workflows/planning/planning.toml"
 
 
 def parse_args():

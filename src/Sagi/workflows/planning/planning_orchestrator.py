@@ -76,7 +76,7 @@ from Sagi.utils.prompt import (
     get_step_triage_prompt_cn,
     get_template_selection_prompt,
 )
-from Sagi.workflows.plan_manager import PlanManager
+from Sagi.workflows.planning.plan_manager import PlanManager
 
 trace_logger = logging.getLogger(TRACE_LOGGER_NAME)
 
@@ -739,12 +739,21 @@ class PlanningOrchestrator(BaseGroupChatManager):
         current_plan_contents = json.dumps(
             self._plan_manager.get_current_plan_contents(), indent=4
         )
-        planning_conversation.append(
-            UserMessage(
-                content=f"Current Plan:\n{current_plan_contents}\n\n Update the current plan based on the following feedback:\n\nUser Feedback: {human_feedback}\n\n",
-                source=self._name,
+
+        if self._language == "en":
+            planning_conversation.append(
+                UserMessage(
+                    content=f"Current Plan:\n{current_plan_contents}\n\n Update the current plan based on the following feedback:\n\nUser Feedback: {human_feedback}\n\n",
+                    source=self._name,
+                )
             )
-        )
+        else:
+            planning_conversation.append(
+                UserMessage(
+                    content=f"当前计划：\n{current_plan_contents}\n\n 根据以下的用户反馈更新当前计划：\n\n用户反馈：{human_feedback}\n\n**计划内容使用中文**",
+                    source=self._name,
+                )
+            )
         plan_response = await self._llm_create(
             self._planning_model_client,
             planning_conversation,
