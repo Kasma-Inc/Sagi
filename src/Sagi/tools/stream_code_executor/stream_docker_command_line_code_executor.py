@@ -343,7 +343,6 @@ class StreamDockerCommandLineCodeExecutor(
                 end="",
             )
             await self.stop()
-            print("Docker stopped!!")
 
         except asyncio.CancelledError:
             print("Countdown cancelled. Container will remain active")

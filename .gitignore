@@ -178,3 +178,6 @@ cython_debug/
 
 # Ignore code execution files
 coding_files/
+
+# Ignore the testing file
+state_backup.json

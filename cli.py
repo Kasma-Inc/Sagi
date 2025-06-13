@@ -2,7 +2,6 @@ import argparse
 import asyncio
 import logging
 import os
-import signal
 import threading
 
 from autogen_agentchat.messages import BaseMessage
@@ -113,8 +112,8 @@ BaseMessage.to_text = _default_to_text
 isDockerCommandLine = None
 
 
-async def setup_graceful_shutdown(stream_code_executor, workflow):
-    """Set up signal handlers to stop the container on program termination"""
+""" async def setup_graceful_shutdown(stream_code_executor, workflow):
+    # Set up signal handlers to stop the container on program termination
     loop = asyncio.get_running_loop()
 
     # Function to handle shutdown
@@ -126,12 +125,12 @@ async def setup_graceful_shutdown(stream_code_executor, workflow):
 
         await workflow.cleanup()
         loop.stop()
-
+ 
     # For graceful shutdown on SIGINT (Ctrl+C) and SIGTERM
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown_handler()))
 
-    print("Graceful shutdown handlers registered")
+    print("Graceful shutdown handlers registered") """
 
 
 async def get_input_async():
@@ -171,14 +170,13 @@ async def main_cmd(args: argparse.Namespace):
         await stream_code_executor.start()
         print("StreamDockerCommandLine started successfully.")
 
-    # Set up signal handlers for graceful shutdown
-    await setup_graceful_shutdown(stream_code_executor, workflow)
+    # await setup_graceful_shutdown(stream_code_executor, workflow)
 
     try:
         while True:
 
             if isDockerCommandLine:
-                await stream_code_executor.countdown(1)
+                await stream_code_executor.countdown(10)
 
             user_input = await get_input_async()
             if user_input.lower() in ("quit", "exit", "q"):
@@ -190,11 +188,6 @@ async def main_cmd(args: argparse.Namespace):
             await asyncio.create_task(Console(workflow.run_workflow(user_input)))
     finally:
         await workflow.cleanup()
-        if isDockerCommandLine:
-            await stream_code_executor.stop_countdown()
-            if await stream_code_executor.is_running():
-                print("Stopping Docker container...")
-                await stream_code_executor.stop()
         logging.info("Workflow cleaned up.")
 
 
