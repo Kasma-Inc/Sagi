@@ -14,6 +14,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.semconv.resource import ResourceAttributes
 
 from Sagi.utils.logging_utils import setup_logging
+from Sagi.workflows.general.general_chat import GeneralChatWorkflow
 from Sagi.workflows.planning.planning import PlanningWorkflow
 
 # Create logging directory if it doesn't exist
@@ -21,13 +22,15 @@ os.makedirs("logging", exist_ok=True)
 setup_logging()
 
 DEFAULT_TEAM_CONFIG_PATH = "src/Sagi/workflows/team.toml"
-DEFAULT_CONFIG_PATH = "src/Sagi/workflows/planning/planning.toml"
+DEFAULT_PLANNING_CONFIG_PATH = "src/Sagi/workflows/planning/planning.toml"
+DEFAULT_GENERAL_CONFIG_PATH = "src/Sagi/workflows/general/general.toml"
 
 
 def parse_args():
     parser = argparse.ArgumentParser("Sagi CLI")
     parser.add_argument("--env", choices=["dev", "prod"], default="dev")
-    parser.add_argument("--config", default=DEFAULT_CONFIG_PATH)
+    parser.add_argument("--planning_config", default=DEFAULT_PLANNING_CONFIG_PATH)
+    parser.add_argument("--general_config", default=DEFAULT_GENERAL_CONFIG_PATH)
     parser.add_argument("--team_config", default=DEFAULT_TEAM_CONFIG_PATH)
     parser.add_argument(
         "--trace", action="store_true", help="Enable OpenTelemetry tracing"
@@ -57,6 +60,14 @@ def parse_args():
         "--template_work_dir",
         type=str,
         help="Specify the template working directory path",
+    )
+
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["deep_research", "general", "web_search"],
+        default="deep_research",
+        help="Operation mode: deep_research (full functionality), general (general agent only), or web_search (web search only)",
     )
 
     parser.add_argument(
@@ -100,12 +111,25 @@ BaseMessage.to_text = _default_to_text
 
 async def main_cmd(args: argparse.Namespace):
 
-    workflow = await PlanningWorkflow.create(
-        args.config,
-        args.team_config,
-        template_work_dir=args.template_work_dir,
-        language=args.language,
-    )
+    if args.mode == "deep_research":
+        workflow = await PlanningWorkflow.create(
+            args.planning_config,
+            args.team_config,
+            template_work_dir=args.template_work_dir,
+            language=args.language,
+        )
+    elif args.mode == "general":
+        workflow = await GeneralChatWorkflow.create(
+            args.general_config,
+            web_search=False,
+        )
+    elif args.mode == "web_search":
+        workflow = await GeneralChatWorkflow.create(
+            args.general_config,
+            web_search=True,
+        )
+    else:
+        raise ValueError(f"Invalid mode: {args.mode}")
 
     try:
         while True:

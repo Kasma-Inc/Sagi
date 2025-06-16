@@ -48,6 +48,7 @@ Sagi is a production-ready, open-source LLM agent framework that combines advanc
    - `OPENAI_API_KEY` - Your OpenAI API key
    - `BRAVE_API_KEY` - Your [Brave Search API key](https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search#getting-an-api-key)
    - `VOYAGE_API_KEY` - (Optional) Your [Voyage API key](https://www.voyageai.com/). Required for the reranker component when using the `rag_agent`.
+   - `DOC2X_API_KEY` - (Optional) Your [DOC2X API key](https://open.noedgeai.com/). Required for the PDF parsing component when using the `rag_agent`.
    - `OPENAI_BASE_URL` - (Optional) Custom endpoint URL
    - `POSTGRES_URL_NO_SSL` - (Optional) Custom PostgreSQL URL without SSL. You can use the https://neon.com/ to create a free database. We will add the on-premise database support in the docker-compose.yml file soon.
    - `POSTGRES_URL_NO_SSL_DEV` - (Optional) Custom PostgreSQL URL without SSL for development.

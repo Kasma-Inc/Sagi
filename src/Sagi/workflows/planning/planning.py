@@ -30,6 +30,8 @@ from Sagi.utils.prompt import (
     get_domain_specific_agent_prompt_cn,
     get_general_agent_prompt,
     get_general_agent_prompt_cn,
+    get_rag_agent_prompt,
+    get_rag_agent_prompt_cn,
 )
 from Sagi.workflows.planning.planning_group_chat import PlanningGroupChat
 
@@ -243,47 +245,45 @@ class PlanningWorkflow:
         )
         domain_specific_tools = await mcp_server_tools(prompt_server_params)
 
-        # ========== Uncomment below code block when you pass the tests/test_hirag_agent.py test and want to use the rag_agent ==========
-        # hirag_server_params = StdioServerParams(
-        #     command="mcp-hirag-tool",
-        #     args=[],
-        #     read_timeout_seconds=100,
-        #     env={
-        #         "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
-        #         "OPENAI_BASE_URL": os.getenv("OPENAI_BASE_URL"),
-        #         "VOYAGE_API_KEY": os.getenv("VOYAGE_API_KEY"),
-        #     },
-        # )
+        hirag_server_params = StdioServerParams(
+            command="mcp-hirag-tool",
+            args=[],
+            read_timeout_seconds=100,
+            env={
+                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
+                "OPENAI_BASE_URL": os.getenv("OPENAI_BASE_URL"),
+                "VOYAGE_API_KEY": os.getenv("VOYAGE_API_KEY"),
+            },
+        )
 
-        # self.hirag_retrival = await self.session_manager.create_session(
-        #     "hirag_retrival", create_mcp_server_session(hirag_server_params)
-        # )
-        # await self.hirag_retrival.initialize()
-        # hirag_retrival_tools = await mcp_server_tools(
-        #     hirag_server_params, session=self.hirag_retrival
-        # )
-        # hirag_retrival_tools = [
-        #     tool for tool in hirag_retrival_tools if tool.name == "hi_search"
-        # ]
+        self.hirag_retrival = await self.session_manager.create_session(
+            "hirag_retrival", create_mcp_server_session(hirag_server_params)
+        )
+        await self.hirag_retrival.initialize()
+        hirag_retrival_tools = await mcp_server_tools(
+            hirag_server_params, session=self.hirag_retrival
+        )
+        hirag_retrival_tools = [
+            tool for tool in hirag_retrival_tools if tool.name == "hi_search"
+        ]
 
-        # rag_agent = AssistantAgent(
-        #     name="retrieval_agent",
-        #     description="a retrieval agent that provides relevant information from the internal database.",
-        #     model_client=self.single_tool_use_model_client,
-        #     tools=hirag_retrival_tools,  # type: ignore
-        #     system_message=(
-        #         get_rag_agent_prompt()
-        #         if language == "en"
-        #         else get_rag_agent_prompt_cn()
-        #     ),
-        # )
-        # ========== Uncomment above code block when you pass the tests/test_hirag_agent.py test and want to use the rag_agent ==========
+        rag_agent = AssistantAgent(
+            name="retrieval_agent",
+            description="a retrieval agent that provides relevant information from the internal database.",
+            model_client=self.single_tool_use_model_client,
+            tools=hirag_retrival_tools,
+            system_message=(
+                get_rag_agent_prompt()
+                if language == "en"
+                else get_rag_agent_prompt_cn()
+            ),
+        )
 
         # for new feat: domain specific prompt
         domain_specific_agent = AssistantAgent(
             name="prompt_template_expert",
             model_client=self.single_tool_use_model_client,
-            tools=domain_specific_tools,  # type: ignore
+            tools=domain_specific_tools,
             system_message=(
                 get_domain_specific_agent_prompt()
                 if language == "en"
@@ -339,7 +339,7 @@ class PlanningWorkflow:
             "web_search": surfer,
             "CodeExecutor": code_executor,
             "general_agent": general_agent,
-            # "retrieval_agent": rag_agent,
+            "retrieval_agent": rag_agent,
         }
 
         participants = []
