@@ -87,7 +87,7 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
         pg_model_client: ChatCompletionClient,
         step_triage_model_client: ChatCompletionClient,
         user_proxy: Any | None = None,
-        language: str = "en",
+        language: str = "cn",
     ):
         super().__init__(
             name=name,
@@ -211,18 +211,18 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
                 ] = self._analyze_manager.get_current_step()[
                     0
                 ]  #!!
-                # await self._output_message_queue.put(inner_message)
+                await self._output_message_queue.put(inner_message)
 
-        # # For web app
-        # plan_state = {
-        #     k: v.state for k, v in self._analyze_manager._current_plan.steps.items()
-        # }
-        # plan_state_message = TextMessage(
-        #     content=json.dumps(plan_state, indent=4),
-        #     source="PlanState",
-        #     metadata={"step_id": self._analyze_manager.get_current_step()[0]},
-        # )
-        # await self._output_message_queue.put(plan_state_message)
+        # For web app
+        plan_state = {
+            k: v.state for k, v in self._analyze_manager._current_plan.steps.items()
+        }
+        plan_state_message = TextMessage(
+            content=json.dumps(plan_state, indent=4),
+            source="PlanState",
+            metadata={"step_id": self._analyze_manager.get_current_step()[0]},
+        )
+        await self._output_message_queue.put(plan_state_message)
 
         self._analyze_manager.add_message_to_step(
             step_id=self._analyze_manager.get_current_step()[0],
@@ -430,7 +430,15 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
                 content=json.dumps(step_start_json, indent=4),
                 source="NewStepNotifier",
             )
-            # await self._output_message_queue.put(step_start_message)
+
+            content_json = json.loads(step_start_message.content)
+            content = content_json["content"]
+            content_json["content"] = content.split(":")[0]
+            step_start_message_for_stream = TextMessage(
+                content=json.dumps(content_json, indent=4),
+                source="NewStepNotifier",
+            )
+            await self._output_message_queue.put(step_start_message_for_stream)
 
         # Check if the plan has been in progress for too long
         # If the plan has been in progress for more than 5 iterations, mark it as completed
@@ -470,14 +478,14 @@ class AnalyzingOrchestrator(BaseGroupChatManager):
 
         if self._language == "en":
             step_triage_prompt = get_step_triage_prompt(  #!!
-                task=self._analyze_manager.get_task(),
+                # task=self._analyze_manager.get_task(),
                 current_plan=current_step_content,
                 names=self._participant_names,
                 team_description=self._team_description,
             )
         else:
             step_triage_prompt = get_step_triage_prompt_cn(
-                task=self._analyze_manager.get_task(),
+                # task=self._analyze_manager.get_task(),
                 current_plan=current_step_content,
                 names=self._participant_names,
                 team_description=self._team_description,

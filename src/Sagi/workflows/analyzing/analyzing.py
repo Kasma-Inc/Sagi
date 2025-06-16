@@ -69,7 +69,7 @@ class AnalyzingWorkflow:
 
         class StepTriageNextSpeakerResponse(BaseModel):
             instruction: str
-            answer: Literal["pg_agent", "general_agent"]  # type: ignore
+            answer: Literal["pg_agent", "analyze_agent"]  # type: ignore
 
         class StepTriageResponse(BaseModel):
             next_speaker: StepTriageNextSpeakerResponse
@@ -110,7 +110,7 @@ class AnalyzingWorkflow:
     async def create(
         cls,
         config_path: str,
-        language: str = "en",
+        language: str = "cn",
     ):
         self = cls(config_path)
 
@@ -142,7 +142,7 @@ class AnalyzingWorkflow:
         )
 
         general_agent = AssistantAgent(
-            name="general_agent",
+            name="analyze_agent",
             model_client=self.analyze_model_client,
             description="a general agent that provides answer for simple questions.",
             system_message=(
