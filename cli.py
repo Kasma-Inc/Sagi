@@ -14,9 +14,6 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.semconv.resource import ResourceAttributes
 
-from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor import (
-    StreamDockerCommandLineCodeExecutor,
-)
 from Sagi.utils.logging_utils import setup_logging
 from Sagi.workflows.planning.planning import PlanningWorkflow
 
@@ -108,30 +105,6 @@ def _default_to_text(self) -> str:
 
 BaseMessage.to_text = _default_to_text
 
-# to check whether the StreamDockerCommandLineCodeExecutor is used
-isDockerCommandLine = None
-
-
-""" async def setup_graceful_shutdown(stream_code_executor, workflow):
-    # Set up signal handlers to stop the container on program termination
-    loop = asyncio.get_running_loop()
-
-    # Function to handle shutdown
-    async def shutdown_handler():
-        print("\nStarting graceful shutdown...\n")
-        if isDockerCommandLine:
-            if await stream_code_executor.is_running():
-                await stream_code_executor.stop()
-
-        await workflow.cleanup()
-        loop.stop()
- 
-    # For graceful shutdown on SIGINT (Ctrl+C) and SIGTERM
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown_handler()))
-
-    print("Graceful shutdown handlers registered") """
-
 
 async def get_input_async():
     # Get user input without blocking the event loop
@@ -155,35 +128,20 @@ async def get_input_async():
 
 async def main_cmd(args: argparse.Namespace):
 
-    workflow, stream_code_executor = await PlanningWorkflow.create(
+    workflow = await PlanningWorkflow.create(
         args.config,
         args.team_config,
         template_work_dir=args.template_work_dir,
         mode=args.mode,
         language=args.language,
+        countdown_timer=40,  # time before the docker container is stopped
     )
-
-    isDockerCommandLine = isinstance(
-        stream_code_executor, StreamDockerCommandLineCodeExecutor
-    )
-    if isDockerCommandLine:
-        await stream_code_executor.start()
-        print("StreamDockerCommandLine started successfully.")
-
-    # await setup_graceful_shutdown(stream_code_executor, workflow)
 
     try:
         while True:
-
-            if isDockerCommandLine:
-                await stream_code_executor.countdown(10)
-
             user_input = await get_input_async()
             if user_input.lower() in ("quit", "exit", "q"):
                 break
-
-            if isDockerCommandLine:
-                await stream_code_executor.resume_docker_container()
 
             await asyncio.create_task(Console(workflow.run_workflow(user_input)))
     finally:

@@ -338,10 +338,7 @@ class StreamDockerCommandLineCodeExecutor(
         try:
             await asyncio.sleep(second)
 
-            print(
-                "Countdown completed. Stopping the container due to inactivity. You can continue by entering the response.\nUser: ",
-                end="",
-            )
+            print("Countdown completed. Stopping the container due to inactivity.")
             await self.stop()
 
         except asyncio.CancelledError:
@@ -358,7 +355,7 @@ class StreamDockerCommandLineCodeExecutor(
         if self._running:
             print("Docker container is already running. Resuming...")
         else:
-            print("Start the docker constainer again...")
+            print("Start the docker container...")
             await self.start()
             assert (
                 await self.is_running()

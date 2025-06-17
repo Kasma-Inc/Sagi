@@ -1,5 +1,5 @@
 import re
-from typing import AsyncGenerator, List, Optional, Sequence
+from typing import Any, AsyncGenerator, List, Mapping, Optional, Sequence
 
 from autogen_agentchat.agents import CodeExecutorAgent
 from autogen_agentchat.base import Response
@@ -47,6 +47,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
         description: str | None = None,
         system_message: str | None = CodeExecutorAgent.DEFAULT_SYSTEM_MESSAGE,
         sources: Sequence[str] | None = None,
+        countdown_timer: int = 60,  # time before the docker container is stopped
     ) -> None:
         super().__init__(
             name,
@@ -64,6 +65,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
         self._step_history: List[CodeStepHistory] = (
             []
         )  # To keep track of summary of each code execution steps
+        self._countdown_timer = countdown_timer
 
     async def on_messages_stream(
         self, messages: Sequence[BaseChatMessage], cancellation_token: CancellationToken
@@ -71,11 +73,8 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
         """
         Process the incoming messages with the assistant agent and yield events/responses as they happen.
         """
-
         if isinstance(self._code_executor, StreamDockerCommandLineCodeExecutor):
-            assert (
-                await self._code_executor.is_running()
-            ), "Expected StreamDockerCommandLineCodeExecutor to be running."
+            await self._code_executor.resume_docker_container()
 
         # Gather all relevant state here
         agent_name = self.name
@@ -97,6 +96,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                         source=agent_name,
                     )
                 )
+                await self.EXIT()
                 return
 
             for code_block in code_blocks:
@@ -119,6 +119,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                 ):
                     self._code_executor.add_dependency(code_block)
 
+            await self.EXIT()
             return
 
         inner_messages: List[BaseAgentEvent | BaseChatMessage] = []
@@ -250,6 +251,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                         source=agent_name,
                     )
                 )
+                await self.EXIT()
                 return
 
             assert (
@@ -293,6 +295,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                         source=agent_name,
                     )
                 )
+                await self.EXIT()
                 return
 
             # combine the code blocks with the shell commands if they are present
@@ -366,7 +369,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                         )
                     )
 
-                    model_context.add_message(
+                    await model_context.add_message(
                         SystemMessage(
                             content=f"Reached maximum retries ({max_retries_on_error}) with exit code {result.exit_code}. The model's response was: {model_result.content}",
                             source=agent_name,
@@ -430,6 +433,8 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             inner_messages=inner_messages,
         ):
             yield reflection_response  # Last reflection_response is of type Response so it will finish the routine
+
+        await self.EXIT()
 
     async def execute_code_block(  # TO DO: have to fix this function, sometimes it executes the code in the near time (conflict)
         self, code_blocks: List[CodeBlock], cancellation_token: CancellationToken
@@ -576,3 +581,25 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             ),
             inner_messages=inner_messages,
         )
+
+    async def save_state(self) -> Mapping[str, Any]:
+        state = await super().save_state()
+        if isinstance(self._code_executor, StreamDockerCommandLineCodeExecutor):
+            state["dependencies"] = [
+                {"code": dep.code, "language": dep.language}
+                for dep in self._code_executor.docker_installed_dependencies
+            ]
+        return state
+
+    async def load_state(self, state: Mapping[str, Any]) -> None:
+        await super().load_state(state)
+        if isinstance(self._code_executor, StreamDockerCommandLineCodeExecutor):
+            dependencies = [
+                CodeBlock(code=dep["code"], language=dep["language"])
+                for dep in state.get("dependencies", [])
+            ]
+            self._code_executor.docker_installed_dependencies = dependencies
+
+    async def EXIT(self):
+        if isinstance(self._code_executor, StreamDockerCommandLineCodeExecutor):
+            await self._code_executor.countdown(self._countdown_timer)

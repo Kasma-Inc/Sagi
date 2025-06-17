@@ -22,9 +22,6 @@ from Sagi.tools.stream_code_executor.stream_code_executor_agent import (
 from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor import (
     StreamDockerCommandLineCodeExecutor,
 )
-from Sagi.tools.stream_code_executor.stream_local_command_line_code_executor import (
-    StreamLocalCommandLineCodeExecutor,
-)
 from Sagi.tools.web_search_agent import WebSearchAgent
 from Sagi.utils.json_handler import get_template_num
 from Sagi.utils.load_config import load_toml_with_env_vars
@@ -132,6 +129,7 @@ class PlanningWorkflow:
         mode: str = "deep_research",
         template_work_dir: str | None = None,
         language: str = "en",
+        countdown_timer: int = 60,  # time before the docker container is stopped
     ):
         self = cls()
 
@@ -339,6 +337,7 @@ class PlanningWorkflow:
             stream_code_executor=stream_code_executor,
             model_client=self.code_model_client,
             max_retries_on_error=DEFAULT_CODE_MAX_RETRIES,
+            countdown_timer=countdown_timer,  # time before the docker container is stopped
         )
 
         # mapping of team member names to their agent instances
@@ -386,13 +385,8 @@ class PlanningWorkflow:
             single_group_planning_model_client=self.single_group_planning_model_client,
             template_work_dir=template_work_dir,  # Add template work directory parameter
             language=language,
-            dependencies=(
-                stream_code_executor.docker_installed_dependencies
-                if isinstance(stream_code_executor, StreamDockerCommandLineCodeExecutor)
-                else []
-            ),
         )
-        return self, stream_code_executor
+        return self
 
     def set_language(self, language: str) -> None:
         if hasattr(self.team, "set_language"):
@@ -401,19 +395,7 @@ class PlanningWorkflow:
     def run_workflow(self, user_input: str):
         return self.team.run_stream(task=user_input)
 
-    async def cleanup(
-        self,
-        stream_code_executor: (
-            StreamDockerCommandLineCodeExecutor | StreamLocalCommandLineCodeExecutor
-        ),
-    ):
+    async def cleanup(self):
         """close activated MCP servers"""
         if hasattr(self, "session_manager"):
             await self.session_manager.close_all()
-
-        if (
-            isinstance(stream_code_executor, StreamDockerCommandLineCodeExecutor)
-            and await stream_code_executor.is_running()
-        ):
-            print("Stopping Docker Container...")
-            await stream_code_executor.stop()
