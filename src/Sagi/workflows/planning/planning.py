@@ -253,6 +253,7 @@ class PlanningWorkflow:
                 "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
                 "OPENAI_BASE_URL": os.getenv("OPENAI_BASE_URL"),
                 "VOYAGE_API_KEY": os.getenv("VOYAGE_API_KEY"),
+                "DOC2X_API_KEY": os.getenv("DOC2X_API_KEY"),
             },
         )
 
