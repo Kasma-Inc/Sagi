@@ -30,8 +30,6 @@ from Sagi.utils.prompt import (
     get_domain_specific_agent_prompt_cn,
     get_general_agent_prompt,
     get_general_agent_prompt_cn,
-    get_rag_agent_prompt,
-    get_rag_agent_prompt_cn,
 )
 from Sagi.workflows.planning.planning_group_chat import PlanningGroupChat
 
@@ -128,6 +126,7 @@ class PlanningWorkflow:
         team_config_path: str,
         template_work_dir: str | None = None,
         language: str = "en",
+        countdown_timer: int = 60,  # time before the docker container is stopped
     ):
         self = cls()
 
@@ -314,6 +313,17 @@ class PlanningWorkflow:
         work_dir = Path(
             DEFAULT_WORK_DIR
         )  # the output directory for code generation execution
+
+        # stream_code_executor=StreamLocalCommandLineCodeExecutor(work_dir=work_dir)
+        stream_code_executor = StreamDockerCommandLineCodeExecutor(
+            work_dir=work_dir,
+            bind_dir=(
+                os.getenv("HOST_PATH") + "/" + str(work_dir)
+                if os.getenv("ENVIRONMENT") == "docker"
+                else work_dir
+            ),
+        )
+
         code_executor = StreamCodeExecutorAgent(
             name="CodeExecutor",
             description="a code executor agent that can generate and execute Python and shell scripts to assist in code based tasks such as generating files, appending files, calculating data, etc.",
@@ -322,17 +332,10 @@ class PlanningWorkflow:
                 if language == "en"
                 else get_code_executor_prompt_cn()
             ),
-            # stream_code_executor=StreamLocalCommandLineCodeExecutor(work_dir=work_dir),
-            stream_code_executor=StreamDockerCommandLineCodeExecutor(
-                work_dir=work_dir,
-                bind_dir=(
-                    os.getenv("HOST_PATH") + "/" + str(work_dir)
-                    if os.getenv("ENVIRONMENT") == "docker"
-                    else work_dir
-                ),
-            ),
+            stream_code_executor=stream_code_executor,
             model_client=self.code_model_client,
             max_retries_on_error=DEFAULT_CODE_MAX_RETRIES,
+            countdown_timer=countdown_timer,  # time before the docker container is stopped
         )
 
         # mapping of team member names to their agent instances

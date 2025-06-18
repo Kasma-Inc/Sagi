@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import logging
 import os
+import threading
 
 from autogen_agentchat.messages import BaseMessage
 from autogen_agentchat.ui import Console
@@ -109,14 +110,34 @@ def _default_to_text(self) -> str:
 BaseMessage.to_text = _default_to_text
 
 
-async def main_cmd(args: argparse.Namespace):
+async def get_input_async():
+    # Get user input without blocking the event loop
+    loop = asyncio.get_event_loop()
+    future = (
+        loop.create_future()
+    )  # placeholder for the user input that will be available later
 
+    def _get_input():
+        try:
+            result = input("User: ")
+            loop.call_soon_threadsafe(
+                future.set_result, result
+            )  # safely schedule the future result in the main loop (notify main loop)
+        except Exception as e:
+            loop.call_soon_threadsafe(future.set_exception, e)
+
+    threading.Thread(target=_get_input, daemon=True).start()
+    return await future
+
+
+async def main_cmd(args: argparse.Namespace):
     if args.mode == "deep_research":
         workflow = await PlanningWorkflow.create(
             args.planning_config,
             args.team_config,
             template_work_dir=args.template_work_dir,
             language=args.language,
+            countdown_timer=40,  # time before the docker container is stopped
         )
     elif args.mode == "general":
         workflow = await GeneralChatWorkflow.create(
@@ -131,9 +152,10 @@ async def main_cmd(args: argparse.Namespace):
     else:
         raise ValueError(f"Invalid mode: {args.mode}")
 
+
     try:
         while True:
-            user_input = input("User: ")
+            user_input = await get_input_async()
             if user_input.lower() in ("quit", "exit", "q"):
                 break
 
