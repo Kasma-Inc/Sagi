@@ -30,6 +30,8 @@ from Sagi.utils.prompt import (
     get_domain_specific_agent_prompt_cn,
     get_general_agent_prompt,
     get_general_agent_prompt_cn,
+    get_rag_agent_prompt,
+    get_rag_agent_prompt_cn,
 )
 from Sagi.workflows.planning.planning_group_chat import PlanningGroupChat
 

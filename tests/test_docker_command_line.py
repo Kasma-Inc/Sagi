@@ -5,9 +5,7 @@ from pathlib import Path
 
 import pytest
 from autogen_agentchat.base import Response
-from autogen_agentchat.messages import (
-    TextMessage,
-)
+from autogen_agentchat.messages import TextMessage
 from autogen_core import CancellationToken
 
 from Sagi.tools.stream_code_executor.stream_code_executor_agent import (

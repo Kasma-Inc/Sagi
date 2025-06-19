@@ -3,10 +3,7 @@ from pathlib import Path
 
 import pytest
 from autogen_agentchat.base import Response
-from autogen_agentchat.messages import (
-    CodeGenerationEvent,
-    TextMessage,
-)
+from autogen_agentchat.messages import CodeGenerationEvent, TextMessage
 from autogen_core import CancellationToken
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from dotenv import load_dotenv

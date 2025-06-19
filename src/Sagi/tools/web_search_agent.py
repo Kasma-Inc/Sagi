@@ -1,16 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import (
-    Any,
-    AsyncGenerator,
-    Awaitable,
-    Callable,
-    Dict,
-    List,
-    Sequence,
-    Tuple,
-)
+from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, List, Sequence, Tuple
 
 from autogen_agentchat import EVENT_LOGGER_NAME
 from autogen_agentchat.agents import AssistantAgent
@@ -26,9 +17,7 @@ from autogen_agentchat.messages import (
 )
 from autogen_core import CancellationToken, FunctionCall
 from autogen_core.memory import Memory
-from autogen_core.model_context import (
-    ChatCompletionContext,
-)
+from autogen_core.model_context import ChatCompletionContext
 from autogen_core.models import (
     AssistantMessage,
     ChatCompletionClient,
