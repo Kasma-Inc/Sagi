@@ -152,7 +152,6 @@ async def main_cmd(args: argparse.Namespace):
     else:
         raise ValueError(f"Invalid mode: {args.mode}")
 
-
     try:
         while True:
             user_input = await get_input_async()

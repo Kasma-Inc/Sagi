@@ -6,15 +6,7 @@ import sys
 from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
-from typing import (
-    Any,
-    AsyncGenerator,
-    Callable,
-    List,
-    Optional,
-    Sequence,
-    Union,
-)
+from typing import Any, AsyncGenerator, Callable, List, Optional, Sequence, Union
 
 from autogen_core import CancellationToken
 from autogen_core.code_executor import (
