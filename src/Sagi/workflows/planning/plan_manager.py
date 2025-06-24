@@ -3,8 +3,42 @@ import uuid
 from collections import OrderedDict
 from typing import Dict, List, Literal, Optional, Tuple
 
-from autogen_agentchat.messages import BaseAgentEvent, BaseChatMessage, BaseMessage
+from autogen_agentchat.messages import (
+    BaseAgentEvent,
+    BaseChatMessage,
+    CodeExecutionEvent,
+    CodeGenerationEvent,
+    HandoffMessage,
+    MemoryQueryEvent,
+    ModelClientStreamingChunkEvent,
+    MultiModalMessage,
+    SelectSpeakerEvent,
+    StopMessage,
+    TextMessage,
+    ThoughtEvent,
+    ToolCallExecutionEvent,
+    ToolCallRequestEvent,
+    ToolCallSummaryMessage,
+    UserInputRequestedEvent,
+)
 from pydantic import BaseModel, Field
+
+MessageClsDict = {
+    "TextMessage": TextMessage,
+    "MultiModalMessage": MultiModalMessage,
+    "StopMessage": StopMessage,
+    "ToolCallSummaryMessage": ToolCallSummaryMessage,
+    "HandoffMessage": HandoffMessage,
+    "ToolCallRequestEvent": ToolCallRequestEvent,
+    "ToolCallExecutionEvent": ToolCallExecutionEvent,
+    "MemoryQueryEvent": MemoryQueryEvent,
+    "UserInputRequestedEvent": UserInputRequestedEvent,
+    "ModelClientStreamingChunkEvent": ModelClientStreamingChunkEvent,
+    "ThoughtEvent": ThoughtEvent,
+    "SelectSpeakerEvent": SelectSpeakerEvent,
+    "CodeGenerationEvent": CodeGenerationEvent,
+    "CodeExecutionEvent": CodeExecutionEvent,
+}
 
 
 class Step(BaseModel):
@@ -68,7 +102,10 @@ class Step(BaseModel):
             step_progress_counter=data.get("step_progress_counter", 0),
             state=data.get("state", "pending"),
             reflection=data.get("reflection"),
-            messages=[BaseMessage.load(msg) for msg in data.get("messages", [])],
+            messages=[
+                MessageClsDict[msg.get("type", "TextMessage")].load(msg)
+                for msg in data.get("messages", [])
+            ],
             template_id=data.get("template_id", None),
         )
 
