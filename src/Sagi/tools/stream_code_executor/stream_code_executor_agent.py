@@ -602,4 +602,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
 
     async def EXIT(self):
         if isinstance(self._code_executor, StreamDockerCommandLineCodeExecutor):
+            # upload results files to s3 when exit the execution
+            self._code_executor.upload_results_files_to_s3(self.chat_id)
+            # exit
             await self._code_executor.countdown(self._countdown_timer)

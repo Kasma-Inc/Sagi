@@ -1,11 +1,12 @@
 import asyncio
 import json
-import os.path
+import os
 from asyncio import Event
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Sequence, Union
 
+import boto3
 from autogen_core import CancellationToken
 from autogen_core.code_executor import (
     CodeBlock,
@@ -374,3 +375,19 @@ class StreamDockerCommandLineCodeExecutor(
     # check if the container is running
     async def is_running(self) -> bool:
         return self._running
+
+    # upload results files to s3
+    # TODO: add user_id
+    def upload_results_files_to_s3(self, chat_id: str = None):
+        if chat_id is None:
+            print("Pass the uploading because chat_id is None")
+
+        if os.getenv("AWS_ACCESS_KEY_ID", None) != None:
+            s3_client = boto3.client("s3")
+            for filename in os.listdir((self.work_dir / chat_id)):
+                print(f"Uploading {filename} to s3")
+                s3_client.upload_file(
+                    (self.work_dir / chat_id / filename),
+                    os.getenv("AWS_BUCKET_NAME"),
+                    os.path.join(os.getenv("DEV_USER_ID"), chat_id, filename),
+                )
