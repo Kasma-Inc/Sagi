@@ -378,9 +378,9 @@ class StreamDockerCommandLineCodeExecutor(
 
     # upload results files to s3
     # TODO: add user_id
-    def upload_results_files_to_s3(self, chat_id: str = None):
-        if chat_id is None:
-            print("Pass the uploading because chat_id is None")
+    def upload_results_files_to_s3(self, user_id: str = None, chat_id: str = None):
+        if user_id is None or chat_id is None:
+            print("Pass the uploading because user_id or chat_id is None")
 
         if os.getenv("AWS_ACCESS_KEY_ID", None) != None:
             s3_client = boto3.client("s3")
@@ -389,5 +389,5 @@ class StreamDockerCommandLineCodeExecutor(
                 s3_client.upload_file(
                     (self.work_dir / chat_id / filename),
                     os.getenv("AWS_BUCKET_NAME"),
-                    os.path.join(os.getenv("DEV_USER_ID"), chat_id, filename),
+                    os.path.join(user_id, chat_id, filename),
                 )

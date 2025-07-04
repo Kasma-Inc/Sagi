@@ -61,6 +61,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             sources=sources,
         )
         self._code_executor: StreamCodeExecutor = stream_code_executor
+        self.user_id: Optional[str] = None
         self.chat_id: Optional[str] = None
         self._step_history: List[CodeStepHistory] = (
             []
@@ -603,6 +604,6 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
     async def EXIT(self):
         if isinstance(self._code_executor, StreamDockerCommandLineCodeExecutor):
             # upload results files to s3 when exit the execution
-            self._code_executor.upload_results_files_to_s3(self.chat_id)
+            self._code_executor.upload_results_files_to_s3(self.user_id, self.chat_id)
             # exit
             await self._code_executor.countdown(self._countdown_timer)

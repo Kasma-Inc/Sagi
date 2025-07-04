@@ -198,9 +198,10 @@ class PlanningGroupChat(BaseGroupChat):
     def set_language(self, language: str) -> None:
         self._language = language
 
-    async def load_chat_id(self, chat_id: str) -> None:
+    async def set_id_info(self, user_id: str, chat_id: str) -> None:
         for participant in self._participants:
             if isinstance(participant, StreamCodeExecutorAgent):
+                participant.user_id = user_id
                 participant.chat_id = chat_id
 
     async def save_state(self) -> Mapping[str, Any]:
