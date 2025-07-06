@@ -46,8 +46,8 @@ def get_step_triage_prompt(
             }}
         ```
         
-        **IMPORTANT NOTE**: If you need to create files or add content to existing files, please select the 'CodeExecutor' to implement this using Python.
-        **IMPORTANT NOTE**: If you need to prepare the data or information for creating/adding information to the files, please select the 'general_agent' or 'web_search' to collect the data, because at this stage, no files should be created or added to.
+        **IMPORTANT NOTE**: If you need to generate html code, please select the 'html_generator' to generate the html code.
+        **IMPORTANT NOTE**: If you need to prepare the data or information for creating/adding information to the files, please select the 'trader_agent' or 'web_search' to collect the data, because at this stage, no files should be created or added to.
     """
 
     return template.format(
@@ -355,7 +355,7 @@ You are a presentation design expert. Your task is to analyze a slide's content 
     )
 
 
-def get_expand_plan_prompt(*, task: str, slide_content: str) -> str:
+def get_expand_plan_prompt(*, plan_description: str, slide_content: str) -> str:
     """Generates a prompt template for expand plan.
 
     Args:
@@ -369,34 +369,36 @@ def get_expand_plan_prompt(*, task: str, slide_content: str) -> str:
     {slide_content}
 
     ## User Query:
-    {task}
+    {plan_description}
 
     ## Expl
     ## Return the expanded plan in the following format:
     {{
-        "name": "A short title for this group task",
-        "description": "Detailed explanation of the group task objective",
-        "data_collection_task": "Specific instructions for gathering data needed for this group task",
+        "name": "A short title for this task",
+        "description": "Detailed explanation of the task objective",
+        "data_collection_task": "Specific instructions for gathering data needed for this task",
         "code_executor_task": "Description of what code executor should do, JUST DETAILED DESCRIPTION IS OK, NOT ACTUAL CODE BLOCK."
     }}
     """
-    return template.format(task=task, slide_content=slide_content)
+    return template.format(
+        plan_description=plan_description, slide_content=slide_content
+    )
 
 
-def get_new_group_description_prompt(
+def get_new_task_description_prompt(
     *,
-    task: str,
-    groups_in_plan: list[str],
-    previous_group_summary: str,
-    group_description: str,
+    plan_description: str,
+    tasks_in_plan: list[str],
+    previous_task_summary: str,
+    task_description: str,
 ) -> str:
-    """Generates a prompt template for new group description.
+    """Generates a prompt template for new task description.
 
     Args:
-        task: The current task
-        groups_in_plan: The groups in the plan
-        previous_group_summary: The summary of the previous group
-        group_description: The description of the current group
+        plan_description: The description of the plan
+        tasks_in_plan: The tasks in the plan
+        previous_task_summary: The summary of the previous task
+        task_description: The description of the current task
     """
     template = """
     The context of the step is as follows:
@@ -404,22 +406,22 @@ def get_new_group_description_prompt(
     Recall that you are working on the following request:
 
     ## User Query:
-    {task}
+    {plan_description}
 
-    There is a confirmed plan for solving the request, which contains the following groups: \n
-    {groups_in_plan_str}
+    There is a confirmed plan for solving the request, which contains the following tasks: \n
+    {tasks_in_plan_str}
 
-    You are currently focusing on the following group: \n
-    {group_description}
+    You are currently focusing on the following task: \n
+    {task_description}
     """.format(
-        group_description=group_description,
-        groups_in_plan_str="\n".join(groups_in_plan),
-        task=task,
+        task_description=task_description,
+        tasks_in_plan_str="\n".join(tasks_in_plan),
+        plan_description=plan_description,
     )
-    if len(previous_group_summary) > 0:
+    if len(previous_task_summary) > 0:
         template += f"""
-    So far, you have completed the following groups: \n
-    {previous_group_summary}
+    So far, you have completed the following tasks: \n
+    {previous_task_summary}
     """
     return template
 

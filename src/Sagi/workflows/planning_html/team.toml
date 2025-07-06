@@ -1,0 +1,9 @@
+[team]
+  general_agent = "general_agent"
+  surfer = "web_search"
+  html_generator = "html_generator"
+
+[options]
+  surfer = "web_search"
+  general_agent = "general_agent"
+  html_generator = "html_generator"

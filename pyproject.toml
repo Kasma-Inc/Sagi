@@ -10,7 +10,7 @@ dependencies = [
     "autoflake>=2.3.1",
     "autogen-agentchat==0.5.7",
     "autogen-core==0.5.7",
-    "autogen-ext[docker]==0.5.7",
+    "autogen-ext[anthropic,docker]==0.5.7",
     "black>=25.1.0",
     "blackdoc>=0.3.9",
     "docker==7.1.0",
@@ -37,4 +37,6 @@ dependencies = [
     "pyflakes>=3.3.2",
     "pydantic-settings>=2.9.1",
     "pillow==11.0.0",
+    "pdfkit>=1.0.0",
+    "xhtml2pdf>=0.2.17",
 ]

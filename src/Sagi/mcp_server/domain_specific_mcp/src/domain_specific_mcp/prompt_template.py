@@ -31,10 +31,10 @@ USER QUERY: {task}
 You are a professional planning assistant. 
 Based on the team composition, user query, and known and unknown facts, please devise a plan for addressing the USER QUERY. Remember, there is no requirement to involve all team members -- a team member particular expertise may not be needed for this task.
 
-Each plan group should contain the following elements:
-1. name: A short title for this group task
-2. description: Detailed explanation of the group objective.
-3. data_collection_task: Specific instructions for gathering data needed for this group task (optional)
+Each plan task should contain the following elements:
+1. name: A short title for this task
+2. description: Detailed explanation of the task objective.
+3. data_collection_task: Specific instructions for gathering data needed for this task (optional)
 4. code_executor_task: Description of what code executor should do, JUST DETAILED DESCRIPTION IS OK, NOT ACTUAL CODE BLOCK.(optional)
 """
 
@@ -68,14 +68,14 @@ USER QUERY: {task}
 You are a professional financial PPT creation planning assistant. 
 Based on the team composition, user query, please generate a detailed financial PowerPoint presentation creation plan following these structural requirements:
 
-Each plan group should contain the following elements:
-1. name: A short title for this group task
-2. description: Detailed explanation of the group objective and financial content
-3. data_collection_task: Specific instructions for gathering financial data needed for this group task (optional)
+Each plan task should contain the following elements:
+1. name: A short title for this task
+2. description: Detailed explanation of the task objective and financial content
+3. data_collection_task: Specific instructions for gathering financial data needed for this task (optional)
 4. code_executor_task: Description of what code should do to process data, GENERATE slide, APPEND it to PPT and SAVE PPT (optional)
 
 Plan requirements:
-- Each group task should GENERATE one slide, APPEND it to the PPT and SAVE PPT.
+- Each task should GENERATE one slide, APPEND it to the PPT and SAVE PPT.
 - Include common financial PPT elements such as titles, financial metrics, bullet point lists, visual elements (charts, graphs, financial tables, etc.)
 - Code sections should primarily use Python (with visualization libraries like matplotlib, seaborn, plotly, pandas_datareader, etc.) or bash to install dependencies
 - Ensure code is practical and executable, capable of completing financial data processing and slide generation tasks
@@ -83,17 +83,17 @@ Plan requirements:
 
 Please output in JSON format, conforming to the following structure:
 
-  groups: [
-      name: Group Task Name,
-      description: Group Task Description,
+  tasks: [
+      name: Task Name,
+      description: Task Description,
       data_collection_task: Data Collection Task Description,
       code_executor_task: Description of code task to be performed based on the collected data
     ,
-    ...more groups
+    ...more tasks
   ]
 
 Example for a Tesla stock analysis presentation:
-  groups: [
+  tasks: [
       name: Company Overview,
       description: Create a title slide with brief overview of Tesla, including its ticker symbol, industry, and founding date.,
       data_collection_task: Find Tesla ticker symbol (TSLA), founding date, headquarters location, and CEO information.,
@@ -121,7 +121,7 @@ Example for a Tesla stock analysis presentation:
       code_executor_task: Create a final slide with a clear investment recommendation (Buy/Hold/Sell) in large, colored text. Include a target price with potential upside percentage. Add bullet points outlining the key investment thesis including growth potential, technological advantages, and potential risks. Format the slide professionally with consistent fonts and colors. Remember to append the slide to PPT and save PPT.
   ]
 
-REMEMBER: EACH GROUP TASK MUST SAVE THE PPT AFTER APPENDING THE SLIDE.
+REMEMBER: EACH TASK MUST SAVE THE PPT AFTER APPENDING THE SLIDE.
 """
 
 GENERAL_PPT_PLAN_PROMPT = """Excellent. To create the presentation outlined in the request, we have assembled the following team:
@@ -133,14 +133,14 @@ USER QUERY: {task}
 You are a professional PPT creation planning assistant. 
 Based on the team composition, user query, please generate a detailed PowerPoint presentation creation plan following these structural requirements:
 
-Each plan group should contain the following elements:
-1. name: A short title for this group task
-2. description: Detailed explanation of the group objective and content
-3. data_collection_task: Specific instructions for gathering data needed for this group task (optional)
+Each plan task should contain the following elements:
+1. name: A short title for this task
+2. description: Detailed explanation of the task objective and content
+3. data_collection_task: Specific instructions for gathering data needed for this task (optional)
 4. code_executor_task: Description of what code should do to process data, GENERATE slide, APPEND it to PPT and SAVE PPT (optional)
 
 Plan requirements:
-- Each group task should GENERATE one slide, APPEND it to the PPT and SAVE PPT.
+- Each task should GENERATE one slide, APPEND it to the PPT and SAVE PPT.
 - Include common PPT elements such as titles, body text, bullet point lists, visual elements (charts, images, etc.)
 - Code tasks should describe operations to be performed using Python (with visualization libraries like matplotlib, seaborn, plotly, etc.) or bash to install dependencies
 - Code task descriptions should be clear enough to guide future code generation based on the collected data
@@ -149,10 +149,10 @@ Please output in JSON format, conforming to the following structure:
 
 ```
 {{
-  "groups": [
+  "tasks": [
     {{
-      "name": "Group Task Name",
-      "description": "Group Task Description",
+      "name": "Task Name",
+      "description": "Task Description",
       "data_collection_task": "Data Collection Task Description",
       "code_executor_task": "Description of code task to be performed based on the collected data"
     }},
@@ -161,7 +161,7 @@ Please output in JSON format, conforming to the following structure:
 }}
 ```
 
-REMEMBER: EACH GROUP TASK MUST SAVE THE PPT AFTER APPENDING THE SLIDE.
+REMEMBER: EACH TASK MUST SAVE THE PPT AFTER APPENDING THE SLIDE.
 """
 
 
@@ -177,18 +177,18 @@ and the team's composition:
 
 {team}
 
-The plan must outline clear group task sections, assign data collection and execution subtasks, and adhere to markdown-based deliverables.
+The plan must outline clear task sections, assign data collection and execution subtasks, and adhere to markdown-based deliverables.
 
 # Instructions
 
-- Analyze the USER QUERY and team composition to break down the report into logical, coherent sections (group tasks).
-- For each group, define:  
+- Analyze the USER QUERY and team composition to break down the report into logical, coherent sections (tasks).
+- For each task, define:  
   - A concise section title.
   - A detailed description of the section's objective and expected content.
-  - Data collection instructions tailored to that group's focus.
+  - Data collection instructions tailored to that task's focus.
   - Executor instructions for creating or appending a markdown section using code-enabled tools (e.g., Python/bash), ensuring that the markdown file is built section by section and saved after each step.
 - Ensure section order presents information logically (e.g., Introduction, Methodology, Analysis, Recommendations, Conclusion) and aligns with the user’s intent.
-- Each group task APPENDS its output to the markdown report in sequence.
+- Each task APPENDS its output to the markdown report in sequence.
 - Output the structured report creation plan in the specified JSON format.
 
 ## Sub-categories for more detailed instructions
@@ -197,7 +197,7 @@ The plan must outline clear group task sections, assign data collection and exec
 - Section Sequencing: Order report sections so they build logically (context → method → analysis → insight).
 - Data Collection Specificity: Provide clear, actionable instructions for sourcing data (e.g., databases, APIs, literature review).
 - Executor Task Precision: Specify whether the executor starts the markdown file (first section) or appends to/save it (subsequent sections); reference tools/scripts as appropriate.
-- Modularity: Each group's tasks should enable easy parallelization or serial output aggregation.
+- Modularity: Each task's sub-tasks should enable easy parallelization or serial output aggregation.
 
 # Reasoning Steps
 
@@ -216,7 +216,7 @@ The plan must outline clear group task sections, assign data collection and exec
 Return the report creation plan as a JSON structure:
 ```
 {{
-  "groups": [
+  "tasks": [
     {{
       "name": "Section title",
       "description": "Section objective and content summary",
@@ -236,7 +236,7 @@ USER QUERY: "Create a report on analyzing Tesla's stock price performance"
 
 ```
 {{
-  "groups": [
+  "tasks": [
     {{
       "name": "Introduction",
       "description": "Outline the report objectives, scope, and Tesla's relevance in the stock market.",
@@ -261,7 +261,7 @@ USER QUERY: "Create a report on analyzing Tesla's stock price performance"
       "data_collection_task": "Obtain analyst forecasts, aggregate expert opinions, and synthesize potential scenarios.",
       "code_executor_task": "Append the final section with recommendations to the markdown file and save."
     }},
-    ...more groups
+    ...more tasks
   ]
 }}
 ```
@@ -270,9 +270,64 @@ USER QUERY: "Create a report on analyzing Tesla's stock price performance"
 
 Think through the user request and the team's skills before designing the plan.  
 Break the report into logical sections, clarifying objectives and data needs at each stage.  
-For every group, specify actionable collection instructions and precise markdown handling tasks.  
+For every task, specify actionable collection instructions and precise markdown handling tasks.  
 Ensure the overall flow is clear and optimized for collaboration and modular section-building.
 """
+
+FINANCIAL_MAGAZINE_PLAN_PROMPT = """Excellent. To create the financial magazine outlined in the request, we first need to collect the information by using search tools.
+
+USER QUERY: {task}
+
+You are a professional financial magazine information collection planning assistant. 
+Based on the user query, please generate a detailed financial magazine required information collection plan following these structural requirements:
+
+Each plan step should contain the following elements:
+1. name: A short title for this step
+2. description: Detailed explanation of the step objective 
+3. data_collection_task: Specific instructions for gathering financial data or images needed 
+
+Plan requirements:
+- Include common financial magazine elements such as titles, financial metrics, bullet point lists, visual elements (charts, graphs, financial tables, etc.)
+- Focus on financial analysis, stock performance, company valuations, market trends, investment recommendations, and financial forecasts
+
+Please output in JSON format, conforming to the following structure:
+
+  tasks: [
+      name: Task Name,
+      description: Task Description,
+      data_collection_task: Data Collection Task Description,
+    ,
+    ...more tasks
+  ]
+
+Example for a Tesla stock analysis presentation:
+  tasks: [
+      name: Company Overview,
+      description: Collect the basic information of Tesla, including its ticker symbol, industry, and founding date.,
+      data_collection_task: Find Tesla ticker symbol (TSLA), founding date, headquarters location, and CEO information.,
+    ,
+      name: Stock Price Performance,
+      description: Collect the stock price performance of Tesla over the past 5 years with key milestones highlighted.,
+      data_collection_task: Retrieve Tesla 5-year historical stock price data from Yahoo Finance API and identify key corporate milestones.
+  ]
+
+You only need to output the information collection plan, and do not need to generate anything.
+"""
+
+# Comment
+
+# ,
+#   name: Financial Metrics,
+#   description: Collect the key financial metrics of Tesla, including revenue growth, profit margins, P/E ratio, and EPS.,
+#   data_collection_task: Gather Tesla income statements, balance sheets, and key financial ratios for the past 3 years.,
+# ,
+#   name: Market Position & Competition,
+#   description: Collect the market position, market share, and key competitors of Tesla in the EV industry.,
+#   data_collection_task: Collect Tesla market share in the EV industry and identify key competitors with their market shares.,
+# ,
+#   name: Investment Recommendation,
+#   description: Collect the investment recommendation, target price, and key investment thesis points.,
+#   data_collection_task: Search current valuation metrics, growth projections, and risk factors to formulate an investment recommendation.,
 
 
 GENERAL_FACTS_PROMPT_CN = """
@@ -374,14 +429,14 @@ GENERAL_REPORT_PLAN_PROMPT_CN = """
 以JSON结构返回报告创建计划：
 ```
 {{
-  "groups": [
+  "tasks": [
     {{
       "name": "部分标题",
       "description": "部分目标和内容摘要",
       "data_collection_task": "本部分的数据收集说明",
       "code_executor_task": "生成或附加Markdown并保存的说明"
     }},
-    // ... (为每个部分重复)
+    // ... (为每个任务重复)
   ]
 }}
 ```
@@ -393,7 +448,7 @@ GENERAL_REPORT_PLAN_PROMPT_CN = """
 
 ```
 {{
-  "groups": [
+  "tasks": [
     {{
       "name": "引言",
       "description": "概述报告目标、范围以及特斯拉在股市中的相关性。",
@@ -418,7 +473,7 @@ GENERAL_REPORT_PLAN_PROMPT_CN = """
       "data_collection_task": "获取分析师预测，汇总专家意见，并综合潜在情景。",
       "code_executor_task": "将包含建议的最终部分附加到Markdown文件并保存。"
     }},
-    // ...更多组
+    // ...更多任务
   ]
 }}
 ```
@@ -459,18 +514,18 @@ GENERAL_PPT_PLAN_PROMPT_CN = """
 
 ```
 {{
-  "groups": [
+  "tasks": [
     {{
       "name": "组任务名称",
       "description": "组任务描述",
       "data_collection_task": "数据收集任务描述",
       "code_executor_task": "根据收集到的数据执行的代码任务描述"
     }},
-    ... (更多组)
+    ... (更多任务)
   ]
 }}
 ```
-请记住：每个组任务在附加幻灯片后都必须保存PPT。
+请记住：每个任务在附加幻灯片后都必须保存PPT。
 """
 
 FINANCIAL_PPT_FACTS_PROMPT_CN = """
@@ -524,14 +579,14 @@ FINANCIAL_PPT_PLAN_PROMPT_CN = """
 
 ```
 {{
-  "groups": [
+  "tasks": [
     {{
       "name": "组任务名称",
       "description": "组任务描述",
       "data_collection_task": "数据收集任务描述",
       "code_executor_task": "根据收集到的数据执行的代码任务描述"
     }},
-    ... (更多组)
+    ... (更多任务)
   ]
 }}
 ```
@@ -540,7 +595,7 @@ FINANCIAL_PPT_PLAN_PROMPT_CN = """
 
 ```
 {{
-  "groups": [
+  "tasks": [
     {{
       "name": "公司概览",
       "description": "创建标题幻灯片，简要概览特斯拉，包括其股票代码、所属行业和成立日期。",
@@ -571,9 +626,9 @@ FINANCIAL_PPT_PLAN_PROMPT_CN = """
       "data_collection_task": "分析当前估值指标、增长预测和风险因素，以制定投资建议。",
       "code_executor_task": "创建最后一张幻灯片，用醒目、彩色的文字清晰地显示投资建议（买入/持有/卖出）。包括一个目标价格及潜在上涨百分比。添加项目符号，概述关键投资论点，包括增长潜力、技术优势和潜在风险。以专业的格式设置幻灯片，保持字体和颜色一致。请记住将幻灯片附加到PPT并保存PPT。"
     }},
-    ... (更多组)
+    ... (更多任务)
   ]
 }}
 ```
-请记住：每个组任务在附加幻灯片后都必须保存PPT。
+请记住：每个任务在附加幻灯片后都必须保存PPT。
 """

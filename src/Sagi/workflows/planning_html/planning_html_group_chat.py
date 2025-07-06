@@ -15,17 +15,19 @@ from pydantic import Field
 from Sagi.tools.stream_code_executor.stream_code_executor_agent import (
     StreamCodeExecutorAgent,
 )
-from Sagi.workflows.planning.planning_orchestrator import PlanningOrchestrator
+from Sagi.workflows.planning_html.planning_html_orchestrator import (
+    PlanningHtmlOrchestrator,
+)
 
 
-class PlanningChatState(TeamState):
+class PlanningHtmlChatState(TeamState):
     """State for a team of agents."""
 
     agent_states: Mapping[str, Any] = Field(default_factory=dict)
-    type: str = Field(default="PlanningChatState")
+    type: str = Field(default="PlanningHtmlChatState")
 
 
-class PlanningGroupChat(BaseGroupChat):
+class PlanningHtmlGroupChat(BaseGroupChat):
     def __init__(
         self,
         participants: List[ChatAgent],
@@ -48,8 +50,8 @@ class PlanningGroupChat(BaseGroupChat):
     ):
         super().__init__(
             participants,
-            group_chat_manager_name="PlanningOrchestrator",
-            group_chat_manager_class=PlanningOrchestrator,
+            group_chat_manager_name="PlanningHtmlOrchestrator",
+            group_chat_manager_class=PlanningHtmlOrchestrator,
             termination_condition=termination_condition,
             max_turns=max_turns,
             runtime=runtime,
@@ -58,7 +60,7 @@ class PlanningGroupChat(BaseGroupChat):
         # Validate the participants.
         if len(participants) == 0:
             raise ValueError(
-                "At least one participant is required for PlanningGroupChat."
+                "At least one participant is required for PlanningHtmlGroupChat."
             )
         # Initialize the model clients.
         self._orchestrator_model_client = orchestrator_model_client
@@ -166,8 +168,8 @@ class PlanningGroupChat(BaseGroupChat):
         ],
         termination_condition: TerminationCondition | None,
         max_turns: int | None,
-    ) -> Callable[[], PlanningOrchestrator]:
-        return lambda: PlanningOrchestrator(
+    ) -> Callable[[], PlanningHtmlOrchestrator]:
+        return lambda: PlanningHtmlOrchestrator(
             name=name,
             group_topic_type=group_topic_type,
             output_topic_type=output_topic_type,
@@ -195,15 +197,14 @@ class PlanningGroupChat(BaseGroupChat):
     def set_language(self, language: str) -> None:
         self._language = language
 
-    async def set_id_info(self, user_id: str, chat_id: str) -> None:
+    async def load_chat_id(self, chat_id: str) -> None:
         for participant in self._participants:
             if isinstance(participant, StreamCodeExecutorAgent):
-                participant.user_id = user_id
                 participant.chat_id = chat_id
 
     async def save_state(self) -> Mapping[str, Any]:
         base_state = await super().save_state()
-        state = PlanningChatState(
+        state = PlanningHtmlChatState(
             agent_states=base_state["agent_states"],
         )
         return state.model_dump()

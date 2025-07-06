@@ -53,7 +53,9 @@ from autogen_core.models import (
 )
 from pydantic import BaseModel, Field
 
-from Sagi.tools.stream_code_executor.stream_code_executor import CodeFileMessage
+from Sagi.tools.stream_code_executor.stream_code_executor import (
+    CodeFileMessage,
+)
 from Sagi.utils.hirag_message import hirag_message_to_llm_message
 from Sagi.utils.json_handler import (
     format_file_content,
@@ -74,7 +76,7 @@ from Sagi.utils.prompt import (
     get_step_triage_prompt_cn,
     get_template_selection_prompt,
 )
-from Sagi.workflows.planning.plan_manager import PlanManager
+from Sagi.workflows.planning_html.plan_manager import PlanManager
 
 trace_logger = logging.getLogger(TRACE_LOGGER_NAME)
 
@@ -83,12 +85,12 @@ class UserInputMessage(BaseModel):
     messages: List[ChatMessage]
 
 
-class PlanningOrchestratorState(BaseModel):
-    type: str = Field(default="PlanningOrchestratorState")
+class PlanningHtmlOrchestratorState(BaseModel):
+    type: str = Field(default="PlanningHtmlOrchestratorState")
     plan_manager_state: Dict = Field(default_factory=dict)
 
 
-class PlanningOrchestrator(BaseGroupChatManager):
+class PlanningHtmlOrchestrator(BaseGroupChatManager):
     def __init__(
         self,
         name: str,
@@ -112,6 +114,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         template_selection_model_client: ChatCompletionClient,
         template_based_planning_model_client: ChatCompletionClient,
         single_group_planning_model_client: ChatCompletionClient,
+        user_proxy: Any | None = None,
         domain_specific_agent: Any | None = None,
         template_work_dir: str | None = None,
         language: str = "en",
@@ -228,12 +231,14 @@ class PlanningOrchestrator(BaseGroupChatManager):
             cancellation_token=cancellation_token,
         )
 
+        if stream is None:
+            return ""
         cur_stream_id = str(uuid.uuid4())
         async for response in stream:
             if isinstance(response, str):
                 chunk_event = ModelClientStreamingChunkEvent(
                     content=response,
-                    source=self._name if not source_name else source_name,
+                    source=self._name if source_name is None else source_name,
                     metadata={
                         "stream_id": cur_stream_id,
                     },
@@ -310,16 +315,11 @@ class PlanningOrchestrator(BaseGroupChatManager):
         conversation = [
             facts_message,
             UserMessage(content=plan_prompt, source=self._name),
-            SystemMessage(
-                content=(
-                    "CODE GENERATION and CODE EXECUTION MUST be combined into ONE STEP for each sub-task. "
-                    "DO NOT separate CODE GENERATION and CODE EXECUTION into two steps."
-                )
-            ),
         ]
         plan_response = await self._llm_create(
             client, conversation, ctx.cancellation_token, source_name="PlanningStage"
         )
+        # TODO: Add the step to generate the html layout
         self._plan_manager.new_plan(plan_description=task, model_response=plan_response)
         await self._get_user_feedback_on_plan()
 
@@ -358,6 +358,9 @@ class PlanningOrchestrator(BaseGroupChatManager):
         task = await self._compose_task(message)
         logging.info(f"Task: {task}")
 
+        if self._template_work_dir is None:
+            raise ValueError("Template work directory is not set")
+
         file_content_path = os.path.join(self._template_work_dir, "file_content.json")
         high_level_ppt_plan_prompt = get_high_level_ppt_plan_prompt(
             task=task, file_content=format_file_content(file_content_path)
@@ -365,7 +368,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
 
         template_based_high_level_ppt_plan = await self._llm_create(
             self._template_based_planning_model_client,
-            [SystemMessage(content=high_level_ppt_plan_prompt, source=self._name)],
+            [SystemMessage(content=high_level_ppt_plan_prompt)],
             ctx.cancellation_token,
             source_name="PlanningStage",
         )
@@ -379,15 +382,15 @@ class PlanningOrchestrator(BaseGroupChatManager):
         )
         template_options = format_templates(slide_induction_path)
 
-        plan_groups: List[Dict[str, str]] = []
+        task_groups: List[Dict[str, str]] = []
         for _, slide in enumerate(template_based_high_level_ppt_plan_enum["slides"]):
             expand_plan_prompt = get_expand_plan_prompt(
-                task=task,
+                plan_description=task,
                 slide_content=format_slide_info(slide),
             )
             expand_single_group_response = await self._llm_create(
                 self._single_group_planning_model_client,
-                [SystemMessage(content=expand_plan_prompt, source=self._name)],
+                [SystemMessage(content=expand_plan_prompt)],
                 ctx.cancellation_token,
                 source_name="PlanningStage",
             )
@@ -399,14 +402,14 @@ class PlanningOrchestrator(BaseGroupChatManager):
             )
             template_selection_response = await self._llm_create(
                 self._template_selection_model_client,
-                [SystemMessage(content=template_selection_prompt, source=self._name)],
+                [SystemMessage(content=template_selection_prompt)],
                 ctx.cancellation_token,
             )
             template_selection = json.loads(template_selection_response)
             expand_single_group["template_id"] = str(template_selection["template_id"])
-            plan_groups.append(expand_single_group)
+            task_groups.append(expand_single_group)
         self._plan_manager.new_plan(
-            task=task, model_response=json.dumps({"tasks": plan_groups})
+            plan_description=task, model_response=json.dumps({"tasks": task_groups})
         )
         # TODO: add fine-grained human in the loop for plan adjustment
         self._plan_manager.confirm_plan()
@@ -548,7 +551,6 @@ class PlanningOrchestrator(BaseGroupChatManager):
             )
             self._plan_manager.add_step_reflection(current_step_id, reason)
             await self._output_message_queue.put(step_completion_message)
-            # Update the task summary
             task_summary = await self._get_task_summary(
                 filtered_context, current_step_id, cancellation_token
             )
@@ -609,7 +611,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         self._plan_manager.increment_step_progress_counter(current_step_id)
 
         # If the plan has been in progress for more than 5 iterations, mark it as completed
-        if self._plan_manager.get_step_progress_counter(current_step_id) >= 5:
+        if self._plan_manager.get_step_progress_counter(current_step_id) >= 2:
             await self._log_message(
                 f"Plan '{current_step}' has been in progress for 5 iterations. Marking as completed."
             )
@@ -627,8 +629,6 @@ class PlanningOrchestrator(BaseGroupChatManager):
             )
             self._plan_manager.add_step_reflection(current_step_id, reason)
             await self._output_message_queue.put(step_failed_message)
-
-            # Update the task summary
             task_summary = await self._get_task_summary(
                 filtered_context, current_step_id, cancellation_token
             )
@@ -872,11 +872,11 @@ class PlanningOrchestrator(BaseGroupChatManager):
         return prompt_dict
 
     async def load_state(self, state: Mapping[str, Any]) -> None:
-        orchestrator_state = PlanningOrchestratorState.model_validate(state)
+        orchestrator_state = PlanningHtmlOrchestratorState.model_validate(state)
         self._plan_manager = PlanManager.load(orchestrator_state.plan_manager_state)
 
     async def save_state(self) -> Mapping[str, Any]:
-        state = PlanningOrchestratorState(
+        state = PlanningHtmlOrchestratorState(
             plan_manager_state=self._plan_manager.dump(),
         )
         return state.model_dump()
@@ -890,11 +890,11 @@ class PlanningOrchestrator(BaseGroupChatManager):
         # Get the final answer
         if self._language == "en":
             final_answer_prompt = get_final_answer_prompt(
-                task=self._plan_manager.get_current_task_description()
+                task=self._plan_manager.get_plan_description()
             )
         else:
             final_answer_prompt = get_final_answer_prompt_cn(
-                task=self._plan_manager.get_current_task_description()
+                task=self._plan_manager.get_plan_description()
             )
         context.append(UserMessage(content=final_answer_prompt, source=self._name))
 
