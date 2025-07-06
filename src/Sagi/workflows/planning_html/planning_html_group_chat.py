@@ -208,3 +208,6 @@ class PlanningHtmlGroupChat(BaseGroupChat):
             agent_states=base_state["agent_states"],
         )
         return state.model_dump()
+
+    async def set_id_info(self, user_id: str, chat_id: str) -> None:
+        pass
