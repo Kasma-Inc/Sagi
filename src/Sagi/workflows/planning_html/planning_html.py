@@ -308,6 +308,17 @@ class PlanningHtmlWorkflow:
             description="a html generator agent that can generate html code.",
             system_message="""You are a html magazine generator agent that can generate html/css code. 
             You can use Tailwind CSS to style the html page. You should use chart.js to create the charts.
+            MANDATORY RULES (prevents infinite stretching):
+            1. Canvas elements must NEVER have width/height attributes
+            2. Charts must be wrapped in divs with fixed height (e.g., height: 300px)
+            3. Chart.js responsive: true requires maintainAspectRatio: false
+            4. Chart containers need: position: relative; height: [specific value]; width: 100%;
+
+            BAD: <canvas width="400" height="200"></canvas>
+            GOOD: <div style="position:relative;height:300px;width:100%;"><canvas></canvas></div>
+
+            Always test that your HTML won't cause infinite vertical stretching.
+                
             """,
         )
 
