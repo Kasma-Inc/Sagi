@@ -30,6 +30,10 @@ DEFAULT_WORK_DIR = "coding_files"
 DEFAULT_MCP_SERVER_PATH = "src/Sagi/mcp_server/"
 DEFAULT_WEB_SEARCH_MAX_RETRIES = 3
 DEFAULT_CODE_MAX_RETRIES = 3
+LANGUAGE_MAP = {
+    "en": "English",
+    "cn": "Chinese",
+}
 
 
 class Slide(BaseModel):
@@ -132,7 +136,6 @@ class PlanningHtmlWorkflow:
         team_config_path: str,
         template_work_dir: str | None = None,
         language: str = "en",
-        countdown_timer: int = 60,  # time before the docker container is stopped
     ):
         self = cls()
 
@@ -306,8 +309,10 @@ class PlanningHtmlWorkflow:
             name="html_generator",
             model_client=self.html_generator_model_client,
             description="a html generator agent that can generate html code.",
-            system_message="""You are a html magazine generator agent that can generate html/css code. 
+            system_message=f"""You are a html magazine generator agent that can generate html/css code. 
             You can use Tailwind CSS to style the html page. You should use chart.js to create the charts.
+            Use {language} as the language of the content in the html page.
+
             MANDATORY RULES (prevents infinite stretching):
             1. Canvas elements must NEVER have width/height attributes
             2. Charts must be wrapped in divs with fixed height (e.g., height: 300px)
@@ -319,7 +324,9 @@ class PlanningHtmlWorkflow:
 
             Always test that your HTML won't cause infinite vertical stretching.
                 
-            """,
+            """.format(
+                language=LANGUAGE_MAP[language]
+            ),
         )
 
         # mapping of team member names to their agent instances

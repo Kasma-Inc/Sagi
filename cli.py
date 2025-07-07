@@ -172,7 +172,6 @@ async def main_cmd(args: argparse.Namespace):
             args.team_html_config,
             template_work_dir=args.template_work_dir,
             language=args.language,
-            countdown_timer=40,  # time before the docker container is stopped
         )
     else:
         raise ValueError(f"Invalid mode: {args.mode}")
