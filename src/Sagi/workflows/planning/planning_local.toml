@@ -1,0 +1,97 @@
+[model_clients]
+  [model_clients.orchestrator_client]
+    model = "/app/models/Llama3.1-8B"
+    base_url = "${LOCAL_MODEL_BASE_URL}"
+    api_key = "${LOCAL_MODEL_API_KEY}"
+    max_tokens = 16000
+    
+    [model_clients.orchestrator_client.model_info]
+      vision = false
+      function_calling = true
+      json_output = true
+      structured_output = true
+      multiple_system_messages = true
+    [model_clients.orchestrator_client.default_headers]
+      entry-point = "/v1/chat/completions"
+      model-name = "Llama3.1-8B"
+
+  [model_clients.planning_client]
+    model = "/app/models/Llama3.1-8B"
+    base_url = "${LOCAL_MODEL_BASE_URL}"
+    api_key = "${LOCAL_MODEL_API_KEY}"
+    max_tokens = 16000
+
+    [model_clients.planning_client.model_info]
+      vision = false
+      function_calling = true
+      json_output = true
+      structured_output = true
+      multiple_system_messages = true
+    [model_clients.planning_client.default_headers]
+      entry-point = "/v1/chat/completions"
+      model-name = "Llama3.1-8B"
+    
+  [model_clients.reflection_client]
+    model = "/app/models/Llama3.1-8B"
+    base_url = "${LOCAL_MODEL_BASE_URL}"
+    api_key = "${LOCAL_MODEL_API_KEY}"
+    max_tokens = 16000
+
+    [model_clients.reflection_client.model_info]
+      vision = false
+      function_calling = true
+      json_output = true
+      structured_output = true
+      multiple_system_messages = true
+    [model_clients.reflection_client.default_headers]
+      entry-point = "/v1/chat/completions"
+      model-name = "Llama3.1-8B"
+  
+  [model_clients.code_client]
+    model = "/app/models/Llama3.1-8B"
+    base_url = "${LOCAL_MODEL_BASE_URL}"
+    api_key = "${LOCAL_MODEL_API_KEY}"
+    max_tokens = 16000
+    
+    [model_clients.code_client.model_info]
+      vision = false
+      function_calling = true
+      json_output = true
+      structured_output = true
+      multiple_system_messages = true
+    [model_clients.code_client.default_headers]
+      entry-point = "/v1/chat/completions"
+      model-name = "Llama3.1-8B"
+
+  [model_clients.step_triage_client]
+    model = "/app/models/Llama3.1-8B"
+    base_url = "${LOCAL_MODEL_BASE_URL}"
+    api_key = "${LOCAL_MODEL_API_KEY}"
+    max_tokens = 16000
+
+    [model_clients.step_triage_client.model_info]
+      vision = false
+      function_calling = true
+      json_output = true
+      structured_output = true
+      multiple_system_messages = true
+    [model_clients.step_triage_client.default_headers]
+      entry-point = "/v1/chat/completions"
+      model-name = "Llama3.1-8B"
+  
+  [model_clients.single_tool_use_client]
+    model = "/app/models/Llama3.1-8B"
+    base_url = "${LOCAL_MODEL_BASE_URL}"
+    api_key = "${LOCAL_MODEL_API_KEY}"
+    max_tokens = 16000
+    parallel_tool_calls = false
+    
+    [model_clients.single_tool_use_client.model_info]
+      vision = false
+      function_calling = true
+      json_output = true
+      structured_output = true
+      multiple_system_messages = true
+    [model_clients.single_tool_use_client.default_headers]
+      entry-point = "/v1/chat/completions"
+      model-name = "Llama3.1-8B"

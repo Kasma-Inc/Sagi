@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import threading
+import uuid
 
 from autogen_agentchat.messages import BaseMessage
 from autogen_agentchat.ui import Console
@@ -131,6 +132,7 @@ async def get_input_async():
 
 
 async def main_cmd(args: argparse.Namespace):
+    chat_id = str(uuid.uuid4())
     if args.mode == "deep_research":
         workflow = await PlanningWorkflow.create(
             args.planning_config,
@@ -159,6 +161,7 @@ async def main_cmd(args: argparse.Namespace):
                 break
 
             await asyncio.create_task(Console(workflow.run_workflow(user_input)))
+            await workflow.team.set_id_info("cli_dev", chat_id)
     finally:
         await workflow.cleanup()
         logging.info("Workflow cleaned up.")

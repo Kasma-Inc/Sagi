@@ -117,6 +117,9 @@ class ModelClientFactory:
         if parallel_tool_calls is not None:
             client_kwargs["parallel_tool_calls"] = parallel_tool_calls
 
+        if "default_headers" in client_config:
+            client_kwargs["default_headers"] = client_config["default_headers"]
+
         return OpenAIChatCompletionClient(**client_kwargs)
 
 
