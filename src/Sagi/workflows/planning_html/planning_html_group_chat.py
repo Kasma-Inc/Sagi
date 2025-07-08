@@ -42,11 +42,9 @@ class PlanningHtmlGroupChat(BaseGroupChat):
         domain_specific_agent: (
             AssistantAgent | None
         ) = None,  # for new feat: domain specific prompt
-        template_work_dir: str | None = None,  # for template working directory
-        template_selection_model_client: ChatCompletionClient,
-        template_based_planning_model_client: ChatCompletionClient,
         single_group_planning_model_client: ChatCompletionClient,
         language: str = "en",
+        max_runs_per_step: int = 5,
     ):
         super().__init__(
             participants,
@@ -72,13 +70,9 @@ class PlanningHtmlGroupChat(BaseGroupChat):
         self._domain_specific_agent = (
             domain_specific_agent  # for new feat: domain specific prompt
         )
-        self._template_work_dir = template_work_dir  # for template working directory
-        self._template_selection_model_client = template_selection_model_client
-        self._template_based_planning_model_client = (
-            template_based_planning_model_client
-        )
         self._single_group_planning_model_client = single_group_planning_model_client
         self._language = language
+        self._max_runs_per_step = max_runs_per_step
 
     async def _init(self, runtime: AgentRuntime) -> None:
         # Constants for the group chat manager.
@@ -168,6 +162,7 @@ class PlanningHtmlGroupChat(BaseGroupChat):
         ],
         termination_condition: TerminationCondition | None,
         max_turns: int | None,
+        max_runs_per_step: int = 5,
     ) -> Callable[[], PlanningHtmlOrchestrator]:
         return lambda: PlanningHtmlOrchestrator(
             name=name,
@@ -187,11 +182,9 @@ class PlanningHtmlGroupChat(BaseGroupChat):
             reflection_model_client=self._reflection_model_client,  # for new feat: reflection
             step_triage_model_client=self._step_triage_model_client,
             domain_specific_agent=self._domain_specific_agent,  # for new feat: domain specific prompt
-            template_work_dir=self._template_work_dir,  # for template working directory
-            template_selection_model_client=self._template_selection_model_client,
-            template_based_planning_model_client=self._template_based_planning_model_client,
             single_group_planning_model_client=self._single_group_planning_model_client,
             language=self._language,
+            max_runs_per_step=max_runs_per_step,
         )
 
     def set_language(self, language: str) -> None:

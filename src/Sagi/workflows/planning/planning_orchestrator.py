@@ -115,6 +115,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         domain_specific_agent: Any | None = None,
         template_work_dir: str | None = None,
         language: str = "en",
+        max_runs_per_step: int = 5,
     ):
         super().__init__(
             name=name,
@@ -146,6 +147,7 @@ class PlanningOrchestrator(BaseGroupChatManager):
         self._prompt_templates = {}  # to store domain specific prompts
         self._language = language
         self._plan_manager = PlanManager()  # Initialize plan manager
+        self._max_runs_per_step = max_runs_per_step
 
         # Produce a team description. Each agent sould appear on a single line.
         self._team_description = ""
@@ -608,10 +610,13 @@ class PlanningOrchestrator(BaseGroupChatManager):
         # Check if the plan has been in progress for too long
         self._plan_manager.increment_step_progress_counter(current_step_id)
 
-        # If the plan has been in progress for more than 5 iterations, mark it as completed
-        if self._plan_manager.get_step_progress_counter(current_step_id) >= 5:
+        # If the plan has been in progress for more than self._max_runs_per_step iterations, mark it as completed
+        if (
+            self._plan_manager.get_step_progress_counter(current_step_id)
+            >= self._max_runs_per_step
+        ):
             await self._log_message(
-                f"Plan '{current_step}' has been in progress for 5 iterations. Marking as completed."
+                f"Plan '{current_step}' has been in progress for {self._max_runs_per_step} iterations. Marking as completed."
             )
             self._plan_manager.update_step_state(current_step_id, "failed")
             # Log the forced completion

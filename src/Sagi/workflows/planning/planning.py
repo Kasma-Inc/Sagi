@@ -40,6 +40,7 @@ DEFAULT_WORK_DIR = "coding_files"
 DEFAULT_MCP_SERVER_PATH = "src/Sagi/mcp_server/"
 DEFAULT_WEB_SEARCH_MAX_RETRIES = 3
 DEFAULT_CODE_MAX_RETRIES = 3
+DEFAULT_MAX_RUNS_PER_STEP = os.getenv("DEFAULT_MAX_RUNS_PER_STEP", 5)
 
 
 class Slide(BaseModel):
@@ -384,6 +385,7 @@ class PlanningWorkflow:
             single_group_planning_model_client=self.single_group_planning_model_client,
             template_work_dir=template_work_dir,  # Add template work directory parameter
             language=language,
+            max_runs_per_step=DEFAULT_MAX_RUNS_PER_STEP,
         )
         return self
 

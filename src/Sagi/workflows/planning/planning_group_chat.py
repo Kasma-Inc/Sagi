@@ -45,6 +45,7 @@ class PlanningGroupChat(BaseGroupChat):
         template_based_planning_model_client: ChatCompletionClient,
         single_group_planning_model_client: ChatCompletionClient,
         language: str = "en",
+        max_runs_per_step: int = 5,
     ):
         super().__init__(
             participants,
@@ -77,6 +78,7 @@ class PlanningGroupChat(BaseGroupChat):
         )
         self._single_group_planning_model_client = single_group_planning_model_client
         self._language = language
+        self._max_runs_per_step = max_runs_per_step
 
     async def _init(self, runtime: AgentRuntime) -> None:
         # Constants for the group chat manager.
@@ -166,6 +168,7 @@ class PlanningGroupChat(BaseGroupChat):
         ],
         termination_condition: TerminationCondition | None,
         max_turns: int | None,
+        max_runs_per_step: int = 5,
     ) -> Callable[[], PlanningOrchestrator]:
         return lambda: PlanningOrchestrator(
             name=name,
@@ -190,6 +193,7 @@ class PlanningGroupChat(BaseGroupChat):
             template_based_planning_model_client=self._template_based_planning_model_client,
             single_group_planning_model_client=self._single_group_planning_model_client,
             language=self._language,
+            max_runs_per_step=max_runs_per_step,
         )
 
     def set_language(self, language: str) -> None:

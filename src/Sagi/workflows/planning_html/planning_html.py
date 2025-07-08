@@ -1,6 +1,5 @@
 import os
 from contextlib import AsyncExitStack
-from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Type, TypeVar
 
 from autogen_agentchat.agents import AssistantAgent
@@ -16,7 +15,6 @@ from mcp import ClientSession
 from pydantic import BaseModel
 
 from Sagi.tools.web_search_agent import WebSearchAgent
-from Sagi.utils.json_handler import get_template_num
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.utils.prompt import (
     get_domain_specific_agent_prompt,
@@ -34,6 +32,7 @@ LANGUAGE_MAP = {
     "en": "English",
     "cn": "Chinese",
 }
+DEFAULT_MAX_RUNS_PER_STEP = os.getenv("DEFAULT_MAX_RUNS_PER_STEP", 5)
 
 
 class Slide(BaseModel):
@@ -121,10 +120,8 @@ class PlanningHtmlWorkflow:
     code_model_client: OpenAIChatCompletionClient
     single_tool_use_model_client: OpenAIChatCompletionClient
     planning_model_client: OpenAIChatCompletionClient
-    template_based_planning_model_client: OpenAIChatCompletionClient
     single_group_planning_model_client: OpenAIChatCompletionClient
     html_generator_model_client: AnthropicChatCompletionClient
-    template_selection_model_client: OpenAIChatCompletionClient
     web_search: ClientSession
     session_manager: MCPSessionManager
     team: PlanningHtmlGroupChat
@@ -134,7 +131,6 @@ class PlanningHtmlWorkflow:
         cls,
         config_path: str,
         team_config_path: str,
-        template_work_dir: str | None = None,
         language: str = "en",
     ):
         self = cls()
@@ -189,13 +185,6 @@ class PlanningHtmlWorkflow:
             config_planning_client, response_format=PlanningHtmlResponse
         )
 
-        # Initialize template based planning client using the same config as planning client
-        self.template_based_planning_model_client = (
-            ModelClientFactory.create_model_client(
-                config_planning_client, response_format=HighLevelPlanPPT
-            )
-        )
-
         # Initialize single group planning client using the same config as planning client
         self.single_group_planning_model_client = (
             ModelClientFactory.create_model_client(
@@ -217,24 +206,6 @@ class PlanningHtmlWorkflow:
             ),
             max_tokens=config_html_generator_client["max_tokens"],
         )
-
-        # Initialize template selection client if template_work_dir is provided
-        if template_work_dir is not None:
-            template_num = get_template_num(
-                os.path.join(template_work_dir, "slide_induction.json")
-            )
-
-            template_choices = [f"template_{i}" for i in range(1, template_num + 1)]
-            TemplateList = Enum("TemplateList", template_choices)
-
-            class TemplateSelection(BaseModel):
-                template_id: TemplateList
-
-            self.template_selection_model_client = (
-                ModelClientFactory.create_model_client(
-                    config_planning_client, response_format=TemplateSelection
-                )
-            )
 
         self.session_manager = MCPSessionManager()
 
@@ -349,15 +320,9 @@ class PlanningHtmlWorkflow:
             reflection_model_client=self.reflection_model_client,
             domain_specific_agent=domain_specific_agent,  # Add this parameter
             step_triage_model_client=self.step_triage_model_client,
-            template_based_planning_model_client=self.template_based_planning_model_client,
-            template_selection_model_client=(
-                self.template_selection_model_client
-                if template_work_dir is not None
-                else None
-            ),
             single_group_planning_model_client=self.single_group_planning_model_client,
-            template_work_dir=template_work_dir,  # Add template work directory parameter
             language=language,
+            max_runs_per_step=DEFAULT_MAX_RUNS_PER_STEP,
         )
         return self
 
