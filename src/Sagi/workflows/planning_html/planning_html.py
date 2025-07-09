@@ -1,11 +1,10 @@
 import os
 from contextlib import AsyncExitStack
-from enum import Enum
-from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Type, TypeVar
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ModelFamily, ModelInfo
+from autogen_ext.models.anthropic import AnthropicChatCompletionClient
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import (
     StdioServerParams,
@@ -15,31 +14,24 @@ from autogen_ext.tools.mcp import (
 from mcp import ClientSession
 from pydantic import BaseModel
 
-from Sagi.tools.stream_code_executor.stream_code_executor_agent import (
-    StreamCodeExecutorAgent,
-)
-from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor import (
-    StreamDockerCommandLineCodeExecutor,
-)
 from Sagi.tools.web_search_agent import WebSearchAgent
-from Sagi.utils.json_handler import get_template_num
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.utils.prompt import (
-    get_code_executor_prompt,
-    get_code_executor_prompt_cn,
     get_domain_specific_agent_prompt,
     get_domain_specific_agent_prompt_cn,
     get_general_agent_prompt,
     get_general_agent_prompt_cn,
-    get_rag_agent_prompt,
-    get_rag_agent_prompt_cn,
 )
-from Sagi.workflows.planning.planning_group_chat import PlanningGroupChat
+from Sagi.workflows.planning_html.planning_html_group_chat import PlanningHtmlGroupChat
 
 DEFAULT_WORK_DIR = "coding_files"
 DEFAULT_MCP_SERVER_PATH = "src/Sagi/mcp_server/"
 DEFAULT_WEB_SEARCH_MAX_RETRIES = 3
 DEFAULT_CODE_MAX_RETRIES = 3
+LANGUAGE_MAP = {
+    "en": "English",
+    "cn": "Chinese",
+}
 DEFAULT_MAX_RUNS_PER_STEP = os.getenv("DEFAULT_MAX_RUNS_PER_STEP", 5)
 
 
@@ -56,10 +48,9 @@ class Task(BaseModel):
     name: str
     description: str
     data_collection_task: Optional[str] = None
-    code_executor_task: Optional[str] = None
 
 
-class PlanningResponse(BaseModel):
+class PlanningHtmlResponse(BaseModel):
     tasks: List[Task]
 
 
@@ -119,34 +110,28 @@ class ModelClientFactory:
         if parallel_tool_calls is not None:
             client_kwargs["parallel_tool_calls"] = parallel_tool_calls
 
-        if "default_headers" in client_config:
-            client_kwargs["default_headers"] = client_config["default_headers"]
-
         return OpenAIChatCompletionClient(**client_kwargs)
 
 
-class PlanningWorkflow:
+class PlanningHtmlWorkflow:
     orchestrator_model_client: OpenAIChatCompletionClient
     reflection_model_client: OpenAIChatCompletionClient
     step_triage_model_client: OpenAIChatCompletionClient
     code_model_client: OpenAIChatCompletionClient
     single_tool_use_model_client: OpenAIChatCompletionClient
     planning_model_client: OpenAIChatCompletionClient
-    template_based_planning_model_client: OpenAIChatCompletionClient
     single_group_planning_model_client: OpenAIChatCompletionClient
-    template_selection_model_client: OpenAIChatCompletionClient
+    html_generator_model_client: AnthropicChatCompletionClient
     web_search: ClientSession
     session_manager: MCPSessionManager
-    team: PlanningGroupChat
+    team: PlanningHtmlGroupChat
 
     @classmethod
     async def create(
         cls,
         config_path: str,
         team_config_path: str,
-        template_work_dir: str | None = None,
         language: str = "en",
-        countdown_timer: int = 60,  # time before the docker container is stopped
     ):
         self = cls()
 
@@ -197,14 +182,7 @@ class PlanningWorkflow:
 
         config_planning_client = config["model_clients"]["planning_client"]
         self.planning_model_client = ModelClientFactory.create_model_client(
-            config_planning_client, response_format=PlanningResponse
-        )
-
-        # Initialize template based planning client using the same config as planning client
-        self.template_based_planning_model_client = (
-            ModelClientFactory.create_model_client(
-                config_planning_client, response_format=HighLevelPlanPPT
-            )
+            config_planning_client, response_format=PlanningHtmlResponse
         )
 
         # Initialize single group planning client using the same config as planning client
@@ -214,29 +192,26 @@ class PlanningWorkflow:
             )
         )
 
-        # Initialize template selection client if template_work_dir is provided
-        if template_work_dir is not None:
-            template_num = get_template_num(
-                os.path.join(template_work_dir, "slide_induction.json")
-            )
-
-            template_choices = [f"template_{i}" for i in range(1, template_num + 1)]
-            TemplateList = Enum("TemplateList", template_choices)
-
-            class TemplateSelection(BaseModel):
-                template_id: TemplateList
-
-            self.template_selection_model_client = (
-                ModelClientFactory.create_model_client(
-                    config_planning_client, response_format=TemplateSelection
-                )
-            )
+        config_html_generator_client = config["model_clients"]["html_generator_client"]
+        self.html_generator_model_client = AnthropicChatCompletionClient(
+            model=config_html_generator_client["model"],
+            auth_token=config_html_generator_client["auth_token"],
+            base_url=config_html_generator_client["base_url"],
+            model_info=ModelInfo(
+                vision=True,
+                function_calling=True,
+                json_output=False,
+                family="unknown",
+                structured_output=True,
+            ),
+            max_tokens=config_html_generator_client["max_tokens"],
+        )
 
         self.session_manager = MCPSessionManager()
 
         web_search_server_params = StdioServerParams(
             command="npx",
-            args=["-y", "@modelcontextprotocol/server-brave-search"],
+            args=["-y", "brave-search-mcp"],
             env={"BRAVE_API_KEY": os.getenv("BRAVE_API_KEY")},
         )
 
@@ -247,6 +222,11 @@ class PlanningWorkflow:
         web_search_tools = await mcp_server_tools(
             web_search_server_params, session=self.web_search
         )
+        web_search_tools = [
+            tool
+            for tool in web_search_tools
+            if tool.name in ["brave_web_search", "brave_news_search"]
+        ]
 
         # set env MCP_SERVER_PATH, default is "src/Sagi/mcp_server/"
         mcp_server_path = os.getenv("MCP_SERVER_PATH", DEFAULT_MCP_SERVER_PATH)
@@ -263,41 +243,6 @@ class PlanningWorkflow:
             ],
         )
         domain_specific_tools = await mcp_server_tools(prompt_server_params)
-
-        hirag_server_params = StdioServerParams(
-            command="mcp-hirag-tool",
-            args=[],
-            read_timeout_seconds=100,
-            env={
-                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
-                "OPENAI_BASE_URL": os.getenv("OPENAI_BASE_URL"),
-                "VOYAGE_API_KEY": os.getenv("VOYAGE_API_KEY"),
-                "DOC2X_API_KEY": os.getenv("DOC2X_API_KEY"),
-            },
-        )
-
-        self.hirag_retrival = await self.session_manager.create_session(
-            "hirag_retrival", create_mcp_server_session(hirag_server_params)
-        )
-        await self.hirag_retrival.initialize()
-        hirag_retrival_tools = await mcp_server_tools(
-            hirag_server_params, session=self.hirag_retrival
-        )
-        hirag_retrival_tools = [
-            tool for tool in hirag_retrival_tools if tool.name == "hi_search"
-        ]
-
-        rag_agent = AssistantAgent(
-            name="retrieval_agent",
-            description="a retrieval agent that provides relevant information from the internal database.",
-            model_client=self.single_tool_use_model_client,
-            tools=hirag_retrival_tools,
-            system_message=(
-                get_rag_agent_prompt()
-                if language == "en"
-                else get_rag_agent_prompt_cn()
-            ),
-        )
 
         # for new feat: domain specific prompt
         domain_specific_agent = AssistantAgent(
@@ -330,40 +275,36 @@ class PlanningWorkflow:
             tools=web_search_tools,  # type: ignore
             max_retries=DEFAULT_WEB_SEARCH_MAX_RETRIES,
         )
-        work_dir = Path(
-            DEFAULT_WORK_DIR
-        )  # the output directory for code generation execution
 
-        # stream_code_executor=StreamLocalCommandLineCodeExecutor(work_dir=work_dir)
-        stream_code_executor = StreamDockerCommandLineCodeExecutor(
-            work_dir=work_dir,
-            bind_dir=(
-                os.getenv("HOST_PATH") + "/" + str(work_dir)
-                if os.getenv("ENVIRONMENT") == "docker"
-                else work_dir
-            ),
-        )
+        html_generator = AssistantAgent(
+            name="html_generator",
+            model_client=self.html_generator_model_client,
+            description="a html generator agent that can generate html code.",
+            system_message=f"""You are a html magazine generator agent that can generate html/css code. 
+            You can use Tailwind CSS to style the html page. You should use chart.js to create the charts.
+            Use {language} as the language of the content in the html page.
 
-        code_executor = StreamCodeExecutorAgent(
-            name="CodeExecutor",
-            description="a code executor agent that can generate and execute Python and shell scripts to assist in code based tasks such as generating files, appending files, calculating data, etc.",
-            system_message=(
-                get_code_executor_prompt()
-                if language == "en"
-                else get_code_executor_prompt_cn()
+            MANDATORY RULES (prevents infinite stretching):
+            1. Canvas elements must NEVER have width/height attributes
+            2. Charts must be wrapped in divs with fixed height (e.g., height: 300px)
+            3. Chart.js responsive: true requires maintainAspectRatio: false
+            4. Chart containers need: position: relative; height: [specific value]; width: 100%;
+
+            BAD: <canvas width="400" height="200"></canvas>
+            GOOD: <div style="position:relative;height:300px;width:100%;"><canvas></canvas></div>
+
+            Always test that your HTML won't cause infinite vertical stretching.
+                
+            """.format(
+                language=LANGUAGE_MAP[language]
             ),
-            stream_code_executor=stream_code_executor,
-            model_client=self.code_model_client,
-            max_retries_on_error=DEFAULT_CODE_MAX_RETRIES,
-            countdown_timer=countdown_timer,  # time before the docker container is stopped
         )
 
         # mapping of team member names to their agent instances
         agent_mapping: Dict[str, Any] = {
             "web_search": surfer,
-            "CodeExecutor": code_executor,
             "general_agent": general_agent,
-            "retrieval_agent": rag_agent,
+            "html_generator": html_generator,
         }
 
         participants = []
@@ -372,21 +313,14 @@ class PlanningWorkflow:
                 participants.append(agent_mapping[member])
 
         # Pass prompt_template_agent as a separate parameter
-        self.team = PlanningGroupChat(
+        self.team = PlanningHtmlGroupChat(
             participants=participants,
             orchestrator_model_client=self.orchestrator_model_client,
             planning_model_client=self.planning_model_client,
             reflection_model_client=self.reflection_model_client,
             domain_specific_agent=domain_specific_agent,  # Add this parameter
             step_triage_model_client=self.step_triage_model_client,
-            template_based_planning_model_client=self.template_based_planning_model_client,
-            template_selection_model_client=(
-                self.template_selection_model_client
-                if template_work_dir is not None
-                else None
-            ),
             single_group_planning_model_client=self.single_group_planning_model_client,
-            template_work_dir=template_work_dir,  # Add template work directory parameter
             language=language,
             max_runs_per_step=DEFAULT_MAX_RUNS_PER_STEP,
         )

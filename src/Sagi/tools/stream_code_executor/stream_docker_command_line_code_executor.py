@@ -214,10 +214,14 @@ class StreamDockerCommandLineCodeExecutor(
         hostname = self._container.id[:12]  # 12 chars of container id as the hostname
         user = "root"
         pwd = "workspace"
+        if filename is not None:
+            code_file = filename
+        else:
+            code_file = ""
         yield CustomCommandLineCodeResult(
             exit_code=last_exit_code,
             output="".join(outputs),
-            code_file=filename,
+            code_file=code_file,
             command=" ".join(command),
             hostname=hostname,
             user=user,

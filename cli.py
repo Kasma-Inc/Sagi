@@ -18,14 +18,17 @@ from opentelemetry.semconv.resource import ResourceAttributes
 from Sagi.utils.logging_utils import setup_logging
 from Sagi.workflows.general.general_chat import GeneralChatWorkflow
 from Sagi.workflows.planning.planning import PlanningWorkflow
+from Sagi.workflows.planning_html.planning_html import PlanningHtmlWorkflow
 
 # Create logging directory if it doesn't exist
 os.makedirs("logging", exist_ok=True)
 setup_logging()
 
-DEFAULT_TEAM_CONFIG_PATH = "src/Sagi/workflows/team.toml"
-DEFAULT_PLANNING_CONFIG_PATH = "src/Sagi/workflows/planning/planning.toml"
-DEFAULT_GENERAL_CONFIG_PATH = "src/Sagi/workflows/general/general.toml"
+DEFAULT_TEAM_CONFIG_PATH = "src/Sagi/workflows/planning/team.toml"
+DEFAULT_PLANNING_CONFIG_PATH = "src/Sagi/workflows/planning/config.toml"
+DEFAULT_GENERAL_CONFIG_PATH = "src/Sagi/workflows/general/config.toml"
+DEFAULT_PLANNING_HTML_CONFIG_PATH = "src/Sagi/workflows/planning_html/config.toml"
+DEFAULT_TEAM_PLANNING_HTML_CONFIG_PATH = "src/Sagi/workflows/planning_html/team.toml"
 
 
 def parse_args():
@@ -34,6 +37,9 @@ def parse_args():
     parser.add_argument("--planning_config", default=DEFAULT_PLANNING_CONFIG_PATH)
     parser.add_argument("--general_config", default=DEFAULT_GENERAL_CONFIG_PATH)
     parser.add_argument("--team_config", default=DEFAULT_TEAM_CONFIG_PATH)
+    parser.add_argument(
+        "--team_html_config", default=DEFAULT_TEAM_PLANNING_HTML_CONFIG_PATH
+    )
     parser.add_argument(
         "--trace", action="store_true", help="Enable OpenTelemetry tracing"
     )
@@ -67,9 +73,14 @@ def parse_args():
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["deep_research", "general", "web_search"],
-        default="deep_research",
-        help="Operation mode: deep_research (full functionality), general (general agent only), or web_search (web search only)",
+        choices=[
+            "deep_research_executor",
+            "general",
+            "web_search",
+            "deep_research_html",
+        ],
+        default="deep_research_executor",
+        help="Operation mode: deep_research_executor (deep research with code executor), general (general agent only), web_search (web search only), deep_research_html (deep research with html generator)",
     )
 
     parser.add_argument(
@@ -79,6 +90,12 @@ def parse_args():
         default="en",
         help="Language: en (English), cn (Chinese)",
     )
+    parser.add_argument(
+        "--planning_html_config",
+        type=str,
+        default=DEFAULT_PLANNING_HTML_CONFIG_PATH,
+        help="Specify the planning html config path",
+    )
     return parser.parse_args()
 
 
@@ -86,7 +103,7 @@ def parse_args():
 load_dotenv(override=True)
 
 
-def setup_tracing(endpoint: str = None, service_name: str = None):
+def setup_tracing(endpoint: str, service_name: str):
     """Setup OpenTelemetry tracing based on args."""
 
     try:
@@ -133,7 +150,7 @@ async def get_input_async():
 
 async def main_cmd(args: argparse.Namespace):
     chat_id = str(uuid.uuid4())
-    if args.mode == "deep_research":
+    if args.mode == "deep_research_executor":
         workflow = await PlanningWorkflow.create(
             args.planning_config,
             args.team_config,
@@ -150,6 +167,12 @@ async def main_cmd(args: argparse.Namespace):
         workflow = await GeneralChatWorkflow.create(
             args.general_config,
             web_search=True,
+        )
+    elif args.mode == "deep_research_html":
+        workflow = await PlanningHtmlWorkflow.create(
+            args.planning_html_config,
+            args.team_html_config,
+            language=args.language,
         )
     else:
         raise ValueError(f"Invalid mode: {args.mode}")

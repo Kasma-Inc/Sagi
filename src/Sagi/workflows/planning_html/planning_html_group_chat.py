@@ -15,17 +15,19 @@ from pydantic import Field
 from Sagi.tools.stream_code_executor.stream_code_executor_agent import (
     StreamCodeExecutorAgent,
 )
-from Sagi.workflows.planning.planning_orchestrator import PlanningOrchestrator
+from Sagi.workflows.planning_html.planning_html_orchestrator import (
+    PlanningHtmlOrchestrator,
+)
 
 
-class PlanningChatState(TeamState):
+class PlanningHtmlChatState(TeamState):
     """State for a team of agents."""
 
     agent_states: Mapping[str, Any] = Field(default_factory=dict)
-    type: str = Field(default="PlanningChatState")
+    type: str = Field(default="PlanningHtmlChatState")
 
 
-class PlanningGroupChat(BaseGroupChat):
+class PlanningHtmlGroupChat(BaseGroupChat):
     def __init__(
         self,
         participants: List[ChatAgent],
@@ -40,17 +42,14 @@ class PlanningGroupChat(BaseGroupChat):
         domain_specific_agent: (
             AssistantAgent | None
         ) = None,  # for new feat: domain specific prompt
-        template_work_dir: str | None = None,  # for template working directory
-        template_selection_model_client: ChatCompletionClient,
-        template_based_planning_model_client: ChatCompletionClient,
         single_group_planning_model_client: ChatCompletionClient,
         language: str = "en",
         max_runs_per_step: int = 5,
     ):
         super().__init__(
             participants,
-            group_chat_manager_name="PlanningOrchestrator",
-            group_chat_manager_class=PlanningOrchestrator,
+            group_chat_manager_name="PlanningHtmlOrchestrator",
+            group_chat_manager_class=PlanningHtmlOrchestrator,
             termination_condition=termination_condition,
             max_turns=max_turns,
             runtime=runtime,
@@ -59,7 +58,7 @@ class PlanningGroupChat(BaseGroupChat):
         # Validate the participants.
         if len(participants) == 0:
             raise ValueError(
-                "At least one participant is required for PlanningGroupChat."
+                "At least one participant is required for PlanningHtmlGroupChat."
             )
         # Initialize the model clients.
         self._orchestrator_model_client = orchestrator_model_client
@@ -70,11 +69,6 @@ class PlanningGroupChat(BaseGroupChat):
         self._step_triage_model_client = step_triage_model_client
         self._domain_specific_agent = (
             domain_specific_agent  # for new feat: domain specific prompt
-        )
-        self._template_work_dir = template_work_dir  # for template working directory
-        self._template_selection_model_client = template_selection_model_client
-        self._template_based_planning_model_client = (
-            template_based_planning_model_client
         )
         self._single_group_planning_model_client = single_group_planning_model_client
         self._language = language
@@ -169,8 +163,8 @@ class PlanningGroupChat(BaseGroupChat):
         termination_condition: TerminationCondition | None,
         max_turns: int | None,
         max_runs_per_step: int = 5,
-    ) -> Callable[[], PlanningOrchestrator]:
-        return lambda: PlanningOrchestrator(
+    ) -> Callable[[], PlanningHtmlOrchestrator]:
+        return lambda: PlanningHtmlOrchestrator(
             name=name,
             group_topic_type=group_topic_type,
             output_topic_type=output_topic_type,
@@ -188,9 +182,6 @@ class PlanningGroupChat(BaseGroupChat):
             reflection_model_client=self._reflection_model_client,  # for new feat: reflection
             step_triage_model_client=self._step_triage_model_client,
             domain_specific_agent=self._domain_specific_agent,  # for new feat: domain specific prompt
-            template_work_dir=self._template_work_dir,  # for template working directory
-            template_selection_model_client=self._template_selection_model_client,
-            template_based_planning_model_client=self._template_based_planning_model_client,
             single_group_planning_model_client=self._single_group_planning_model_client,
             language=self._language,
             max_runs_per_step=max_runs_per_step,
@@ -199,15 +190,17 @@ class PlanningGroupChat(BaseGroupChat):
     def set_language(self, language: str) -> None:
         self._language = language
 
-    async def set_id_info(self, user_id: str, chat_id: str) -> None:
+    async def load_chat_id(self, chat_id: str) -> None:
         for participant in self._participants:
             if isinstance(participant, StreamCodeExecutorAgent):
-                participant.user_id = user_id
                 participant.chat_id = chat_id
 
     async def save_state(self) -> Mapping[str, Any]:
         base_state = await super().save_state()
-        state = PlanningChatState(
+        state = PlanningHtmlChatState(
             agent_states=base_state["agent_states"],
         )
         return state.model_dump()
+
+    async def set_id_info(self, user_id: str, chat_id: str) -> None:
+        pass

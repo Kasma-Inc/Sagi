@@ -1,5 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 from prompt_template import (
+    FINANCIAL_MAGAZINE_PLAN_PROMPT,
     FINANCIAL_PPT_FACTS_PROMPT,
     FINANCIAL_PPT_FACTS_PROMPT_CN,
     FINANCIAL_PPT_PLAN_PROMPT,
@@ -34,6 +35,10 @@ PROMPT_TEMPLATES = {
     "general-report": {
         "facts_prompt": GENERAL_FACTS_PROMPT,
         "plan_prompt": GENERAL_REPORT_PLAN_PROMPT,
+    },
+    "financial-magazine": {
+        "facts_prompt": GENERAL_FACTS_PROMPT,
+        "plan_prompt": FINANCIAL_MAGAZINE_PLAN_PROMPT,
     },
 }
 
@@ -91,6 +96,14 @@ async def get_report_plan() -> str:
     Get General Report prompt templates for creating brilliant reports.
     """
     return PROMPT_TEMPLATES["general-report"]
+
+
+@mcp.tool()
+async def get_financial_magazine_prompts() -> str:
+    """
+    Get Financial Magazine prompt templates for creating brilliant financial magazines.
+    """
+    return PROMPT_TEMPLATES["financial-magazine"]
 
 
 @mcp.tool()
