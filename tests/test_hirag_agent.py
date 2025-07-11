@@ -41,22 +41,22 @@ async def test_hirag_agent():
         },
     )
 
-    hirag_retrival = await session_manager.create_session(
-        "hirag_retrival", create_mcp_server_session(hirag_server_params)
+    hirag_retrieval = await session_manager.create_session(
+        "hirag_retrieval", create_mcp_server_session(hirag_server_params)
     )
-    await hirag_retrival.initialize()
-    hirag_retrival_tools = await mcp_server_tools(
-        hirag_server_params, session=hirag_retrival
+    await hirag_retrieval.initialize()
+    hirag_retrieval_tools = await mcp_server_tools(
+        hirag_server_params, session=hirag_retrieval
     )
-    hirag_retrival_tools = [
-        tool for tool in hirag_retrival_tools if tool.name == "hi_search"
+    hirag_retrieval_tools = [
+        tool for tool in hirag_retrieval_tools if tool.name == "hi_search"
     ]
 
     rag_agent = AssistantAgent(
         name="retrieval_agent",
         description="a retrieval agent that provides relevant information from the internal database.",
         model_client=model_client,
-        tools=hirag_retrival_tools,  # type: ignore
+        tools=hirag_retrieval_tools,  # type: ignore
         system_message="You are a information retrieval agent that provides relevant information from the internal database.",
     )
     result = await rag_agent.run(
@@ -220,22 +220,22 @@ async def test_hirag_agent_parse():
         },
     )
 
-    hirag_retrival = await session_manager.create_session(
-        "hirag_retrival", create_mcp_server_session(hirag_server_params)
+    hirag_retrieval = await session_manager.create_session(
+        "hirag_retrieval", create_mcp_server_session(hirag_server_params)
     )
-    await hirag_retrival.initialize()
-    hirag_retrival_tools = await mcp_server_tools(
-        hirag_server_params, session=hirag_retrival
+    await hirag_retrieval.initialize()
+    hirag_retrieval_tools = await mcp_server_tools(
+        hirag_server_params, session=hirag_retrieval
     )
-    hirag_retrival_tools = [
-        tool for tool in hirag_retrival_tools if tool.name == "hi_search"
+    hirag_retrieval_tools = [
+        tool for tool in hirag_retrieval_tools if tool.name == "hi_search"
     ]
 
     rag_agent = AssistantAgent(
         name="retrieval_agent",
         description="a retrieval agent that provides relevant information from the internal database.",
         model_client=model_client,
-        tools=hirag_retrival_tools,  # type: ignore
+        tools=hirag_retrieval_tools,  # type: ignore
         system_message="You are a information retrieval agent that provides relevant information from the internal database.",
     )
     result = await rag_agent.run(

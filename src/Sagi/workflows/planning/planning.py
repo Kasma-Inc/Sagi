@@ -246,20 +246,20 @@ class PlanningWorkflow:
             # Use shared MCP tools from GlobalResourceManager
             web_search_tools = external_mcp_tools.get("web_search", [])
             domain_specific_tools = external_mcp_tools.get("domain_specific", [])
-            hirag_retrival_tools = external_mcp_tools.get("hirag_retrieval", [])
+            hirag_retrieval_tools = external_mcp_tools.get("hirag_retrieval", [])
             
             # Filter HiRAG tools to only include hi_search
-            hirag_retrival_tools = [
-                tool for tool in hirag_retrival_tools if tool.name == "hi_search"
+            hirag_retrieval_tools = [
+                tool for tool in hirag_retrieval_tools if tool.name == "hi_search"
             ]
             
             # Initialize session manager for compatibility but don't create new sessions
             self.session_manager = MCPSessionManager()
             self.web_search = None  # Not needed when using external tools
-            self.hirag_retrival = None  # Not needed when using external tools
+            self.hirag_retrieval = None  # Not needed when using external tools
             
             # Debug: Log tool availability
-            logging.info(f"🔧 [WORKFLOW] Using external MCP tools - web_search: {len(web_search_tools)}, domain_specific: {len(domain_specific_tools)}, hirag: {len(hirag_retrival_tools)}")
+            logging.info(f"🔧 [WORKFLOW] Using external MCP tools - web_search: {len(web_search_tools)}, domain_specific: {len(domain_specific_tools)}, hirag: {len(hirag_retrieval_tools)}")
             
         else:
             # Fallback to creating own MCP sessions (backward compatibility)
@@ -307,25 +307,25 @@ class PlanningWorkflow:
                 },
             )
 
-            self.hirag_retrival = await self.session_manager.create_session(
-                "hirag_retrival", create_mcp_server_session(hirag_server_params)
+            self.hirag_retrieval = await self.session_manager.create_session(
+                "hirag_retrieval", create_mcp_server_session(hirag_server_params)
             )
-            await self.hirag_retrival.initialize()
-            hirag_retrival_tools = await mcp_server_tools(
-                hirag_server_params, session=self.hirag_retrival
+            await self.hirag_retrieval.initialize()
+            hirag_retrieval_tools = await mcp_server_tools(
+                hirag_server_params, session=self.hirag_retrieval
             )
-            hirag_retrival_tools = [
-                tool for tool in hirag_retrival_tools if tool.name == "hi_search"
+            hirag_retrieval_tools = [
+                tool for tool in hirag_retrieval_tools if tool.name == "hi_search"
             ]
             
             # Debug: Log tool availability  
-            logging.info(f"🔧 [WORKFLOW] Using own MCP sessions - web_search: {len(web_search_tools)}, domain_specific: {len(domain_specific_tools)}, hirag: {len(hirag_retrival_tools)}")
+            logging.info(f"🔧 [WORKFLOW] Using own MCP sessions - web_search: {len(web_search_tools)}, domain_specific: {len(domain_specific_tools)}, hirag: {len(hirag_retrieval_tools)}")
 
         rag_agent = AssistantAgent(
             name="retrieval_agent",
             description="a retrieval agent that provides relevant information from the internal database.",
             model_client=self.single_tool_use_model_client,
-            tools=hirag_retrival_tools,
+            tools=hirag_retrieval_tools,
             system_message=(
                 get_rag_agent_prompt()
                 if language == "en"
