@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 from contextlib import AsyncExitStack
 from enum import Enum
 from pathlib import Path
@@ -148,7 +148,9 @@ class PlanningWorkflow:
         template_work_dir: str | None = None,
         language: str = "en",
         countdown_timer: int = 60,  # time before the docker container is stopped
-        external_mcp_tools: Optional[Dict[str, List[Any]]] = None,  # Shared MCP tools from GlobalResourceManager
+        external_mcp_tools: Optional[
+            Dict[str, List[Any]]
+        ] = None,  # Shared MCP tools from GlobalResourceManager
     ):
         self = cls()
 
@@ -191,7 +193,9 @@ class PlanningWorkflow:
             "single_tool_use_client"
         ]
         # Only set parallel_tool_calls if it's True and tools will be available
-        parallel_tool_calls_setting = config_single_tool_use_client.get("parallel_tool_calls")
+        parallel_tool_calls_setting = config_single_tool_use_client.get(
+            "parallel_tool_calls"
+        )
         if parallel_tool_calls_setting is True:
             # Only pass parallel_tool_calls=True if we expect to use tools
             self.single_tool_use_model_client = ModelClientFactory.create_model_client(
@@ -247,20 +251,22 @@ class PlanningWorkflow:
             web_search_tools = external_mcp_tools.get("web_search", [])
             domain_specific_tools = external_mcp_tools.get("domain_specific", [])
             hirag_retrieval_tools = external_mcp_tools.get("hirag_retrieval", [])
-            
+
             # Filter HiRAG tools to only include hi_search
             hirag_retrieval_tools = [
                 tool for tool in hirag_retrieval_tools if tool.name == "hi_search"
             ]
-            
+
             # Initialize session manager for compatibility but don't create new sessions
             self.session_manager = MCPSessionManager()
             self.web_search = None  # Not needed when using external tools
             self.hirag_retrieval = None  # Not needed when using external tools
-            
+
             # Debug: Log tool availability
-            logging.info(f"🔧 [WORKFLOW] Using external MCP tools - web_search: {len(web_search_tools)}, domain_specific: {len(domain_specific_tools)}, hirag: {len(hirag_retrieval_tools)}")
-            
+            logging.info(
+                f"🔧 [WORKFLOW] Using external MCP tools - web_search: {len(web_search_tools)}, domain_specific: {len(domain_specific_tools)}, hirag: {len(hirag_retrieval_tools)}"
+            )
+
         else:
             # Fallback to creating own MCP sessions (backward compatibility)
             self.session_manager = MCPSessionManager()
@@ -317,9 +323,11 @@ class PlanningWorkflow:
             hirag_retrieval_tools = [
                 tool for tool in hirag_retrieval_tools if tool.name == "hi_search"
             ]
-            
-            # Debug: Log tool availability  
-            logging.info(f"🔧 [WORKFLOW] Using own MCP sessions - web_search: {len(web_search_tools)}, domain_specific: {len(domain_specific_tools)}, hirag: {len(hirag_retrieval_tools)}")
+
+            # Debug: Log tool availability
+            logging.info(
+                f"🔧 [WORKFLOW] Using own MCP sessions - web_search: {len(web_search_tools)}, domain_specific: {len(domain_specific_tools)}, hirag: {len(hirag_retrieval_tools)}"
+            )
 
         rag_agent = AssistantAgent(
             name="retrieval_agent",
@@ -337,16 +345,20 @@ class PlanningWorkflow:
         domain_specific_agent = AssistantAgent(
             name="prompt_template_expert",
             model_client=self.single_tool_use_model_client,
-            tools=domain_specific_tools if domain_specific_tools else [],  # Ensure tools is never None
+            tools=(
+                domain_specific_tools if domain_specific_tools else []
+            ),  # Ensure tools is never None
             system_message=(
                 get_domain_specific_agent_prompt()
                 if language == "en"
                 else get_domain_specific_agent_prompt_cn()
             ),
         )
-        
+
         # Debug: Log domain specific agent configuration
-        logging.info(f"🔧 [WORKFLOW] Domain specific agent created with {len(domain_specific_tools) if domain_specific_tools else 0} tools")
+        logging.info(
+            f"🔧 [WORKFLOW] Domain specific agent created with {len(domain_specific_tools) if domain_specific_tools else 0} tools"
+        )
 
         general_agent = AssistantAgent(
             name="general_agent",
