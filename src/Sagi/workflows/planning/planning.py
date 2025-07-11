@@ -1,4 +1,5 @@
 import os
+import logging
 from contextlib import AsyncExitStack
 from enum import Enum
 from pathlib import Path
@@ -147,6 +148,7 @@ class PlanningWorkflow:
         template_work_dir: str | None = None,
         language: str = "en",
         countdown_timer: int = 60,  # time before the docker container is stopped
+        external_mcp_tools: Optional[Dict[str, List[Any]]] = None,  # Shared MCP tools from GlobalResourceManager
     ):
         self = cls()
 
@@ -188,12 +190,19 @@ class PlanningWorkflow:
         config_single_tool_use_client = config["model_clients"][
             "single_tool_use_client"
         ]
-        self.single_tool_use_model_client = ModelClientFactory.create_model_client(
-            config_single_tool_use_client,
-            parallel_tool_calls=config_single_tool_use_client.get(
-                "parallel_tool_calls"
-            ),
-        )
+        # Only set parallel_tool_calls if it's True and tools will be available
+        parallel_tool_calls_setting = config_single_tool_use_client.get("parallel_tool_calls")
+        if parallel_tool_calls_setting is True:
+            # Only pass parallel_tool_calls=True if we expect to use tools
+            self.single_tool_use_model_client = ModelClientFactory.create_model_client(
+                config_single_tool_use_client,
+                parallel_tool_calls=True,
+            )
+        else:
+            # Don't set parallel_tool_calls to avoid OpenAI API errors when no tools
+            self.single_tool_use_model_client = ModelClientFactory.create_model_client(
+                config_single_tool_use_client,
+            )
 
         config_planning_client = config["model_clients"]["planning_client"]
         self.planning_model_client = ModelClientFactory.create_model_client(
@@ -232,60 +241,85 @@ class PlanningWorkflow:
                 )
             )
 
-        self.session_manager = MCPSessionManager()
+        # MCP Tools initialization - use external tools if provided, otherwise create own sessions
+        if external_mcp_tools:
+            # Use shared MCP tools from GlobalResourceManager
+            web_search_tools = external_mcp_tools.get("web_search", [])
+            domain_specific_tools = external_mcp_tools.get("domain_specific", [])
+            hirag_retrival_tools = external_mcp_tools.get("hirag_retrieval", [])
+            
+            # Filter HiRAG tools to only include hi_search
+            hirag_retrival_tools = [
+                tool for tool in hirag_retrival_tools if tool.name == "hi_search"
+            ]
+            
+            # Initialize session manager for compatibility but don't create new sessions
+            self.session_manager = MCPSessionManager()
+            self.web_search = None  # Not needed when using external tools
+            self.hirag_retrival = None  # Not needed when using external tools
+            
+            # Debug: Log tool availability
+            logging.info(f"🔧 [WORKFLOW] Using external MCP tools - web_search: {len(web_search_tools)}, domain_specific: {len(domain_specific_tools)}, hirag: {len(hirag_retrival_tools)}")
+            
+        else:
+            # Fallback to creating own MCP sessions (backward compatibility)
+            self.session_manager = MCPSessionManager()
 
-        web_search_server_params = StdioServerParams(
-            command="npx",
-            args=["-y", "@modelcontextprotocol/server-brave-search"],
-            env={"BRAVE_API_KEY": os.getenv("BRAVE_API_KEY")},
-        )
+            web_search_server_params = StdioServerParams(
+                command="npx",
+                args=["-y", "@modelcontextprotocol/server-brave-search"],
+                env={"BRAVE_API_KEY": os.getenv("BRAVE_API_KEY")},
+            )
 
-        self.web_search = await self.session_manager.create_session(
-            "web_search", create_mcp_server_session(web_search_server_params)
-        )
-        await self.web_search.initialize()
-        web_search_tools = await mcp_server_tools(
-            web_search_server_params, session=self.web_search
-        )
+            self.web_search = await self.session_manager.create_session(
+                "web_search", create_mcp_server_session(web_search_server_params)
+            )
+            await self.web_search.initialize()
+            web_search_tools = await mcp_server_tools(
+                web_search_server_params, session=self.web_search
+            )
 
-        # set env MCP_SERVER_PATH, default is "src/Sagi/mcp_server/"
-        mcp_server_path = os.getenv("MCP_SERVER_PATH", DEFAULT_MCP_SERVER_PATH)
-        prompt_server_params = StdioServerParams(
-            command="uv",
-            args=[
-                "--directory",
-                os.path.join(
-                    mcp_server_path, "domain_specific_mcp/src/domain_specific_mcp"
-                ),
-                "run",
-                "python",
-                "server.py",
-            ],
-        )
-        domain_specific_tools = await mcp_server_tools(prompt_server_params)
+            # set env MCP_SERVER_PATH, default is "src/Sagi/mcp_server/"
+            mcp_server_path = os.getenv("MCP_SERVER_PATH", DEFAULT_MCP_SERVER_PATH)
+            prompt_server_params = StdioServerParams(
+                command="uv",
+                args=[
+                    "--directory",
+                    os.path.join(
+                        mcp_server_path, "domain_specific_mcp/src/domain_specific_mcp"
+                    ),
+                    "run",
+                    "python",
+                    "server.py",
+                ],
+            )
+            domain_specific_tools = await mcp_server_tools(prompt_server_params)
 
-        hirag_server_params = StdioServerParams(
-            command="mcp-hirag-tool",
-            args=[],
-            read_timeout_seconds=100,
-            env={
-                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
-                "OPENAI_BASE_URL": os.getenv("OPENAI_BASE_URL"),
-                "VOYAGE_API_KEY": os.getenv("VOYAGE_API_KEY"),
-                "DOC2X_API_KEY": os.getenv("DOC2X_API_KEY"),
-            },
-        )
+            hirag_server_params = StdioServerParams(
+                command="mcp-hirag-tool",
+                args=[],
+                read_timeout_seconds=100,
+                env={
+                    "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
+                    "OPENAI_BASE_URL": os.getenv("OPENAI_BASE_URL"),
+                    "VOYAGE_API_KEY": os.getenv("VOYAGE_API_KEY"),
+                    "DOC2X_API_KEY": os.getenv("DOC2X_API_KEY"),
+                },
+            )
 
-        self.hirag_retrival = await self.session_manager.create_session(
-            "hirag_retrival", create_mcp_server_session(hirag_server_params)
-        )
-        await self.hirag_retrival.initialize()
-        hirag_retrival_tools = await mcp_server_tools(
-            hirag_server_params, session=self.hirag_retrival
-        )
-        hirag_retrival_tools = [
-            tool for tool in hirag_retrival_tools if tool.name == "hi_search"
-        ]
+            self.hirag_retrival = await self.session_manager.create_session(
+                "hirag_retrival", create_mcp_server_session(hirag_server_params)
+            )
+            await self.hirag_retrival.initialize()
+            hirag_retrival_tools = await mcp_server_tools(
+                hirag_server_params, session=self.hirag_retrival
+            )
+            hirag_retrival_tools = [
+                tool for tool in hirag_retrival_tools if tool.name == "hi_search"
+            ]
+            
+            # Debug: Log tool availability  
+            logging.info(f"🔧 [WORKFLOW] Using own MCP sessions - web_search: {len(web_search_tools)}, domain_specific: {len(domain_specific_tools)}, hirag: {len(hirag_retrival_tools)}")
 
         rag_agent = AssistantAgent(
             name="retrieval_agent",
@@ -303,13 +337,16 @@ class PlanningWorkflow:
         domain_specific_agent = AssistantAgent(
             name="prompt_template_expert",
             model_client=self.single_tool_use_model_client,
-            tools=domain_specific_tools,
+            tools=domain_specific_tools if domain_specific_tools else [],  # Ensure tools is never None
             system_message=(
                 get_domain_specific_agent_prompt()
                 if language == "en"
                 else get_domain_specific_agent_prompt_cn()
             ),
         )
+        
+        # Debug: Log domain specific agent configuration
+        logging.info(f"🔧 [WORKFLOW] Domain specific agent created with {len(domain_specific_tools) if domain_specific_tools else 0} tools")
 
         general_agent = AssistantAgent(
             name="general_agent",
