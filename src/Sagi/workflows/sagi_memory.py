@@ -9,6 +9,7 @@ from autogen_core.memory import (
     MemoryQueryResult,
     UpdateContextResult,
 )
+from autogen_core.models import SystemMessage
 from autogen_core.model_context import ChatCompletionContext
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -74,8 +75,16 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
             return UpdateContextResult(memories=MemoryQueryResult(results=[]))
 
         memory_query_result = await self.query(messages[-1].content)
-        # FIFO
-        return UpdateContextResult(memories=memory_query_result)
+        if memory_query_result.results:
+            # Format memories as numbered list
+            # TODO(klma): FIFO strategy
+            memory_strings = [f"{i}. {str(memory.content)}" for i, memory in enumerate(memory_query_result.results, 1)]
+            memory_context = "\nRelevant memories:\n" + "\n".join(memory_strings)
+
+            # Add as system message
+            await model_context.add_message(SystemMessage(content=memory_context))
+
+        return UpdateContextResult(memories=MemoryQueryResult(results=[]))
 
     async def add(self, contents: Union[MemoryContent, List[MemoryContent]]):
         assert (
@@ -112,9 +121,7 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
     ) -> MemoryQueryResult:
         # TODO(kaili): We support to extract all the messages with the same chat_id for now.
         # TODO(kaili): We need to support to query the memory with the query text.
-        # session = await self._get_session()
-        # if session is None:
-        #     raise ValueError("Failed to get database session")
+
         try:
             assert (
                 self.session_maker is not None
@@ -136,23 +143,6 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
         except Exception as e:
             logger.error(f"Failed to query SagiMemory: {e}")
             raise
-
-    # async def _get_session(self) -> Optional[AsyncSession]:
-    #     if self.session_maker is None:
-    #         raise ValueError("Session maker is not set, please call the set_session_maker method")
-
-    #     retry_count = 0
-    #     while retry_count < DB_CONNECTION_MAX_RETRIES:
-    #         try:
-    #             async with self.session_maker() as session:
-    #                 return session
-    #         except SQLAlchemyError as e:
-    #             retry_count += 1
-    #             if retry_count >= DB_CONNECTION_MAX_RETRIES:
-    #                 raise SQLAlchemyError(
-    #                     f"Database session failed after {DB_CONNECTION_MAX_RETRIES} retries: {e}"
-    #                 )
-    #             await asyncio.sleep(0.1 * retry_count)  # Brief delay before retry
 
     async def data_model_to_memory_content(
         self, memories: List[MultiRoundMemory]

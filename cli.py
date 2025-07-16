@@ -5,7 +5,7 @@ import os
 import threading
 import uuid
 
-from autogen_agentchat.messages import BaseMessage
+from autogen_agentchat.messages import BaseMessage, MemoryQueryEvent
 from autogen_agentchat.ui import Console
 from autogen_core.memory import MemoryContent
 from dotenv import load_dotenv
@@ -24,11 +24,11 @@ from Sagi.utils.queries import (
     create_db_engine,
     saveChats,
 )
+from Sagi.workflows.agents.multi_round import MultiRoundAgent
 from Sagi.workflows.general.general_chat import GeneralChatWorkflow
-from Sagi.workflows.multi_rounds.multi_round import MultiRoundAgent
-from Sagi.workflows.multi_rounds.sagi_memory import SagiMemory
 from Sagi.workflows.planning.planning import PlanningWorkflow
 from Sagi.workflows.planning_html.planning_html import PlanningHtmlWorkflow
+from Sagi.workflows.sagi_memory import SagiMemory
 
 # Create logging directory if it doesn't exist
 os.makedirs("logging", exist_ok=True)
@@ -242,6 +242,8 @@ async def main_cmd(args: argparse.Namespace):
                         metadata={"source": message.source},
                     )
                     for message in messages
+                    # TODO(klma): should kindly handle the message type writing into the table MultiRoundMemory
+                    if not isinstance(message, MemoryQueryEvent)
                 ]
                 await memory.add(messages)
 

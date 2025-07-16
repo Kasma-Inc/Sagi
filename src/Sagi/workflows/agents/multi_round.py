@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ChatCompletionClient
 
-from Sagi.workflows.multi_rounds.sagi_memory import SagiMemory
+from Sagi.workflows.sagi_memory import SagiMemory
 
 
 class MultiRoundAgent:
@@ -48,10 +48,6 @@ class MultiRoundAgent:
         return self.agent.run_stream(
             task=user_input,
         )
-
-    async def save_memory(self, chat_id: str):
-        # TODO(klma):
-        pass
 
     async def cleanup(self):
         pass
