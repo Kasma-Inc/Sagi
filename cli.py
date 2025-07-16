@@ -7,6 +7,7 @@ import uuid
 
 from autogen_agentchat.messages import BaseMessage
 from autogen_agentchat.ui import Console
+from autogen_core.memory import MemoryContent
 from dotenv import load_dotenv
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
@@ -14,9 +15,18 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.semconv.resource import ResourceAttributes
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from Sagi.utils.logging_utils import setup_logging
+from Sagi.utils.message_to_memory import get_memory_type_for_message
+from Sagi.utils.model_client import ModelClientFactory
+from Sagi.utils.queries import (
+    create_db_engine,
+    saveChats,
+)
 from Sagi.workflows.general.general_chat import GeneralChatWorkflow
+from Sagi.workflows.multi_rounds.multi_round import MultiRoundAgent
+from Sagi.workflows.multi_rounds.sagi_memory import SagiMemory
 from Sagi.workflows.planning.planning import PlanningWorkflow
 from Sagi.workflows.planning_html.planning_html import PlanningHtmlWorkflow
 
@@ -78,6 +88,7 @@ def parse_args():
             "general",
             "web_search",
             "deep_research_html",
+            "multi_rounds",
         ],
         default="deep_research_executor",
         help="Operation mode: deep_research_executor (deep research with code executor), general (general agent only), web_search (web search only), deep_research_html (deep research with html generator)",
@@ -149,7 +160,24 @@ async def get_input_async():
 
 
 async def main_cmd(args: argparse.Namespace):
+    engine = create_db_engine(os.getenv("POSTGRES_URL_NO_SSL_DEV") or "")
+    session_maker = async_sessionmaker(engine, expire_on_commit=False)
     chat_id = str(uuid.uuid4())
+    # Save the metadata of the chat
+    # TODO(klma): get the metadata from config instead of hardcoding it
+    async with session_maker() as session:
+        await saveChats(
+            session=session,
+            chat_id=chat_id,
+            title="",
+            user_id="cli_dev",
+            model_name="gpt-4o-mini",
+            model_config={},
+            model_client_stream=True,
+            system_prompt="You are a helpful assistant.",
+            visibility="private",
+        )
+
     if args.mode == "deep_research_executor":
         workflow = await PlanningWorkflow.create(
             args.planning_config,
@@ -174,6 +202,15 @@ async def main_cmd(args: argparse.Namespace):
             args.team_html_config,
             language=args.language,
         )
+    elif args.mode == "multi_rounds":
+        model_client = ModelClientFactory.create_model_client(
+            {
+                "model": "gpt-4o-mini",
+                "base_url": os.getenv("OPENAI_BASE_URL"),
+                "api_key": os.getenv("OPENAI_API_KEY"),
+                "max_tokens": 16000,
+            }
+        )
     else:
         raise ValueError(f"Invalid mode: {args.mode}")
 
@@ -183,10 +220,39 @@ async def main_cmd(args: argparse.Namespace):
             if user_input.lower() in ("quit", "exit", "q"):
                 break
 
-            await asyncio.create_task(Console(workflow.run_workflow(user_input)))
-            await workflow.team.set_id_info("cli_dev", chat_id)
+            if args.mode == "multi_rounds":
+                memory = SagiMemory(
+                    chat_id=chat_id,
+                    max_tokens=model_client._create_args["max_tokens"],
+                )
+                memory.set_session_maker(session_maker)
+
+                workflow = MultiRoundAgent(
+                    model_client=model_client,
+                    memory=memory,
+                    language=args.language,
+                )
+
+                chat_history = await Console(workflow.run_workflow(user_input))
+                messages = chat_history.messages
+                messages = [
+                    MemoryContent(
+                        content=message.content,
+                        mime_type=get_memory_type_for_message(message),
+                        metadata={"source": message.source},
+                    )
+                    for message in messages
+                ]
+                await memory.add(messages)
+
+            else:
+                await asyncio.create_task(Console(workflow.run_workflow(user_input)))
+                await workflow.team.set_id_info("cli_dev", chat_id)
+    except Exception as e:
+        logging.error(f"Error: {e}")
     finally:
         await workflow.cleanup()
+        await engine.dispose()
         logging.info("Workflow cleaned up.")
 
 

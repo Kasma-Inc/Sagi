@@ -38,10 +38,13 @@ class ReadableFormatter(logging.Formatter):
         return base_msg
 
     def _format_llm_start(self, data):
+        agent_id = data.get("agent_id")
+        if not agent_id:
+            agent_id = "Unknown"
         lines = [
             "\n" + "=" * 80,
             f"🤖 LLM Stream Call",
-            f"Agent: {data.get('agent_id', 'Unknown').split('-')[0]}",
+            f"Agent: {agent_id.split('-')[0]}",
             "-" * 80,
         ]
 
@@ -85,10 +88,13 @@ class ReadableFormatter(logging.Formatter):
         return "\n".join(lines)
 
     def _format_llm_call(self, data):
+        agent_id = data.get("agent_id")
+        if not agent_id:
+            agent_id = "Unknown"
         lines = [
             "\n" + "=" * 80,
             f"🤖 LLM Call",
-            f"Agent: {data.get('agent_id', 'Unknown').split('-')[0] if data.get('agent_id') else 'Unknown'}",
+            f"Agent: {agent_id.split('-')[0]}",
             "-" * 80,
         ]
 

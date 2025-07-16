@@ -1,63 +1,156 @@
-import json
+from datetime import datetime
+from typing import Any, Dict, List
 
-import asyncpg
-
-CREATE_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS session_states (
-    session_id TEXT PRIMARY KEY,
-    state      JSONB   NOT NULL,
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-"""
+from asyncpg import DuplicateTableError
+from sqlalchemy import inspect
+from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlmodel import JSON, Field, SQLModel, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-class Database:
-    def __init__(self, dsn: str):
-        self.dsn = dsn
-        self.pool: asyncpg.Pool | None = None
+class MultiRoundMemory(SQLModel, table=True):
+    __tablename__ = "MultiRoundMemory"
+    chatId: str = Field(default=None, primary_key=True)
+    content: str
+    source: str
+    mimeType: str
+    createdAt: str = Field(default=datetime.now().isoformat())
 
-    async def init(self):
-        self.pool = await asyncpg.create_pool(dsn=self.dsn)
-        async with self.pool.acquire() as conn:
-            await conn.execute(CREATE_TABLE_SQL)
 
-    async def list_sessions(self) -> list[str]:
-        assert self.pool, "Database not initialized. Call init() first."
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
-                "SELECT session_id FROM session_states ORDER BY updated_at DESC"
-            )
-        return [r["session_id"] for r in rows]
+class Chats(SQLModel, table=True):
+    __tablename__ = "Chats"
+    id: str = Field(default=None, primary_key=True)
+    createdAt: str
+    title: str
+    userId: str
+    modelName: str
+    modelConfig: Dict[str, Any] = Field(sa_type=JSON)
+    modelClientStream: bool = True
+    systemPrompt: str = Field(default=None)
+    visibility: str = "private"
 
-    async def load_state(self, session_id: str) -> dict:
-        assert self.pool, "Database not initialized. Call init() first."
-        async with self.pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT state FROM session_states WHERE session_id = $1",
-                session_id,
-            )
-        if row:
-            return row["state"]
-        else:
-            raise KeyError(f"Session {session_id!r} not found.")
 
-    async def save_state(self, session_id: str, state: dict):
-        assert self.pool, "Database not initialized. Call init() first."
-        state_json = json.dumps(state)
-        async with self.pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO session_states(session_id, state, updated_at)
-                VALUES ($1, $2::jsonb, NOW())
-                ON CONFLICT (session_id) DO UPDATE
-                  SET state = EXCLUDED.state,
-                      updated_at = NOW()
-                """,
-                session_id,
-                state_json,
-            )
+def create_db_engine(postgres_url: str) -> AsyncEngine:
+    # connect to postgres db
+    # Replace postgres:// with postgresql:// for SQLAlchemy
+    postgres_url = postgres_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    db = create_async_engine(
+        postgres_url,
+        pool_pre_ping=True,  # tests connections before use
+    )
+    return db
 
-    async def close(self):
-        """Close the connection pool."""
-        if self.pool:
-            await self.pool.close()
+
+async def _ensure_table(session: AsyncSession, table) -> None:
+    """
+    Create table on first access.
+    SQLModel / SQLAlchemy's DDL calls can only be executed in a synchronous context,
+    so we need to proxy to the synchronous engine via `run_sync()`.
+    """
+
+    def _sync_create(sync_session: AsyncSession):
+        # Use the inspector from sqlalchemy to check if table exists
+        engine = sync_session.get_bind()
+        if not inspect(engine).has_table(table.__tablename__):
+            try:
+                SQLModel.metadata.create_all(engine, tables=[table.__table__])
+            except ProgrammingError as e:
+                if isinstance(e.__cause__.__cause__, DuplicateTableError):
+                    pass
+                else:
+                    raise
+
+    await session.run_sync(_sync_create)
+
+
+async def saveMultiRoundMemory(
+    session: AsyncSession,
+    chat_id: str,
+    content: str,
+    source: str,
+    mime_type: str,
+):
+    await _ensure_table(session, MultiRoundMemory)
+    timestamp = datetime.now().isoformat()
+    memory = MultiRoundMemory(
+        chatId=chat_id,
+        content=content,
+        source=source,
+        mimeType=mime_type,
+        createdAt=timestamp,
+    )
+    session.add(memory)
+    await session.commit()
+
+
+async def saveMultiRoundMemories(
+    session: AsyncSession,
+    chat_id: str,
+    contents: List[Dict[str, Any]],
+):
+    await _ensure_table(session, MultiRoundMemory)
+    timestamp = datetime.now().isoformat()
+
+    memories = []
+    for content_data in contents:
+        memory = MultiRoundMemory(
+            chatId=chat_id,
+            content=content_data["content"],
+            source=content_data["source"],
+            mimeType=content_data["mime_type"],
+            createdAt=timestamp,
+        )
+        memories.append(memory)
+
+    session.add_all(memories)
+    await session.commit()
+
+
+async def getMultiRoundMemory(
+    session: AsyncSession,
+    chat_id: str,
+) -> List[MultiRoundMemory]:
+    await _ensure_table(session, MultiRoundMemory)
+    memory = await session.execute(
+        select(MultiRoundMemory)
+        .where(MultiRoundMemory.chatId == chat_id)
+        .order_by(MultiRoundMemory.createdAt)
+    )
+    return memory.scalars().all()
+
+
+async def saveChats(
+    session: AsyncSession,
+    chat_id: str,
+    title: str,
+    user_id: str,
+    model_name: str,
+    model_config: Dict[str, Any],
+    model_client_stream: bool,
+    system_prompt: str,
+    visibility: str = "private",
+):
+    await _ensure_table(session, Chats)
+    chat = Chats(
+        id=chat_id,
+        createdAt=datetime.now().isoformat(),
+        title=title,
+        userId=user_id,
+        modelName=model_name,
+        modelConfig=model_config,
+        modelClientStream=model_client_stream,
+        systemPrompt=system_prompt,
+        visibility=visibility,
+    )
+    session.add(chat)
+    await session.commit()
+
+
+async def getChats(
+    session: AsyncSession,
+    chat_id: str,
+) -> Chats:
+    await _ensure_table(session, Chats)
+    chat = await session.execute(select(Chats).where(Chats.id == chat_id))
+    return chat.scalars().first()
