@@ -38,6 +38,7 @@
 
   [model_clients.html_generator_client]
     model = "anthropic/claude-opus-4"
+    provider = "anthropic"
     auth_token = "${OPENAI_API_KEY}"
     base_url = "https://api.aimlapi.com" 
     max_tokens = 20000

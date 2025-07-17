@@ -3,9 +3,6 @@ from contextlib import AsyncExitStack
 from typing import Any, Dict, List, Literal, Optional, Type, TypeVar
 
 from autogen_agentchat.agents import AssistantAgent
-from autogen_core.models import ModelFamily, ModelInfo
-from autogen_ext.models.anthropic import AnthropicChatCompletionClient
-from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import (
     StdioServerParams,
     create_mcp_server_session,
@@ -24,7 +21,6 @@ from Sagi.utils.prompt import (
 )
 from Sagi.workflows.planning_html.planning_html_group_chat import PlanningHtmlGroupChat
 from Sagi.services.global_resource_manager import GlobalResourceManager
-from Sagi.factories.model_client_factory import ModelClientFactory
 
 DEFAULT_WORK_DIR = "coding_files"
 DEFAULT_MCP_SERVER_PATH = "src/Sagi/mcp_server/"
@@ -149,19 +145,8 @@ class PlanningHtmlWorkflow:
             "planning_client", config_path, response_format=Task
         )
 
-        config_html_generator_client = config["model_clients"]["html_generator_client"]
-        self.html_generator_model_client = AnthropicChatCompletionClient(
-            model=config_html_generator_client["model"],
-            auth_token=config_html_generator_client["auth_token"],
-            base_url=config_html_generator_client["base_url"],
-            model_info=ModelInfo(
-                vision=True,
-                function_calling=True,
-                json_output=False,
-                family="unknown",
-                structured_output=True,
-            ),
-            max_tokens=config_html_generator_client["max_tokens"],
+        self.html_generator_model_client = await model_client_service.get_client(
+            "html_generator_client", config_path
         )
 
         self.session_manager = MCPSessionManager()

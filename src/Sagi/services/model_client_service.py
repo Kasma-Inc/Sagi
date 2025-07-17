@@ -1,35 +1,41 @@
 import asyncio
 import logging
 import os
-from typing import Any, Dict, Optional, Type
+import time
+from collections import OrderedDict
+from typing import Any, Dict, Optional, Type, Tuple
 
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from pydantic import BaseModel
 
 from Sagi.utils.load_config import load_toml_with_env_vars
-from Sagi.factories.model_client_factory import ModelClientFactory
+from Sagi.factories.model_client_factory import ModelClientFactory, ModelClient
 
 
 class ModelClientService:
     """
     Service for managing Model Client lifecycle with caching and thread safety.
     
-    This service provides centralized management of OpenAI chat completion clients,
+    This service provides centralized management of OpenAI and Anthropic chat completion clients,
     implementing caching to avoid redundant client creation and ensuring thread safety
     for concurrent access.
     """
     
-    def __init__(self):
-        # Cache for created model clients to avoid redundant creation
-        self._clients: Dict[str, OpenAIChatCompletionClient] = {}
+    def __init__(self, max_cache_size: int = 100, cache_ttl: int = 3600):
+        # LRU cache for created model clients with access tracking
+        self._clients: OrderedDict[str, Tuple[ModelClient, float]] = OrderedDict()
         
         # Cache for loaded configuration files to avoid redundant I/O operations
         self._config_cache: Dict[str, Dict[str, Any]] = {}
         
+        # Cache configuration
+        self._max_cache_size = max_cache_size
+        self._cache_ttl = cache_ttl  # TTL in seconds
+        
         # Async lock for thread-safe client creation
         self._lock = asyncio.Lock()
         
-        logging.info("🔧 ModelClientService initialized")
+        logging.info(f"🔧 ModelClientService initialized with max_cache_size={max_cache_size}, cache_ttl={cache_ttl}s")
     
     async def get_client(
         self,
@@ -37,7 +43,7 @@ class ModelClientService:
         config_path: str,
         response_format: Optional[Type[BaseModel]] = None,
         parallel_tool_calls: Optional[bool] = None,
-    ) -> OpenAIChatCompletionClient:
+    ) -> ModelClient:
         """
         Get or create a Model Client with caching support.
         
@@ -48,7 +54,7 @@ class ModelClientService:
             parallel_tool_calls: Whether to enable parallel tool calls
             
         Returns:
-            OpenAIChatCompletionClient: The requested model client
+            ModelClient: The requested model client (OpenAI or Anthropic)
             
         Raises:
             ValueError: If input parameters are invalid
@@ -66,15 +72,33 @@ class ModelClientService:
         
         # Fast cache check without lock
         if cache_key in self._clients:
-            logging.debug(f"🔍 Model client '{client_type}' found in cache")
-            return self._clients[cache_key]
+            client, timestamp = self._clients[cache_key]
+            current_time = time.time()
+            
+            # Check if cache entry is still valid (TTL)
+            if current_time - timestamp < self._cache_ttl:
+                # Move to end for LRU (most recently used)
+                self._clients.move_to_end(cache_key)
+                logging.debug(f"🔍 Model client '{client_type}' found in cache")
+                return client
+            else:
+                # Cache entry expired, remove it
+                del self._clients[cache_key]
+                logging.debug(f"⏰ Model client '{client_type}' cache expired")
         
         # Thread-safe client creation
         async with self._lock:
             # Double-check pattern: verify cache again after acquiring lock
             if cache_key in self._clients:
-                logging.debug(f"🔍 Model client '{client_type}' found in cache after lock")
-                return self._clients[cache_key]
+                client, timestamp = self._clients[cache_key]
+                current_time = time.time()
+                
+                if current_time - timestamp < self._cache_ttl:
+                    self._clients.move_to_end(cache_key)
+                    logging.debug(f"🔍 Model client '{client_type}' found in cache after lock")
+                    return client
+                else:
+                    del self._clients[cache_key]
             
             logging.info(f"🔧 Creating new model client '{client_type}'")
             
@@ -95,8 +119,12 @@ class ModelClientService:
                     parallel_tool_calls=parallel_tool_calls,
                 )
                 
-                # Cache the newly created client
-                self._clients[cache_key] = client
+                # Cache the newly created client with timestamp
+                current_time = time.time()
+                self._clients[cache_key] = (client, current_time)
+                
+                # Evict oldest entries if cache is full
+                self._evict_if_needed()
                 
                 logging.info(f"✅ Model client '{client_type}' created and cached")
                 return client
@@ -115,10 +143,12 @@ class ModelClientService:
         """
         Build cache key for client identification.
         
-        Simplified approach using base filename instead of complex hashing
-        as per the technical report requirements.
+        Uses absolute path to avoid cache key collisions when multiple config files
+        have the same name but different paths.
         """
-        key_parts = [client_type, os.path.basename(config_path)]
+        # Use absolute path to avoid collisions
+        abs_config_path = os.path.abspath(config_path)
+        key_parts = [client_type, abs_config_path]
         
         if response_format is not None:
             key_parts.append(f"format_{response_format.__name__}")
@@ -175,15 +205,53 @@ class ModelClientService:
         
         return config["model_clients"][client_type]
     
+    def _evict_if_needed(self):
+        """Evict oldest entries from cache if it exceeds max size."""
+        while len(self._clients) > self._max_cache_size:
+            # Remove the oldest entry (first in OrderedDict)
+            oldest_key = next(iter(self._clients))
+            del self._clients[oldest_key]
+            logging.debug(f"🗑️ Evicted cache entry: {oldest_key}")
+    
+    def _cleanup_expired_entries(self):
+        """Remove all expired entries from cache."""
+        current_time = time.time()
+        expired_keys = []
+        
+        for key, (client, timestamp) in self._clients.items():
+            if current_time - timestamp >= self._cache_ttl:
+                expired_keys.append(key)
+        
+        for key in expired_keys:
+            del self._clients[key]
+            logging.debug(f"⏰ Removed expired cache entry: {key}")
+        
+        if expired_keys:
+            logging.info(f"🧹 Cleaned up {len(expired_keys)} expired cache entries")
+    
     def clear_cache(self):
         """Clear all cached clients and configurations."""
         self._clients.clear()
         self._config_cache.clear()
         logging.info("🧹 ModelClientService cache cleared")
     
-    def get_cache_info(self) -> Dict[str, int]:
+    def get_cache_info(self) -> Dict[str, Any]:
         """Get information about current cache state."""
+        current_time = time.time()
+        valid_entries = 0
+        expired_entries = 0
+        
+        for client, timestamp in self._clients.values():
+            if current_time - timestamp < self._cache_ttl:
+                valid_entries += 1
+            else:
+                expired_entries += 1
+        
         return {
             "cached_clients": len(self._clients),
-            "cached_configs": len(self._config_cache)
+            "valid_entries": valid_entries,
+            "expired_entries": expired_entries,
+            "cached_configs": len(self._config_cache),
+            "max_cache_size": self._max_cache_size,
+            "cache_ttl": self._cache_ttl
         }
