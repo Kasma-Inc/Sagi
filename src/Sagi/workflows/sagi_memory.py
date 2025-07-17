@@ -9,8 +9,8 @@ from autogen_core.memory import (
     MemoryQueryResult,
     UpdateContextResult,
 )
-from autogen_core.models import SystemMessage
 from autogen_core.model_context import ChatCompletionContext
+from autogen_core.models import SystemMessage
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from typing_extensions import Self
@@ -78,7 +78,10 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
         if memory_query_result.results:
             # Format memories as numbered list
             # TODO(klma): FIFO strategy
-            memory_strings = [f"{i}. {str(memory.content)}" for i, memory in enumerate(memory_query_result.results, 1)]
+            memory_strings = [
+                f"{i}. {str(memory.content)}"
+                for i, memory in enumerate(memory_query_result.results, 1)
+            ]
             memory_context = "\nRelevant memories:\n" + "\n".join(memory_strings)
 
             # Add as system message
