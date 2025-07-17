@@ -15,20 +15,24 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from typing_extensions import Self
 
+from Sagi.utils.chat_template import format_memory_to_string
+from Sagi.utils.model_info import get_model_info
 from Sagi.utils.queries import (
     MultiRoundMemory,
     getMultiRoundMemory,
     saveMultiRoundMemories,
 )
+from Sagi.utils.token_usage import count_tokens_messages
 
 logger = getLogger("Sagi.workflows.multi_rounds.SagiMemory")
 
 DB_CONNECTION_MAX_RETRIES = 3
+CONTEXT_WINDOW_BUFFER = 100
 
 
 class SagiMemoryConfig(BaseModel):
     chat_id: str
-    max_tokens: int
+    model_name: str
 
 
 class SagiMemory(Memory, Component[SagiMemoryConfig]):
@@ -37,11 +41,11 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
     component_config_schema = SagiMemoryConfig
     session_maker: Optional[async_sessionmaker] = None
     chat_id: str
-    max_tokens: int
+    model_name: str
 
-    def __init__(self, chat_id: str, max_tokens: int):
+    def __init__(self, chat_id: str, model_name: str):
         self.chat_id = chat_id
-        self.max_tokens = max_tokens
+        self.model_name = model_name
 
     def set_session_maker(self, session_maker: async_sessionmaker):
         self.session_maker = session_maker
@@ -76,13 +80,29 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
 
         memory_query_result = await self.query(messages[-1].content)
         if memory_query_result.results:
-            # Format memories as numbered list
             # TODO(klma): FIFO strategy
-            memory_strings = [
-                f"{i}. {str(memory.content)}"
-                for i, memory in enumerate(memory_query_result.results, 1)
-            ]
-            memory_context = "\nRelevant memories:\n" + "\n".join(memory_strings)
+            # FIFO strategy:
+            # 1. Count the number of tokens in the memory
+            context = await model_context.get_messages()
+            # num_tokens = sum(count_tokens_messages(message.content) for message in context)
+            total_tokens = count_tokens_messages(context, self.model_name)
+            # 2. If the number of tokens is less than the max tokens, add the memory to the context
+            memory_to_add = []
+            memories = memory_query_result.results
+            context_window = get_model_info(self.model_name).get("context_window")
+            assert context_window is not None, "Context window is not set"
+
+            if total_tokens < context_window - CONTEXT_WINDOW_BUFFER:
+                for memory in reversed(memories):
+                    num_tokens = count_tokens_messages([memory], self.model_name)
+                    total_tokens += num_tokens
+                    if total_tokens > context_window - CONTEXT_WINDOW_BUFFER:
+                        break
+                    memory_to_add.append(memory)
+
+            # Reverse the order to get the original order (since we reversed when iterating)
+            memory_to_add.reverse()
+            memory_context = format_memory_to_string(memory_to_add, self.model_name)
 
             # Add as system message
             await model_context.add_message(SystemMessage(content=memory_context))
@@ -168,7 +188,7 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
 
     @classmethod
     def _from_config(cls, config: SagiMemoryConfig) -> Self:
-        return cls(config.chat_id, config.max_tokens)
+        return cls(config.chat_id, config.model_name)
 
     async def clear(self) -> None:
         pass

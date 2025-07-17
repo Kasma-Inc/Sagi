@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from Sagi.utils.logging_utils import setup_logging
 from Sagi.utils.message_to_memory import get_memory_type_for_message
 from Sagi.utils.model_client import ModelClientFactory
+from Sagi.utils.model_info import get_model_name_by_api_provider
 from Sagi.utils.queries import (
     create_db_engine,
     saveChats,
@@ -203,9 +204,14 @@ async def main_cmd(args: argparse.Namespace):
             language=args.language,
         )
     elif args.mode == "multi_rounds":
+        model = "gpt-4o-mini"
+        model_name = get_model_name_by_api_provider(
+            "aiml",
+            model,
+        )
         model_client = ModelClientFactory.create_model_client(
             {
-                "model": "gpt-4o-mini",
+                "model": model_name,
                 "base_url": os.getenv("OPENAI_BASE_URL"),
                 "api_key": os.getenv("OPENAI_API_KEY"),
                 "max_tokens": 16000,
@@ -223,7 +229,7 @@ async def main_cmd(args: argparse.Namespace):
             if args.mode == "multi_rounds":
                 memory = SagiMemory(
                     chat_id=chat_id,
-                    max_tokens=model_client._create_args["max_tokens"],
+                    model_name=model,
                 )
                 memory.set_session_maker(session_maker)
 
