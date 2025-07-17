@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 import tiktoken
 from autogen_core.memory import MemoryContent
@@ -31,7 +31,6 @@ def count_tokens_openai(text: str, model: str = "gpt-4") -> int:
 def count_tokens_anthropic(
     message: dict[str, Any],
     model: str = "claude-3-sonnet-20240229",
-    api_config: Optional[dict[str, Any]] = None,
 ) -> int:
     """
     Count tokens for Anthropic Claude models.
@@ -42,13 +41,11 @@ def count_tokens_anthropic(
         api_config: The API config for Anthropic
 
     Returns:
-        Estimated number of tokens (approximation: 1 token ≈ 4 characters)
+        Number of tokens
     """
     import anthropic
 
-    if api_config is None:
-        api_config = {}
-    client = anthropic.Anthropic(**api_config)
+    client = anthropic.Anthropic()
     response = client.messages.count_tokens(
         model=model,
         messages=[message],
@@ -75,7 +72,6 @@ def count_tokens_deepseek(text: str, model: str = "deepseek-chat") -> int:
 def count_tokens_messages(
     messages: Union[List[Dict[str, Any]], List[LLMMessage], List[MemoryContent]],
     model: str,
-    api_config: Optional[dict[str, Any]] = None,
 ) -> int:
     """
     Count tokens for a list of chat messages.
@@ -83,7 +79,6 @@ def count_tokens_messages(
     Args:
         messages: List of message dictionaries with 'role' and 'content' keys
         model: The model name
-        api_config: The API config for the model provider
 
     Returns:
         Total number of tokens including message formatting overhead

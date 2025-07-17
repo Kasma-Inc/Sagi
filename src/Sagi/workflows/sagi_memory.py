@@ -84,7 +84,6 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
             # FIFO strategy:
             # 1. Count the number of tokens in the memory
             context = await model_context.get_messages()
-            # num_tokens = sum(count_tokens_messages(message.content) for message in context)
             total_tokens = count_tokens_messages(context, self.model_name)
             # 2. If the number of tokens is less than the max tokens, add the memory to the context
             memory_to_add = []
