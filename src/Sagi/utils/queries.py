@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from typing import Any, Dict, List
 
@@ -11,7 +12,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 class MultiRoundMemory(SQLModel, table=True):
     __tablename__ = "MultiRoundMemory"
-    chatId: str = Field(default=None, primary_key=True)
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    chatId: str
+    messageId: str = Field(default=None, nullable=True)
     content: str
     source: str
     mimeType: str
@@ -92,7 +95,6 @@ async def saveMultiRoundMemories(
     await _ensure_table(session, MultiRoundMemory)
     timestamp = datetime.now().isoformat()
 
-    memories = []
     for content_data in contents:
         memory = MultiRoundMemory(
             chatId=chat_id,
@@ -101,10 +103,9 @@ async def saveMultiRoundMemories(
             mimeType=content_data["mime_type"],
             createdAt=timestamp,
         )
-        memories.append(memory)
-
-    session.add_all(memories)
-    await session.commit()
+        session.add(memory)
+        await session.commit()
+        await session.refresh(memory)
 
 
 async def getMultiRoundMemory(
