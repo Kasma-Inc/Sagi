@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, TypeVar
 
 from autogen_agentchat.agents import AssistantAgent
+
 # ModelFamily, ModelInfo removed as they're now handled in ModelClientFactory
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import (
@@ -16,6 +17,7 @@ from autogen_ext.tools.mcp import (
 from mcp import ClientSession
 from pydantic import BaseModel
 
+from Sagi.services.global_resource_manager import GlobalResourceManager
 from Sagi.tools.stream_code_executor.stream_code_executor_agent import (
     StreamCodeExecutorAgent,
 )
@@ -36,8 +38,6 @@ from Sagi.utils.prompt import (
     get_rag_agent_prompt_cn,
 )
 from Sagi.workflows.planning.planning_group_chat import PlanningGroupChat
-from Sagi.services.global_resource_manager import GlobalResourceManager
-from Sagi.factories.model_client_factory import ModelClientFactory
 
 DEFAULT_WORK_DIR = "coding_files"
 DEFAULT_MCP_SERVER_PATH = "src/Sagi/mcp_server/"
@@ -135,7 +135,7 @@ class PlanningWorkflow:
 
         # Initialize all model clients using ModelClientService for caching and reuse
         model_client_service = GlobalResourceManager.get_model_client_service()
-        
+
         self.orchestrator_model_client = await model_client_service.get_client(
             "orchestrator_client", config_path
         )
@@ -162,8 +162,10 @@ class PlanningWorkflow:
         )
 
         # Initialize template based planning client using the same config as planning client
-        self.template_based_planning_model_client = await model_client_service.get_client(
-            "planning_client", config_path, response_format=HighLevelPlanPPT
+        self.template_based_planning_model_client = (
+            await model_client_service.get_client(
+                "planning_client", config_path, response_format=HighLevelPlanPPT
+            )
         )
 
         # Initialize single group planning client using the same config as planning client
@@ -183,8 +185,10 @@ class PlanningWorkflow:
             class TemplateSelection(BaseModel):
                 template_id: TemplateList
 
-            self.template_selection_model_client = await model_client_service.get_client(
-                "planning_client", config_path, response_format=TemplateSelection
+            self.template_selection_model_client = (
+                await model_client_service.get_client(
+                    "planning_client", config_path, response_format=TemplateSelection
+                )
             )
 
         # MCP Tools initialization - use external tools if provided, otherwise create own sessions

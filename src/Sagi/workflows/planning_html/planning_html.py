@@ -1,6 +1,6 @@
 import os
 from contextlib import AsyncExitStack
-from typing import Any, Dict, List, Literal, Optional, Type, TypeVar
+from typing import Any, Dict, List, Literal, Optional, TypeVar
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_ext.tools.mcp import (
@@ -11,6 +11,7 @@ from autogen_ext.tools.mcp import (
 from mcp import ClientSession
 from pydantic import BaseModel
 
+from Sagi.services.global_resource_manager import GlobalResourceManager
 from Sagi.tools.web_search_agent import WebSearchAgent
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.utils.prompt import (
@@ -20,7 +21,6 @@ from Sagi.utils.prompt import (
     get_general_agent_prompt_cn,
 )
 from Sagi.workflows.planning_html.planning_html_group_chat import PlanningHtmlGroupChat
-from Sagi.services.global_resource_manager import GlobalResourceManager
 
 DEFAULT_WORK_DIR = "coding_files"
 DEFAULT_MCP_SERVER_PATH = "src/Sagi/mcp_server/"
@@ -115,7 +115,7 @@ class PlanningHtmlWorkflow:
 
         # Initialize all model clients using ModelClientService for caching and reuse
         model_client_service = GlobalResourceManager.get_model_client_service()
-        
+
         self.orchestrator_model_client = await model_client_service.get_client(
             "orchestrator_client", config_path
         )

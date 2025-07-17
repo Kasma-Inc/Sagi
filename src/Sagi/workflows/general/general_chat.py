@@ -10,10 +10,10 @@ from autogen_ext.tools.mcp import (
     mcp_server_tools,
 )
 
+from Sagi.services.global_resource_manager import GlobalResourceManager
 from Sagi.tools.web_search_agent import WebSearchAgent
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.utils.prompt import get_general_agent_prompt, get_web_search_agent_prompt
-from Sagi.services.global_resource_manager import GlobalResourceManager
 
 DEFAULT_WEB_SEARCH_MAX_RETRIES = 3
 
