@@ -70,6 +70,41 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
         else:
             raise ValueError(f"Unsupported content type: {mime_type}")
 
+    async def _drop_old_messages(
+        self, model_context: ChatCompletionContext, memories: List[MemoryContent]
+    ):
+        """
+        Drop old messages from the context to keep the context window size.
+        Args:
+            model_context: The model context to drop old messages from
+            memories: The memories to add to the context
+
+        Returns:
+            The new context with the old messages dropped
+        """
+        # FIFO strategy:
+        # 1. Count the number of tokens in the memory
+        context = await model_context.get_messages()
+        total_tokens = count_tokens_messages(context, self.model_name)
+        # 2. If the number of tokens is less than the max tokens, add the memory to the context
+        memory_to_add = []
+        # memories = memory_query_result.results
+        context_window = get_model_info(self.model_name).get("context_window")
+        assert context_window is not None, "Context window is not set"
+
+        if total_tokens < context_window - CONTEXT_WINDOW_BUFFER:
+            for memory in reversed(memories):
+                num_tokens = count_tokens_messages([memory], self.model_name)
+                total_tokens += num_tokens
+                if total_tokens > context_window - CONTEXT_WINDOW_BUFFER:
+                    break
+                memory_to_add.append(memory)
+
+        # Reverse the order to get the original order (since we reversed when iterating)
+        memory_to_add.reverse()
+        memory_context = format_memory_to_string(memory_to_add, self.model_name)
+        return memory_context
+
     async def update_context(
         self,
         model_context: ChatCompletionContext,
@@ -80,29 +115,8 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
 
         memory_query_result = await self.query(messages[-1].content)
         if memory_query_result.results:
-            # TODO(klma): FIFO strategy
-            # FIFO strategy:
-            # 1. Count the number of tokens in the memory
-            context = await model_context.get_messages()
-            total_tokens = count_tokens_messages(context, self.model_name)
-            # 2. If the number of tokens is less than the max tokens, add the memory to the context
-            memory_to_add = []
             memories = memory_query_result.results
-            context_window = get_model_info(self.model_name).get("context_window")
-            assert context_window is not None, "Context window is not set"
-
-            if total_tokens < context_window - CONTEXT_WINDOW_BUFFER:
-                for memory in reversed(memories):
-                    num_tokens = count_tokens_messages([memory], self.model_name)
-                    total_tokens += num_tokens
-                    if total_tokens > context_window - CONTEXT_WINDOW_BUFFER:
-                        break
-                    memory_to_add.append(memory)
-
-            # Reverse the order to get the original order (since we reversed when iterating)
-            memory_to_add.reverse()
-            memory_context = format_memory_to_string(memory_to_add, self.model_name)
-
+            memory_context = await self._drop_old_messages(model_context, memories)
             # Add as system message
             await model_context.add_message(SystemMessage(content=memory_context))
 
