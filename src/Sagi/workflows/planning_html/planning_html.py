@@ -1,11 +1,8 @@
 import os
 from contextlib import AsyncExitStack
-from typing import Any, Dict, List, Literal, Optional, Type, TypeVar
+from typing import Any, Dict, List, Literal, Optional, TypeVar
 
 from autogen_agentchat.agents import AssistantAgent
-from autogen_core.models import ModelFamily, ModelInfo
-from autogen_ext.models.anthropic import AnthropicChatCompletionClient
-from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import (
     StdioServerParams,
     create_mcp_server_session,
@@ -14,6 +11,7 @@ from autogen_ext.tools.mcp import (
 from mcp import ClientSession
 from pydantic import BaseModel
 
+from Sagi.services.global_resource_manager import GlobalResourceManager
 from Sagi.tools.web_search_agent import WebSearchAgent
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.utils.prompt import (
@@ -79,40 +77,6 @@ class MCPSessionManager:
 T = TypeVar("T", bound=BaseModel)
 
 
-class ModelClientFactory:
-    @staticmethod
-    def _init_model_info(client_config: Dict[str, Any]) -> Optional[ModelInfo]:
-        if "model_info" in client_config:
-            model_info = client_config["model_info"]
-            model_info["family"] = ModelFamily.UNKNOWN
-            return ModelInfo(**model_info)
-        return None
-
-    @classmethod
-    def create_model_client(
-        cls,
-        client_config: Dict[str, Any],
-        response_format: Optional[Type[T]] = None,
-        parallel_tool_calls: Optional[bool] = None,
-    ) -> OpenAIChatCompletionClient:
-        model_info = cls._init_model_info(client_config)
-        client_kwargs = {
-            "model": client_config["model"],
-            "base_url": client_config["base_url"],
-            "api_key": client_config["api_key"],
-            "model_info": model_info,
-            "max_tokens": client_config["max_tokens"],
-        }
-
-        if response_format:
-            client_kwargs["response_format"] = response_format
-
-        if parallel_tool_calls is not None:
-            client_kwargs["parallel_tool_calls"] = parallel_tool_calls
-
-        return OpenAIChatCompletionClient(**client_kwargs)
-
-
 class PlanningHtmlWorkflow:
     orchestrator_model_client: OpenAIChatCompletionClient
     reflection_model_client: OpenAIChatCompletionClient
@@ -149,62 +113,40 @@ class PlanningHtmlWorkflow:
         class StepTriageResponse(BaseModel):
             next_speaker: StepTriageNextSpeakerResponse
 
-        # Initialize all model clients using ModelClientFactory
-        config_orchestrator_client = config["model_clients"]["orchestrator_client"]
-        self.orchestrator_model_client = ModelClientFactory.create_model_client(
-            config_orchestrator_client
+        # Initialize all model clients using ModelClientService for caching and reuse
+        model_client_service = GlobalResourceManager.get_model_client_service()
+
+        self.orchestrator_model_client = await model_client_service.get_client(
+            "orchestrator_client", config_path
         )
 
-        config_reflection_client = config["model_clients"]["reflection_client"]
-        self.reflection_model_client = ModelClientFactory.create_model_client(
-            config_reflection_client, response_format=ReflectionResponse
+        self.reflection_model_client = await model_client_service.get_client(
+            "reflection_client", config_path, response_format=ReflectionResponse
         )
 
-        config_step_triage_client = config["model_clients"]["step_triage_client"]
-        self.step_triage_model_client = ModelClientFactory.create_model_client(
-            config_step_triage_client, response_format=StepTriageResponse
+        self.step_triage_model_client = await model_client_service.get_client(
+            "step_triage_client", config_path, response_format=StepTriageResponse
         )
 
-        config_code_client = config["model_clients"]["code_client"]
-        self.code_model_client = ModelClientFactory.create_model_client(
-            config_code_client
+        self.code_model_client = await model_client_service.get_client(
+            "code_client", config_path
         )
 
-        config_single_tool_use_client = config["model_clients"][
-            "single_tool_use_client"
-        ]
-        self.single_tool_use_model_client = ModelClientFactory.create_model_client(
-            config_single_tool_use_client,
-            parallel_tool_calls=config_single_tool_use_client.get(
-                "parallel_tool_calls"
-            ),
+        self.single_tool_use_model_client = await model_client_service.get_client(
+            "single_tool_use_client", config_path
         )
 
-        config_planning_client = config["model_clients"]["planning_client"]
-        self.planning_model_client = ModelClientFactory.create_model_client(
-            config_planning_client, response_format=PlanningHtmlResponse
+        self.planning_model_client = await model_client_service.get_client(
+            "planning_client", config_path, response_format=PlanningHtmlResponse
         )
 
         # Initialize single group planning client using the same config as planning client
-        self.single_group_planning_model_client = (
-            ModelClientFactory.create_model_client(
-                config_planning_client, response_format=Task
-            )
+        self.single_group_planning_model_client = await model_client_service.get_client(
+            "planning_client", config_path, response_format=Task
         )
 
-        config_html_generator_client = config["model_clients"]["html_generator_client"]
-        self.html_generator_model_client = AnthropicChatCompletionClient(
-            model=config_html_generator_client["model"],
-            auth_token=config_html_generator_client["auth_token"],
-            base_url=config_html_generator_client["base_url"],
-            model_info=ModelInfo(
-                vision=True,
-                function_calling=True,
-                json_output=False,
-                family="unknown",
-                structured_output=True,
-            ),
-            max_tokens=config_html_generator_client["max_tokens"],
+        self.html_generator_model_client = await model_client_service.get_client(
+            "html_generator_client", config_path
         )
 
         self.session_manager = MCPSessionManager()

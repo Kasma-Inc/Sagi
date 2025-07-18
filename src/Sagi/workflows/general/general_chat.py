@@ -10,10 +10,10 @@ from autogen_ext.tools.mcp import (
     mcp_server_tools,
 )
 
+from Sagi.services.global_resource_manager import GlobalResourceManager
 from Sagi.tools.web_search_agent import WebSearchAgent
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.utils.prompt import get_general_agent_prompt, get_web_search_agent_prompt
-from Sagi.workflows.planning.planning import ModelClientFactory
 
 DEFAULT_WEB_SEARCH_MAX_RETRIES = 3
 
@@ -47,10 +47,10 @@ class GeneralChatWorkflow:
 
         config = load_toml_with_env_vars(config_path)
 
-        # Initialize orchestrator model client
-        config_general_client = config["model_clients"]["general_client"]
-        self.general_model_client = ModelClientFactory.create_model_client(
-            config_general_client
+        # Initialize orchestrator model client using ModelClientService
+        model_client_service = GlobalResourceManager.get_model_client_service()
+        self.general_model_client = await model_client_service.get_client(
+            "general_client", config_path
         )
         web_search_server_params = StdioServerParams(
             command="npx",
