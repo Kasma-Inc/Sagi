@@ -1100,7 +1100,7 @@ class GlobalResourceManager:
             cls._model_client_service = None
             # Reset per-process instances
             for instance in cls._instances.values():
-                if hasattr(instance, '_instance_initialized'):
+                if hasattr(instance, "_instance_initialized"):
                     instance._instance_initialized = False
             cls._instances.clear()
             logging.info("🔄 GlobalResourceManager reset")
@@ -1117,14 +1117,16 @@ class GlobalResourceManager:
         current_pid = os.getpid()
         if current_pid in cls._instances:
             instance = cls._instances[current_pid]
-            status.update({
-                "database_initialized": instance._db_engine is not None,
-                "redis_initialized": instance._redis_pool is not None,
-                "mcp_services_count": len(instance._mcp_tools_cache),
-                "workflow_pools_count": len(instance._workflow_pools),
-                "process_id": current_pid,
-                "is_worker_process": instance._use_shared_mcp,
-            })
+            status.update(
+                {
+                    "database_initialized": instance._db_engine is not None,
+                    "redis_initialized": instance._redis_pool is not None,
+                    "mcp_services_count": len(instance._mcp_tools_cache),
+                    "workflow_pools_count": len(instance._workflow_pools),
+                    "process_id": current_pid,
+                    "is_worker_process": instance._use_shared_mcp,
+                }
+            )
 
         return status
 
@@ -1371,6 +1373,7 @@ class WorkflowPool:
 
                         # Dynamic import to avoid circular import
                         from Sagi.workflows import PlanningWorkflow
+
                         workflow = await PlanningWorkflow.create(
                             config_path=self.config_path,
                             team_config_path=self.team_config_path,
@@ -1485,6 +1488,7 @@ class WorkflowPool:
 
                     # Dynamic import to avoid circular import
                     from Sagi.workflows import PlanningWorkflow
+
                     workflow = await PlanningWorkflow.create(
                         config_path=self.config_path,
                         team_config_path=self.team_config_path,
