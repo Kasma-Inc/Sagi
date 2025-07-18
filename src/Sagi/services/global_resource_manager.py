@@ -14,15 +14,13 @@ import os
 import threading
 import time
 from contextlib import AsyncExitStack
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from autogen_ext.tools.mcp import (
-    StdioServerParams,
-    create_mcp_server_session,
-    mcp_server_tools,
-)
+from autogen_ext.tools.mcp import (StdioServerParams,
+                                   create_mcp_server_session, mcp_server_tools)
 from redis.asyncio import ConnectionPool, Redis
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (AsyncEngine, async_sessionmaker,
+                                    create_async_engine)
 
 from Sagi.services.model_client_service import ModelClientService
 
