@@ -8,6 +8,11 @@ import uuid
 from autogen_agentchat.messages import BaseMessage, MemoryQueryEvent
 from autogen_agentchat.ui import Console
 from autogen_core.memory import MemoryContent
+from autogen_ext.tools.mcp import (
+    StdioServerParams,
+    create_mcp_server_session,
+    mcp_server_tools,
+)
 from dotenv import load_dotenv
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
@@ -18,6 +23,7 @@ from opentelemetry.semconv.resource import ResourceAttributes
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from Sagi.utils.logging_utils import setup_logging
+from Sagi.utils.mcp_utils import MCPSessionManager
 from Sagi.utils.message_to_memory import get_memory_type_for_message
 from Sagi.utils.model_client import ModelClientFactory
 from Sagi.utils.model_info import get_model_name_by_api_provider
@@ -25,6 +31,7 @@ from Sagi.utils.queries import (
     create_db_engine,
     saveChats,
 )
+from Sagi.workflows.agents.hirag_agent import HiragAgent
 from Sagi.workflows.agents.multi_round import MultiRoundAgent
 from Sagi.workflows.general.general_chat import GeneralChatWorkflow
 from Sagi.workflows.planning.planning import PlanningWorkflow
@@ -90,6 +97,7 @@ def parse_args():
             "web_search",
             "deep_research_html",
             "multi_rounds",
+            "hirag",
         ],
         default="deep_research_executor",
         help="Operation mode: deep_research_executor (deep research with code executor), general (general agent only), web_search (web search only), deep_research_html (deep research with html generator)",
@@ -112,7 +120,7 @@ def parse_args():
 
 
 # load env variables
-load_dotenv(override=True)
+load_dotenv("/chatbot/.env", override=True)
 
 
 def setup_tracing(endpoint: str, service_name: str):
@@ -217,6 +225,49 @@ async def main_cmd(args: argparse.Namespace):
                 "max_tokens": 16000,
             }
         )
+    elif args.mode == "hirag":
+        model = "gpt-4o-mini"
+        model_name = get_model_name_by_api_provider(
+            "aiml",
+            model,
+        )
+        model_client = ModelClientFactory.create_model_client(
+            {
+                "model": model_name,
+                "base_url": os.getenv("OPENAI_BASE_URL"),
+                "api_key": os.getenv("OPENAI_API_KEY"),
+                "max_tokens": 16000,
+            }
+        )
+        memory = SagiMemory(
+            chat_id=chat_id,
+            model_name=model,
+        )
+        memory.set_session_maker(session_maker)
+        
+        hirag_server_params = StdioServerParams(
+            command="mcp-hirag-tool",
+            args=[],
+            read_timeout_seconds=100,
+            env={
+                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
+                "OPENAI_BASE_URL": os.getenv("OPENAI_BASE_URL"),
+                "VOYAGE_API_KEY": os.getenv("VOYAGE_API_KEY"),
+            },
+        )
+
+        session_manager = MCPSessionManager()
+        hirag_retrieval = await session_manager.create_session(
+            "hirag_retrieval", create_mcp_server_session(hirag_server_params)
+        )
+        await hirag_retrieval.initialize()
+        hirag_retrieval_tools = await mcp_server_tools(
+            hirag_server_params, session=hirag_retrieval
+        )
+        hirag_retrieval_tools = [
+            tool for tool in hirag_retrieval_tools if tool.name == "hi_search"
+        ]
+
     else:
         raise ValueError(f"Invalid mode: {args.mode}")
 
@@ -240,6 +291,35 @@ async def main_cmd(args: argparse.Namespace):
                 )
 
                 chat_history = await Console(workflow.run_workflow(user_input))
+                messages = chat_history.messages
+                messages = [
+                    MemoryContent(
+                        content=message.content,
+                        mime_type=get_memory_type_for_message(message),
+                        metadata={"source": message.source},
+                    )
+                    for message in messages
+                    # TODO(klma): should kindly handle the message type writing into the table MultiRoundMemory
+                    if not isinstance(message, MemoryQueryEvent)
+                ]
+                await memory.add(messages)
+
+            elif args.mode == "hirag":
+                memory = SagiMemory(
+                    chat_id=chat_id,
+                    model_name=model,
+                )
+                memory.set_session_maker(session_maker)
+
+                workflow = HiragAgent(
+                    model_client=model_client,
+                    memory=memory,
+                    mcp_tools=hirag_retrieval_tools,
+                    language=args.language,
+                )
+
+                chat_history = await Console(workflow.run_workflow(user_input))
+                breakpoint()
                 messages = chat_history.messages
                 messages = [
                     MemoryContent(
