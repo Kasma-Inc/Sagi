@@ -880,18 +880,18 @@ class PlanningOrchestrator(BaseGroupChatManager):
                 if tool_response:
                     prompt_dict = json.loads(tool_response)
                     return prompt_dict
-            
+
             # If that fails, try parsing the content directly as JSON
             prompt_dict = json.loads(response.chat_message.content)
             return prompt_dict
-            
+
         except json.JSONDecodeError as e:
             logging.error(f"Failed to parse JSON from response: {e}")
             logging.error(f"Response content: {response.chat_message.content}")
             # Return a default template structure to prevent KeyError
             return {
                 "facts_prompt": "Please analyze the task: {task}",
-                "plan_prompt": "Please create a plan for: {task}"
+                "plan_prompt": "Please create a plan for: {task}",
             }
 
     async def load_state(self, state: Mapping[str, Any]) -> None:

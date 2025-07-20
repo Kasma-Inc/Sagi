@@ -51,9 +51,7 @@ from autogen_core.models import (
 )
 from pydantic import BaseModel, Field
 
-from Sagi.tools.stream_code_executor.stream_code_executor import (
-    CodeFileMessage,
-)
+from Sagi.tools.stream_code_executor.stream_code_executor import CodeFileMessage
 from Sagi.utils.hirag_message import hirag_message_to_llm_message
 from Sagi.utils.prompt import (
     get_appended_plan_prompt,
