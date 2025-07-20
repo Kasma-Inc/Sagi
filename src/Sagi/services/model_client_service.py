@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import json
 import logging
 import os
 import time
@@ -140,6 +142,59 @@ class ModelClientService:
             except Exception as e:
                 logging.error(f"❌ Failed to create model client '{client_type}': {e}")
                 raise
+
+    async def get_client_by_hash(
+        self,
+        config_hash: str,
+        config_path: str,
+        response_format: Optional[Type[BaseModel]] = None,
+        parallel_tool_calls: Optional[bool] = None,
+    ) -> ModelClient:
+        """Get or create a Model Client using configuration hash as identifier."""
+        # Find configuration by hash
+        config = self._find_config_by_hash(config_path, config_hash)
+        
+        # Create Model Client using factory
+        return ModelClientFactory.create_model_client(
+            config,
+            response_format=response_format,
+            parallel_tool_calls=parallel_tool_calls,
+        )
+
+    def generate_config_hash(self, config: Dict[str, Any]) -> str:
+        """Generate a SHA-256 hash for a configuration dictionary."""
+        if not config:
+            raise ValueError("Configuration dictionary cannot be empty")
+        
+        key_fields = ["model", "provider", "base_url", "max_tokens", "parallel_tool_calls"]
+        normalized_config = {field: config[field] for field in key_fields if field in config}
+        
+        if not normalized_config:
+            raise ValueError("No valid configuration fields found for hashing")
+        
+        config_json = json.dumps(normalized_config, sort_keys=True, ensure_ascii=True)
+        return hashlib.sha256(config_json.encode('utf-8')).hexdigest()
+
+    def get_config_hash(self, config_path: str, client_type: str) -> str:
+        """Get or compute the hash for a specific client configuration."""
+        config = self._load_client_config(config_path, client_type)
+        return self.generate_config_hash(config)
+
+    def _find_config_by_hash(self, config_path: str, target_hash: str) -> Dict[str, Any]:
+        """Find a configuration by its hash value."""
+        abs_config_path = os.path.abspath(config_path)
+        if abs_config_path not in self._config_cache:
+            self._config_cache[abs_config_path] = load_toml_with_env_vars(abs_config_path)
+        
+        config = self._config_cache[abs_config_path]
+        if "model_clients" not in config:
+            raise ValueError(f"No model_clients section found in {abs_config_path}")
+        
+        for client_type, client_config in config["model_clients"].items():
+            if self.generate_config_hash(client_config) == target_hash:
+                return client_config
+        
+        raise ValueError(f"No configuration found with hash '{target_hash[:8]}...'.")
 
     def _build_cache_key(
         self,
