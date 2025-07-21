@@ -1,5 +1,6 @@
 from contextlib import AsyncExitStack
 
+
 class MCPSessionManager:
     def __init__(self):
         self.exit_stack = AsyncExitStack()

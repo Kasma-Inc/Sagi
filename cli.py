@@ -5,7 +5,10 @@ import os
 import threading
 import uuid
 
-from autogen_agentchat.messages import BaseMessage, MemoryQueryEvent
+from autogen_agentchat.messages import (
+    BaseMessage,
+    ToolCallSummaryMessage,
+)
 from autogen_agentchat.ui import Console
 from autogen_core.memory import MemoryContent
 from autogen_ext.tools.mcp import (
@@ -231,6 +234,7 @@ async def main_cmd(args: argparse.Namespace):
             "aiml",
             model,
         )
+        model_name = "gpt-4o"
         model_client = ModelClientFactory.create_model_client(
             {
                 "model": model_name,
@@ -244,14 +248,14 @@ async def main_cmd(args: argparse.Namespace):
             model_name=model,
         )
         memory.set_session_maker(session_maker)
-        
+
         hirag_server_params = StdioServerParams(
             command="mcp-hirag-tool",
             args=[],
             read_timeout_seconds=100,
             env={
-                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
-                "OPENAI_BASE_URL": os.getenv("OPENAI_BASE_URL"),
+                "LLM_API_KEY": os.getenv("OPENAI_API_KEY"),
+                "LLM_BASE_URL": os.getenv("OPENAI_BASE_URL"),
                 "VOYAGE_API_KEY": os.getenv("VOYAGE_API_KEY"),
             },
         )
@@ -299,8 +303,6 @@ async def main_cmd(args: argparse.Namespace):
                         metadata={"source": message.source},
                     )
                     for message in messages
-                    # TODO(klma): should kindly handle the message type writing into the table MultiRoundMemory
-                    if not isinstance(message, MemoryQueryEvent)
                 ]
                 await memory.add(messages)
 
@@ -319,20 +321,17 @@ async def main_cmd(args: argparse.Namespace):
                 )
 
                 chat_history = await Console(workflow.run_workflow(user_input))
-                breakpoint()
                 messages = chat_history.messages
                 messages = [
                     MemoryContent(
-                        content=message.content,
+                        content=workflow.message_to_memory_content(message),
                         mime_type=get_memory_type_for_message(message),
                         metadata={"source": message.source},
                     )
                     for message in messages
-                    # TODO(klma): should kindly handle the message type writing into the table MultiRoundMemory
-                    if not isinstance(message, MemoryQueryEvent)
+                    if not isinstance(message, ToolCallSummaryMessage)
                 ]
                 await memory.add(messages)
-
             else:
                 await asyncio.create_task(Console(workflow.run_workflow(user_input)))
                 await workflow.team.set_id_info("cli_dev", chat_id)
