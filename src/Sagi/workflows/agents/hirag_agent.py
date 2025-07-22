@@ -14,6 +14,8 @@ from autogen_ext.tools.mcp._stdio import StdioMcpToolAdapter
 
 from Sagi.workflows.sagi_memory import SagiMemory
 
+from autogen_core import CancellationToken
+
 
 class HiragAgent:
     agent: AssistantAgent
@@ -44,6 +46,28 @@ class HiragAgent:
             system_message=system_prompt,
             tools=self.mcp_tools,
         )
+
+    async def set_language(self, language: str, hi_set_language_tool=None):
+        """Set the language for HiRAG retrieval system."""
+        if hi_set_language_tool:
+            try:
+                # Use the MCP tool's run_json method for direct execution      
+                tool = hi_set_language_tool
+                # Call the tool with the language parameter
+                result = await tool.run_json(
+                    {"language": language}, 
+                    CancellationToken()
+                )
+                
+                self.language = language
+                return f"Language successfully set to {language}: {result}"
+                
+            except Exception as e:
+                return f"Failed to set language: {e}"
+        else:
+            # Just update the local language setting
+            self.language = language
+            return f"Language set to {language} (local only)"
 
     def _get_system_prompt(self):
         system_prompt = {
