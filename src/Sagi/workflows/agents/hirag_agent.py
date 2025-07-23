@@ -46,14 +46,12 @@ class HiragAgent:
             tools=self.mcp_tools,
         )
 
-    async def set_language(self, language: str, hi_set_language_tool=None):
+    async def set_language(self, language: str, hirag_set_language_tool=None):
         """Set the language for HiRAG retrieval system."""
-        if hi_set_language_tool:
+        if hirag_set_language_tool:
             try:
                 # Use the MCP tool's run_json method for direct execution
-                tool = hi_set_language_tool
-                # Call the tool with the language parameter
-                result = await tool.run_json(
+                result = await hirag_set_language_tool.run_json(
                     {"language": language}, CancellationToken()
                 )
 
