@@ -5,10 +5,7 @@ import os
 import threading
 import uuid
 
-from autogen_agentchat.messages import (
-    BaseMessage,
-    ToolCallSummaryMessage,
-)
+from autogen_agentchat.messages import BaseMessage, ToolCallSummaryMessage
 from autogen_agentchat.ui import Console
 from autogen_core.memory import MemoryContent
 from autogen_ext.tools.mcp import (
@@ -30,10 +27,7 @@ from Sagi.utils.mcp_utils import MCPSessionManager
 from Sagi.utils.message_to_memory import get_memory_type_for_message
 from Sagi.utils.model_client import ModelClientFactory
 from Sagi.utils.model_info import get_model_name_by_api_provider
-from Sagi.utils.queries import (
-    create_db_engine,
-    saveChats,
-)
+from Sagi.utils.queries import create_db_engine, saveChats
 from Sagi.workflows.agents.hirag_agent import HiragAgent
 from Sagi.workflows.agents.multi_round import MultiRoundAgent
 from Sagi.workflows.general.general_chat import GeneralChatWorkflow

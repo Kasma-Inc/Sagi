@@ -170,9 +170,7 @@ class ResourceManager:
         """
         async with self._ensure_init_lock():
             if self._db_engine is not None:
-                logging.warning(
-                    "⚠️ ResourceManager already initialized, skipping..."
-                )
+                logging.warning("⚠️ ResourceManager already initialized, skipping...")
                 return
 
             process_type = "[MAIN]" if not self._use_shared_mcp else "[WORKER]"
