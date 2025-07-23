@@ -8,13 +8,12 @@ from autogen_agentchat.messages import (
     ToolCallRequestEvent,
     ToolCallSummaryMessage,
 )
+from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient
 from autogen_ext.tools.mcp._sse import SseMcpToolAdapter
 from autogen_ext.tools.mcp._stdio import StdioMcpToolAdapter
 
 from Sagi.workflows.sagi_memory import SagiMemory
-
-from autogen_core import CancellationToken
 
 
 class HiragAgent:
@@ -51,17 +50,16 @@ class HiragAgent:
         """Set the language for HiRAG retrieval system."""
         if hi_set_language_tool:
             try:
-                # Use the MCP tool's run_json method for direct execution      
+                # Use the MCP tool's run_json method for direct execution
                 tool = hi_set_language_tool
                 # Call the tool with the language parameter
                 result = await tool.run_json(
-                    {"language": language}, 
-                    CancellationToken()
+                    {"language": language}, CancellationToken()
                 )
-                
+
                 self.language = language
                 return f"Language successfully set to {language}: {result}"
-                
+
             except Exception as e:
                 return f"Failed to set language: {e}"
         else:

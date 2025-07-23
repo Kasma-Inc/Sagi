@@ -270,8 +270,10 @@ async def main_cmd(args: argparse.Namespace):
         )
 
         # Set language for HiRAG instance
-        hirag_set_language_tool = [tool for tool in hirag_retrieval_tools if tool.name == "hi_set_language"]
-        
+        hirag_set_language_tool = [
+            tool for tool in hirag_retrieval_tools if tool.name == "hi_set_language"
+        ]
+
         hirag_retrieval_tools = [
             tool for tool in hirag_retrieval_tools if tool.name == "hi_search"
         ]
