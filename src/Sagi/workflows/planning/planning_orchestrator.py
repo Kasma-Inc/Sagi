@@ -872,9 +872,27 @@ class PlanningOrchestrator(BaseGroupChatManager):
         response = await self._domain_specific_agent.on_messages(
             [message], cancellation_token=cancellation_token
         )
-        tool_response = json.loads(response.chat_message.content)[0].get("text")
-        prompt_dict = json.loads(tool_response)
-        return prompt_dict
+        try:
+            # Try to parse as JSON array first (tool response format)
+            content_json = json.loads(response.chat_message.content)
+            if isinstance(content_json, list) and len(content_json) > 0:
+                tool_response = content_json[0].get("text", "")
+                if tool_response:
+                    prompt_dict = json.loads(tool_response)
+                    return prompt_dict
+
+            # If that fails, try parsing the content directly as JSON
+            prompt_dict = json.loads(response.chat_message.content)
+            return prompt_dict
+
+        except json.JSONDecodeError as e:
+            logging.error(f"Failed to parse JSON from response: {e}")
+            logging.error(f"Response content: {response.chat_message.content}")
+            # Return a default template structure to prevent KeyError
+            return {
+                "facts_prompt": "Please analyze the task: {task}",
+                "plan_prompt": "Please create a plan for: {task}",
+            }
 
     async def load_state(self, state: Mapping[str, Any]) -> None:
         orchestrator_state = PlanningOrchestratorState.model_validate(state)
