@@ -270,7 +270,7 @@ async def main_cmd(args: argparse.Namespace):
         )
 
         # Set language for HiRAG instance
-        hi_set_language_tool = [tool for tool in hirag_retrieval_tools if tool.name == "hi_set_language"]
+        hirag_set_language_tool = [tool for tool in hirag_retrieval_tools if tool.name == "hi_set_language"]
         
         hirag_retrieval_tools = [
             tool for tool in hirag_retrieval_tools if tool.name == "hi_search"
@@ -325,13 +325,12 @@ async def main_cmd(args: argparse.Namespace):
                 )
 
                 # Set language in HiRAG server if the tool is available
-                if hi_set_language_tool:
+                if hirag_set_language_tool:
                     try:
                         language_result = await workflow.set_language(
-                            args.language, hi_set_language_tool[0]
+                            args.language, hirag_set_language_tool[0]
                         )
                         logging.info(f"Language setting result: {language_result}")
-                        print(language_result)  # Print the result to console
                     except Exception as e:
                         logging.error(f"Failed to set language in HiRAG server: {e}")
                         # Continue execution even if language setting fails

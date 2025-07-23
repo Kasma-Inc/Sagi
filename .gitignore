@@ -181,3 +181,6 @@ coding_files/
 
 # Ignore the testing file
 state_backup.json
+
+# ignore the generated kb
+kb/
