@@ -150,7 +150,7 @@ class PlanningWorkflow:
         countdown_timer: int = 60,  # time before the docker container is stopped
         external_mcp_tools: Optional[
             Dict[str, List[Any]]
-        ] = None,  # Shared MCP tools from GlobalResourceManager
+        ] = None,  # Shared MCP tools from ResourceManager
     ):
         self = cls()
 
@@ -247,7 +247,7 @@ class PlanningWorkflow:
 
         # MCP Tools initialization - use external tools if provided, otherwise create own sessions
         if external_mcp_tools:
-            # Use shared MCP tools from GlobalResourceManager
+            # Use shared MCP tools from ResourceManager
             web_search_tools = external_mcp_tools.get("web_search", [])
             domain_specific_tools = external_mcp_tools.get("domain_specific", [])
             hirag_retrieval_tools = external_mcp_tools.get("hirag_retrieval", [])

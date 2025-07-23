@@ -76,7 +76,7 @@ def timing_logger(operation_name: str):
     return decorator
 
 
-class GlobalResourceManager:
+class ResourceManager:
     """
     Singleton Global Resource Manager that manages all shared resources
     across the application lifecycle including database connections,
@@ -88,11 +88,11 @@ class GlobalResourceManager:
     exists throughout the application's lifecycle.
     """
 
-    _instances: Dict[int, "GlobalResourceManager"] = {}  # Per-process instances
+    _instances: Dict[int, "ResourceManager"] = {}  # Per-process instances
     _lock = threading.Lock()
     _model_client_service: Optional[ModelClientService] = None
 
-    def __new__(cls) -> "GlobalResourceManager":
+    def __new__(cls) -> "ResourceManager":
         """Ensure singleton pattern - one instance per process."""
         process_id = os.getpid()
 
@@ -137,7 +137,7 @@ class GlobalResourceManager:
 
             process_type = "[MAIN]" if not self._is_worker_process() else "[WORKER]"
             logging.info(
-                f"🚀 {process_type} GlobalResourceManager instance created for process {os.getpid()}"
+                f"🚀 {process_type} ResourceManager instance created for process {os.getpid()}"
             )
 
     def _ensure_init_lock(self) -> asyncio.Lock:
@@ -148,7 +148,7 @@ class GlobalResourceManager:
                     self._init_lock = asyncio.Lock()
         return self._init_lock
 
-    @timing_logger("GlobalResourceManager.initialize")
+    @timing_logger("ResourceManager.initialize")
     async def initialize(
         self,
         postgres_url: str,
@@ -171,12 +171,12 @@ class GlobalResourceManager:
         async with self._ensure_init_lock():
             if self._db_engine is not None:
                 logging.warning(
-                    "⚠️ GlobalResourceManager already initialized, skipping..."
+                    "⚠️ ResourceManager already initialized, skipping..."
                 )
                 return
 
             process_type = "[MAIN]" if not self._use_shared_mcp else "[WORKER]"
-            logging.info(f"🔄 {process_type} Initializing GlobalResourceManager...")
+            logging.info(f"🔄 {process_type} Initializing ResourceManager...")
 
             # Determine if this is the main process or worker process
             current_pid = os.getpid()
@@ -222,11 +222,11 @@ class GlobalResourceManager:
                     "[MAIN-GLOBAL]" if not self._use_shared_mcp else "[WORKER-SHARED]"
                 )
                 logging.info(
-                    f"✅ {process_type} GlobalResourceManager initialization completed successfully"
+                    f"✅ {process_type} ResourceManager initialization completed successfully"
                 )
 
             except Exception as e:
-                logging.error(f"❌ Failed to initialize GlobalResourceManager: {e}")
+                logging.error(f"❌ Failed to initialize ResourceManager: {e}")
                 # Only cleanup resources that were actually initialized to avoid cleanup errors
                 await self._safe_partial_cleanup()
                 raise
@@ -1103,7 +1103,7 @@ class GlobalResourceManager:
                 if hasattr(instance, "_instance_initialized"):
                     instance._instance_initialized = False
             cls._instances.clear()
-            logging.info("🔄 GlobalResourceManager reset")
+            logging.info("🔄 ResourceManager reset")
 
     @classmethod
     def get_service_status(cls) -> dict:
@@ -1135,7 +1135,7 @@ class GlobalResourceManager:
         process_type = (
             "[MAIN-GLOBAL]" if not self._use_shared_mcp else "[WORKER-SHARED]"
         )
-        logging.info(f"🧹 {process_type} Cleaning up GlobalResourceManager...")
+        logging.info(f"🧹 {process_type} Cleaning up ResourceManager...")
 
         cleanup_errors = []
 
@@ -1244,14 +1244,14 @@ class GlobalResourceManager:
                 "[MAIN-GLOBAL]" if not self._use_shared_mcp else "[WORKER-SHARED]"
             )
             logging.warning(
-                f"⚠️ {process_type} GlobalResourceManager cleanup completed with {len(cleanup_errors)} errors: {cleanup_errors}"
+                f"⚠️ {process_type} ResourceManager cleanup completed with {len(cleanup_errors)} errors: {cleanup_errors}"
             )
         else:
             process_type = (
                 "[MAIN-GLOBAL]" if not self._use_shared_mcp else "[WORKER-SHARED]"
             )
             logging.info(
-                f"✅ {process_type} GlobalResourceManager cleanup completed successfully"
+                f"✅ {process_type} ResourceManager cleanup completed successfully"
             )
 
         # Don't raise exceptions during shutdown to prevent blocking application exit
@@ -1272,7 +1272,7 @@ class WorkflowPool:
         pool_size: int = 3,
         config_path: Optional[str] = None,
         team_config_path: Optional[str] = None,
-        resource_manager=None,  # Optional GlobalResourceManager for shared services
+        resource_manager=None,  # Optional ResourceManager for shared services
     ):
         """
         Initialize workflow pool.
@@ -1282,7 +1282,7 @@ class WorkflowPool:
             pool_size: Number of workflow instances to maintain in pool
             config_path: Path to workflow configuration file
             team_config_path: Path to team configuration file
-            resource_manager: Optional GlobalResourceManager for shared MCP services
+            resource_manager: Optional ResourceManager for shared MCP services
         """
         self.workflow_name = workflow_name
         self.pool_size = pool_size
@@ -1299,7 +1299,7 @@ class WorkflowPool:
         # Initialization flag
         self._initialized = False
 
-        # Detect process type for logging - using same logic as GlobalResourceManager
+        # Detect process type for logging - using same logic as ResourceManager
         self._is_worker_process = os.getenv("OFNIL_WORKER_PROCESS") == "true"
         process_type = "[WORKER-SHARED]" if self._is_worker_process else "[MAIN-GLOBAL]"
 
@@ -1662,19 +1662,19 @@ class WorkflowPool:
 
 
 # Per-process instances for easy access
-_resource_managers: Dict[int, GlobalResourceManager] = {}
+_resource_managers: Dict[int, ResourceManager] = {}
 
 
-def get_resource_manager() -> GlobalResourceManager:
+def get_resource_manager() -> ResourceManager:
     """
     Get the global resource manager instance for this process.
 
     Returns:
-        GlobalResourceManager singleton instance for this process
+        ResourceManager singleton instance for this process
     """
     process_id = os.getpid()
     if process_id not in _resource_managers:
-        _resource_managers[process_id] = GlobalResourceManager()
+        _resource_managers[process_id] = ResourceManager()
     return _resource_managers[process_id]
 
 
