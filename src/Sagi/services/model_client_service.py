@@ -366,7 +366,7 @@ class ModelClientService:
         """Clear all cached clients and configurations."""
         # Clear global pools
         self._global_manager.clear_all_pools()
-        
+
         # Clear local config cache
         with self._lock:
             self._config_cache.clear()
@@ -376,7 +376,7 @@ class ModelClientService:
         """Get information about current service state (now using global pool manager)."""
         # Get stats from global manager
         global_stats = self._global_manager.get_global_stats()
-        
+
         # Add legacy cache info for backward compatibility
         with self._lock:
             return {
