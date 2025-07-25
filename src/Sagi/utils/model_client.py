@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Type, TypeVar
+from typing import Any, Dict, Optional, TypeVar
 
 from autogen_core.models import ModelFamily, ModelInfo
 from autogen_ext.models.openai import OpenAIChatCompletionClient
@@ -20,8 +20,6 @@ class ModelClientFactory:
     def create_model_client(
         cls,
         client_config: Dict[str, Any],
-        response_format: Optional[Type[T]] = None,
-        parallel_tool_calls: Optional[bool] = None,
     ) -> OpenAIChatCompletionClient:
         model_info = cls._init_model_info(client_config)
         client_kwargs = {
@@ -32,11 +30,12 @@ class ModelClientFactory:
             "max_tokens": client_config.get("max_tokens", 16000),
         }
 
-        if response_format:
-            client_kwargs["response_format"] = response_format
+        # Handle optional parameters from client_config
+        if "response_format" in client_config:
+            client_kwargs["response_format"] = client_config["response_format"]
 
-        if parallel_tool_calls is not None:
-            client_kwargs["parallel_tool_calls"] = parallel_tool_calls
+        if "parallel_tool_calls" in client_config:
+            client_kwargs["parallel_tool_calls"] = client_config["parallel_tool_calls"]
 
         # Add the remaining client kwargs from the client_config
         for key, value in client_config.items():
