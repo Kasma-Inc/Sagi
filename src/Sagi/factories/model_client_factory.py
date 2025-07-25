@@ -124,7 +124,9 @@ class ModelClientFactory:
                 client_kwargs["response_format"] = client_config["response_format"]
 
             if "parallel_tool_calls" in client_config:
-                client_kwargs["parallel_tool_calls"] = client_config["parallel_tool_calls"]
+                client_kwargs["parallel_tool_calls"] = client_config[
+                    "parallel_tool_calls"
+                ]
 
             if "default_headers" in client_config:
                 client_kwargs["default_headers"] = client_config["default_headers"]
