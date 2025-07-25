@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Type, TypeVar, Union
+from typing import Any, Dict, Optional, TypeVar, Union
 
 from autogen_core.models import ModelFamily, ModelInfo
 from autogen_ext.models.anthropic import AnthropicChatCompletionClient
