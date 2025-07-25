@@ -66,16 +66,14 @@ class ModelClientFactory:
     def create_model_client(
         cls,
         client_config: Dict[str, Any],
-        response_format: Optional[Type[T]] = None,
-        parallel_tool_calls: Optional[bool] = None,
     ) -> ModelClient:
         """
         Create an OpenAI or Anthropic Chat Completion Client with simplified validation.
 
         Args:
-            client_config: Dictionary containing client configuration
-            response_format: Optional response format for structured output
-            parallel_tool_calls: Whether to enable parallel tool calls
+            client_config: Dictionary containing client configuration including optional:
+                          - response_format: Optional response format for structured output
+                          - parallel_tool_calls: Whether to enable parallel tool calls
 
         Returns:
             ModelClient: Configured client instance (OpenAI or Anthropic)
@@ -121,12 +119,12 @@ class ModelClientFactory:
         if provider == "openai":
             client_kwargs["base_url"] = client_config["base_url"]
 
-            # Handle optional parameters for OpenAI
-            if response_format:
-                client_kwargs["response_format"] = response_format
+            # Handle optional parameters for OpenAI from client_config
+            if "response_format" in client_config:
+                client_kwargs["response_format"] = client_config["response_format"]
 
-            if parallel_tool_calls is not None:
-                client_kwargs["parallel_tool_calls"] = parallel_tool_calls
+            if "parallel_tool_calls" in client_config:
+                client_kwargs["parallel_tool_calls"] = client_config["parallel_tool_calls"]
 
             if "default_headers" in client_config:
                 client_kwargs["default_headers"] = client_config["default_headers"]
@@ -134,9 +132,9 @@ class ModelClientFactory:
             return OpenAIChatCompletionClient(**client_kwargs)
 
         elif provider == "anthropic":
-            # Handle optional parameters for Anthropic
-            if response_format:
-                client_kwargs["response_format"] = response_format
+            # Handle optional parameters for Anthropic from client_config
+            if "response_format" in client_config:
+                client_kwargs["response_format"] = client_config["response_format"]
 
             if "default_headers" in client_config:
                 client_kwargs["default_headers"] = client_config["default_headers"]
