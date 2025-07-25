@@ -12,35 +12,35 @@ from typing import Any, Dict, Optional, Tuple, Type
 from pydantic import BaseModel
 
 from Sagi.factories.model_client_factory import ModelClient, ModelClientFactory
+from Sagi.services.global_model_client_manager import get_global_model_client_manager
 from Sagi.utils.load_config import load_toml_with_env_vars
 
 
 class ModelClientService:
     """
-    Service for managing Model Client lifecycle with caching and thread safety.
+    Service for managing Model Client lifecycle with improved pool-based architecture.
 
-    This service provides centralized management of OpenAI and Anthropic chat completion clients,
-    implementing caching to avoid redundant client creation and ensuring thread safety
-    for concurrent access.
+    This service now uses the GlobalModelClientManager for efficient client pooling,
+    supporting both async and sync operations with automatic client reuse and cleanup.
     """
 
     def __init__(self, max_cache_size: int = 100, cache_ttl: int = 3600):
-        # LRU cache for created model clients with access tracking
-        self._clients: OrderedDict[str, Tuple[ModelClient, float]] = OrderedDict()
+        # Use global manager for client pooling
+        self._global_manager = get_global_model_client_manager()
 
-        # Cache for loaded configuration files to avoid redundant I/O operations
+        # Legacy cache for loaded configuration files (kept for backward compatibility)
         self._config_cache: Dict[str, Dict[str, Any]] = {}
 
-        # Cache configuration
+        # Legacy configuration (kept for backward compatibility)
         self._max_cache_size = max_cache_size
         self._cache_ttl = cache_ttl  # TTL in seconds
 
-        # Thread-safe lock for concurrent client creation
-        # Using RLock to support re-entrant calls within the same thread
+        # Thread-safe lock for configuration loading
         self._lock = threading.RLock()
 
         logging.info(
-            f"🔧 ModelClientService initialized with max_cache_size={max_cache_size}, cache_ttl={cache_ttl}s"
+            f"🔧 ModelClientService initialized using GlobalModelClientManager "
+            f"(legacy params: max_cache_size={max_cache_size}, cache_ttl={cache_ttl}s)"
         )
 
     async def get_client(
@@ -51,7 +51,7 @@ class ModelClientService:
         parallel_tool_calls: Optional[bool] = None,
     ) -> ModelClient:
         """
-        Get or create a Model Client with caching support.
+        Get or create a Model Client using the global pool manager.
 
         Args:
             client_type: Type of client to create (e.g., "orchestrator_client")
@@ -73,64 +73,13 @@ class ModelClientService:
         if not config_path or not isinstance(config_path, str):
             raise ValueError("config_path must be a non-empty string")
 
-        # Build cache key
-        cache_key = self._build_cache_key(
-            client_type, response_format, parallel_tool_calls, config_path
+        # Use global manager to get client from pool
+        return await self._global_manager.get_client_async(
+            client_type=client_type,
+            config_path=config_path,
+            response_format=response_format,
+            parallel_tool_calls=parallel_tool_calls,
         )
-
-        # Thread-safe cache access and client creation
-        with self._lock:
-            # Check cache under lock protection
-            if cache_key in self._clients:
-                client, timestamp = self._clients[cache_key]
-                current_time = time.time()
-
-                # Check if cache entry is still valid (TTL)
-                if current_time - timestamp < self._cache_ttl:
-                    # Move to end for LRU (most recently used)
-                    self._clients.move_to_end(cache_key)
-                    logging.debug(f"🔍 Model client '{client_type}' found in cache")
-                    return client
-                else:
-                    # Cache entry expired, remove it
-                    del self._clients[cache_key]
-                    logging.debug(f"⏰ Model client '{client_type}' cache expired")
-
-            logging.info(f"🔧 Creating new model client '{client_type}'")
-
-            try:
-                # Load configuration
-                config = self._load_client_config(config_path, client_type)
-
-                # Handle special logic for single_tool_use_client
-                if (
-                    parallel_tool_calls is None
-                    and client_type == "single_tool_use_client"
-                ):
-                    parallel_tool_calls_setting = config.get("parallel_tool_calls")
-                    if parallel_tool_calls_setting is True:
-                        parallel_tool_calls = True
-
-                # Create Model Client using factory
-                client = ModelClientFactory.create_model_client(
-                    config,
-                    response_format=response_format,
-                    parallel_tool_calls=parallel_tool_calls,
-                )
-
-                # Cache the newly created client with timestamp
-                current_time = time.time()
-                self._clients[cache_key] = (client, current_time)
-
-                # Evict oldest entries if cache is full
-                self._evict_if_needed()
-
-                logging.info(f"✅ Model client '{client_type}' created and cached")
-                return client
-
-            except Exception as e:
-                logging.error(f"❌ Failed to create model client '{client_type}': {e}")
-                raise
 
     async def get_client_by_hash(
         self,
@@ -139,72 +88,107 @@ class ModelClientService:
         response_format: Optional[Type[BaseModel]] = None,
         parallel_tool_calls: Optional[bool] = None,
     ) -> ModelClient:
-        """Get or create a Model Client using configuration hash as identifier."""
+        """
+        Get or create a Model Client using configuration hash as identifier.
+
+        This method finds the client_type by hash and then uses the pool manager.
+        """
         # Input validation
         if not config_hash or not isinstance(config_hash, str):
             raise ValueError("config_hash must be a non-empty string")
         if not config_path or not isinstance(config_path, str):
             raise ValueError("config_path must be a non-empty string")
 
-        # Build cache key using hash instead of client_type
-        cache_key = self._build_cache_key_by_hash(
-            config_hash, response_format, parallel_tool_calls, config_path
-        )
+        try:
+            # Find configuration and client_type by hash
+            client_type = self._get_client_type_by_hash(config_path, config_hash)
 
-        # Thread-safe cache access and client creation
-        with self._lock:
-            # Check cache under lock protection
-            if cache_key in self._clients:
-                client, timestamp = self._clients[cache_key]
-                current_time = time.time()
-
-                # Check if cache entry is still valid (TTL)
-                if current_time - timestamp < self._cache_ttl:
-                    # Move to end for LRU (most recently used)
-                    self._clients.move_to_end(cache_key)
-                    logging.debug(
-                        f"🔍 Model client with hash '{config_hash[:8]}...' found in cache"
-                    )
-                    return client
-                else:
-                    # Cache entry expired, remove it
-                    del self._clients[cache_key]
-                    logging.debug(
-                        f"⏰ Model client with hash '{config_hash[:8]}...' cache expired"
-                    )
-
-            logging.info(
-                f"🔧 Creating new model client with hash '{config_hash[:8]}...'"
+            # Use global manager to get client from pool
+            return await self._global_manager.get_client_async(
+                client_type=client_type,
+                config_path=config_path,
+                response_format=response_format,
+                parallel_tool_calls=parallel_tool_calls,
             )
 
-            try:
-                # Find configuration by hash
-                config = self._find_config_by_hash(config_path, config_hash)
+        except Exception as e:
+            logging.error(
+                f"❌ Failed to create model client with hash '{config_hash[:8]}...': {e}"
+            )
+            raise
 
-                # Create Model Client using factory
-                client = ModelClientFactory.create_model_client(
-                    config,
-                    response_format=response_format,
-                    parallel_tool_calls=parallel_tool_calls,
-                )
+    async def return_client_async(
+        self,
+        client: ModelClient,
+        client_type: str,
+        config_path: str,
+    ) -> None:
+        """
+        Return a client to the pool asynchronously.
 
-                # Cache the newly created client with timestamp
-                current_time = time.time()
-                self._clients[cache_key] = (client, current_time)
+        Args:
+            client: Client to return to the pool
+            client_type: Type of client
+            config_path: Path to configuration file
+        """
+        await self._global_manager.return_client_async(
+            client=client,
+            client_type=client_type,
+            config_path=config_path,
+        )
 
-                # Evict oldest entries if cache is full
-                self._evict_if_needed()
+    def return_client_sync(
+        self,
+        client: ModelClient,
+        client_type: str,
+        config_path: str,
+    ) -> None:
+        """
+        Return a client to the pool synchronously.
 
-                logging.info(
-                    f"✅ Model client with hash '{config_hash[:8]}...' created and cached"
-                )
-                return client
+        Args:
+            client: Client to return to the pool
+            client_type: Type of client
+            config_path: Path to configuration file
+        """
+        self._global_manager.return_client_sync(
+            client=client,
+            client_type=client_type,
+            config_path=config_path,
+        )
 
-            except Exception as e:
-                logging.error(
-                    f"❌ Failed to create model client with hash '{config_hash[:8]}...': {e}"
-                )
-                raise
+    def get_client_sync(
+        self,
+        client_type: str,
+        config_path: str,
+        response_format: Optional[Type[BaseModel]] = None,
+        parallel_tool_calls: Optional[bool] = None,
+    ) -> ModelClient:
+        """
+        Get or create a Model Client synchronously using the global pool manager.
+
+        Args:
+            client_type: Type of client to create (e.g., "orchestrator_client")
+            config_path: Path to configuration file
+            response_format: Optional response format for structured output
+            parallel_tool_calls: Whether to enable parallel tool calls
+
+        Returns:
+            ModelClient: The requested model client (OpenAI or Anthropic)
+        """
+        # Input validation
+        if not client_type or not isinstance(client_type, str):
+            raise ValueError("client_type must be a non-empty string")
+        if not config_path or not isinstance(config_path, str):
+            raise ValueError("config_path must be a non-empty string")
+
+        # Use global manager to get client from pool
+        return self._global_manager.get_client_sync(
+            client_type=client_type,
+            config_path=config_path,
+            response_format=response_format,
+            parallel_tool_calls=parallel_tool_calls,
+        )
 
     def generate_config_hash(self, config: Dict[str, Any]) -> str:
         """Generate a SHA-256 hash for a configuration dictionary."""
@@ -376,59 +360,32 @@ class ModelClientService:
             # Return a deep copy to avoid sharing mutable objects across threads
             return copy.deepcopy(config["model_clients"][client_type])
 
-    def _evict_if_needed(self):
-        """Evict oldest entries from cache if it exceeds max size.
-
-        Note: This method should be called while holding self._lock.
-        """
-        while len(self._clients) > self._max_cache_size:
-            # Remove the oldest entry (first in OrderedDict)
-            oldest_key = next(iter(self._clients))
-            del self._clients[oldest_key]
-            logging.debug(f"🗑️ Evicted cache entry: {oldest_key}")
-
-    def _cleanup_expired_entries(self):
-        """Remove all expired entries from cache."""
-        with self._lock:
-            current_time = time.time()
-            expired_keys = []
-
-            for key, (client, timestamp) in self._clients.items():
-                if current_time - timestamp >= self._cache_ttl:
-                    expired_keys.append(key)
-
-            for key in expired_keys:
-                del self._clients[key]
-                logging.debug(f"⏰ Removed expired cache entry: {key}")
-
-            if expired_keys:
-                logging.info(f"🧹 Cleaned up {len(expired_keys)} expired cache entries")
+    # Legacy methods removed - pool management now handled by GlobalModelClientManager
 
     def clear_cache(self):
         """Clear all cached clients and configurations."""
+        # Clear global pools
+        self._global_manager.clear_all_pools()
+        
+        # Clear local config cache
         with self._lock:
-            self._clients.clear()
             self._config_cache.clear()
-            logging.info("🧹 ModelClientService cache cleared")
+            logging.info("🧹 ModelClientService cache cleared (using global manager)")
 
     def get_cache_info(self) -> Dict[str, Any]:
-        """Get information about current cache state."""
+        """Get information about current service state (now using global pool manager)."""
+        # Get stats from global manager
+        global_stats = self._global_manager.get_global_stats()
+        
+        # Add legacy cache info for backward compatibility
         with self._lock:
-            current_time = time.time()
-            valid_entries = 0
-            expired_entries = 0
-
-            for client, timestamp in self._clients.values():
-                if current_time - timestamp < self._cache_ttl:
-                    valid_entries += 1
-                else:
-                    expired_entries += 1
-
             return {
-                "cached_clients": len(self._clients),
-                "valid_entries": valid_entries,
-                "expired_entries": expired_entries,
+                "global_manager_stats": global_stats,
                 "cached_configs": len(self._config_cache),
-                "max_cache_size": self._max_cache_size,
-                "cache_ttl": self._cache_ttl,
+                "legacy_max_cache_size": self._max_cache_size,
+                "legacy_cache_ttl": self._cache_ttl,
             }
+
+    def cleanup_pools(self) -> Dict[str, int]:
+        """Clean up expired clients in all pools."""
+        return self._global_manager.cleanup_all_pools()

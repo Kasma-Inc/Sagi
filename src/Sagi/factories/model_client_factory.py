@@ -18,22 +18,20 @@ class ModelClientFactory:
     """
 
     @staticmethod
-    def _init_model_info(
-        client_config: Dict[str, Any], provider: str = "openai"
-    ) -> Optional[ModelInfo]:
+    def _init_model_info(client_config: Dict[str, Any]) -> Optional[ModelInfo]:
         """
         Initialize ModelInfo from client configuration.
 
         Args:
             client_config: Dictionary containing client configuration
-            provider: The model provider ("openai" or "anthropic")
 
         Returns:
             Optional[ModelInfo]: ModelInfo object if configuration contains model_info, None otherwise
         """
         if "model_info" in client_config:
             model_info = client_config["model_info"].copy()
-            # Set appropriate model family based on provider
+            # Set appropriate model family based on determined provider
+            provider = ModelClientFactory._determine_provider(client_config)
             if provider == "anthropic":
                 model_info["family"] = ModelFamily.ANTHROPIC
             else:
@@ -102,7 +100,7 @@ class ModelClientFactory:
                 raise ValueError(f"Missing required field: {field}")
 
         # Create client configuration
-        model_info = cls._init_model_info(client_config, provider)
+        model_info = cls._init_model_info(client_config)
         client_kwargs = {
             "model": client_config["model"],
             "model_info": model_info,
