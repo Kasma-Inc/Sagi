@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Type
 
 from pydantic import BaseModel
 
-from Sagi.factories.model_client_factory import ModelClient, ModelClientFactory
+from Sagi.factories.model_client_factory import ModelClient
 from Sagi.services.model_client_pool import ModelClientPool
 from Sagi.utils.load_config import load_toml_with_env_vars
 
