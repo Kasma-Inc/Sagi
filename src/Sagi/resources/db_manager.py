@@ -132,11 +132,15 @@ class RedisClient(SimpleSingleton):
         logging.info("Connection to Redis is closed.")
 
 
-class DBManager:
+class DBManager(SimpleSingleton):
     """Placeholder for PGSQLClient andRedisClient"""
 
     _pgsql_client: Optional[PGSQLClient] = None
     _redis_client: Optional[RedisClient] = None
+
+    def __init__(self):
+        self._pgsql_client = PGSQLClient()
+        self._redis_client = RedisClient()
 
     def getPGSQLClient(self) -> PGSQLClient:
         if self._pgsql_client is None:
@@ -149,14 +153,15 @@ class DBManager:
         return self._redis_client
 
     async def connect(self):
-        self._pgsql_client = PGSQLClient()
         await self._pgsql_client.connect()
         await self._pgsql_client.health_check()
 
-        self._redis_client = RedisClient()
         await self._redis_client.connect()
         await self._redis_client.health_check()
 
     async def close(self):
         await self._pgsql_client.close()
         await self._redis_client.close()
+
+
+dbm = DBManager()

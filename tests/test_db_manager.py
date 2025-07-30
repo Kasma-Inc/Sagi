@@ -1,11 +1,13 @@
 import pytest
 
-from Sagi.resources import DBManager, PGSQLClient, RedisClient
+from Sagi.resources.db_manager import DBManager, PGSQLClient, RedisClient, dbm
 
 
 @pytest.mark.asyncio
 async def test_pgsql_client():
     pgsql_client = PGSQLClient()
+
+    assert dbm.getPGSQLClient() is pgsql_client
 
     await pgsql_client.connect()
     await pgsql_client.health_check()
@@ -19,13 +21,21 @@ async def test_pgsql_client_singleton():
     assert pgsql_client_1 is pgsql_client_2
 
     await pgsql_client_1.connect()
+    assert pgsql_client_2.getDBEngine() is not None
+    assert pgsql_client_1.getDBEngine() is pgsql_client_2.getDBEngine()
+    assert pgsql_client_2.getSessionMaker() is not None
+    assert pgsql_client_1.getSessionMaker() is pgsql_client_2.getSessionMaker()
+
     await pgsql_client_1.health_check()
     assert pgsql_client_2._connection_tested is True
+    assert dbm.getPGSQLClient()._connection_tested is True
 
 
 @pytest.mark.asyncio
 async def test_redis_client():
     redis_client = RedisClient()
+
+    assert dbm.getRedisClient() is redis_client
 
     await redis_client.connect()
     await redis_client.health_check()
@@ -39,13 +49,27 @@ async def test_redis_client_singleton():
     assert redis_client_1 is redis_client_2
 
     await redis_client_1.connect()
+    assert redis_client_2.getRedisPool() is not None
+    assert redis_client_1.getRedisPool() is redis_client_2.getRedisPool()
+
     await redis_client_1.health_check()
     assert redis_client_2._connection_tested is True
+    assert dbm.getRedisClient()._connection_tested is True
 
 
 @pytest.mark.asyncio
 async def test_db_manager():
     db_manager = DBManager()
+    assert db_manager is dbm
+    assert db_manager.getPGSQLClient() is dbm.getPGSQLClient()
+    assert db_manager.getRedisClient() is dbm.getRedisClient()
 
     await db_manager.connect()
+
+    await db_manager.getPGSQLClient().health_check()
+    assert db_manager.getPGSQLClient()._connection_tested is True
+
+    await db_manager.getRedisClient().health_check()
+    assert db_manager.getRedisClient()._connection_tested is True
+
     await db_manager.close()
