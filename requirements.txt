@@ -91,3 +91,6 @@ pytest-asyncio==0.26.0
 # for hirag
 hnswlib==0.7.0
 xxhash==3.5.0
+
+# for pdf-extraction
+pymupdf==1.26.3

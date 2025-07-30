@@ -1,5 +1,6 @@
 import re
-from typing import Any, AsyncGenerator, List, Mapping, Optional, Sequence
+from typing import Any, AsyncGenerator, List, Mapping, Optional, Sequence, Union, Literal
+import json
 
 from autogen_agentchat.agents import CodeExecutorAgent
 from autogen_agentchat.base import Response
@@ -33,6 +34,28 @@ from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor im
     StreamDockerCommandLineCodeExecutor,
 )
 
+from pydantic import BaseModel
+
+class AgentResponse(BaseModel):
+    content: str
+    env_issue: bool
+    previous_state: Optional[int] = None
+    
+    def to_string(self) -> str:
+        return (
+            f"Content: {self.content}\n"
+            f"Environment Issue: {self.env_issue}\n"
+            f"Previous State: {self.previous_state}"
+        )
+
+def response_output(error_history_length: int): # create a structured response type for the agent response based on the length of the error history
+    allowed_values = tuple(range(-1, error_history_length))
+    StateType = Union[Literal[allowed_values], None]
+    
+    class RangeAgentResponse(AgentResponse):
+        previous_state: StateType = None
+    
+    return RangeAgentResponse
 
 class StreamCodeExecutorAgent(CodeExecutorAgent):
     def __init__(
@@ -193,6 +216,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                 model_context=model_context,
                 agent_name=agent_name,
                 cancellation_token=cancellation_token,
+                output_content_type=response_output(len(current_history_path)),  # Specify the output content type for structured response
             ):
                 if isinstance(inference_output, CreateResult):
                     model_result = inference_output
@@ -201,6 +225,13 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                     yield inference_output
 
             assert model_result is not None, "No model result was produced."
+
+            model_response = AgentResponse.model_validate_json(model_result.content)
+
+            assert isinstance(model_response, AgentResponse), (
+                "Expected model_response to be of type AgentResponse, "
+                f"but got {type(model_response)}."
+            )
 
             # Step 3: [NEW] If the model produced a hidden "thought," yield it as an event
             if model_result.thought:
@@ -213,42 +244,22 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             # Step 4: Add the assistant message to the model context (including thought if present)
             await model_context.add_message(
                 AssistantMessage(
-                    content=model_result.content,
+                    content=model_response.to_string(),
                     source=agent_name,
                     thought=getattr(model_result, "thought", None),
                 )
             )
 
             # Step 5: Extract the code blocks and previous state from inferred text
-            assert isinstance(
-                model_result.content, str
-            ), "Expected inferred model_result.content to be of type str."
 
-            # Find the PREVIOUS_STATE in the model's response
-            previous_state_match = re.search(
-                r"PREVIOUS_STATE:\s*(-?\d+)", model_result.content
-            )
-
-            if not previous_state_match:
-                print(
-                    "Model's response did not contain 'PREVIOUS_STATE'. Assume it to be the last stage."
-                )
-                previous_state = (
-                    len(current_history_path) - 1
-                )  # Assume the last stage if not found
-            else:
-                try:
-                    previous_state = int(previous_state_match.group(1))
-                except ValueError:
-                    raise ValueError(
-                        "Expected 'PREVIOUS_STATE' to be a valid integer in the model's response."
-                    )
+            previous_state = model_response.previous_state
+            env_issue = model_response.env_issue
 
             if previous_state == -1:
                 # No solution can be found, so we exit the loop
                 yield Response(
                     chat_message=TextMessage(
-                        content=f"No solution can be found. The model's response was: {model_result.content}",
+                        content=f"No solution can be found. The model's response was: {model_response.to_string()}",
                         source=agent_name,
                     )
                 )
@@ -259,7 +270,8 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                 0 <= previous_state < len(current_history_path)
             ), "Expected 'PREVIOUS_STATE' to be within the range of error history."
 
-            env_issue = "ENVIRONMENT_ISSUE" in model_result.content
+            if previous_state < 0 or previous_state >= len(current_history_path):
+                previous_state = len(current_history_path) - 1
 
             shell_commands: List[CodeBlock] = None
 
@@ -276,7 +288,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
 
                 # Shell to fix the environment issue
                 command_blocks = self._extract_markdown_code_blocks(
-                    str(model_result.content)
+                    str(model_response.content)
                 )
                 shell_commands = [
                     block for block in command_blocks if block.language == "sh"
@@ -285,14 +297,14 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             else:
                 # The issue arises from the code itself, so we need to extract the code blocks from the model's response
                 code_blocks = self._extract_markdown_code_blocks(
-                    str(model_result.content)
+                    str(model_response.content)
                 )
 
             # Step 6: Exit the loop if no code blocks found
             if not code_blocks:
                 yield Response(
                     chat_message=TextMessage(
-                        content=f"No code blocks found. The model's response was: {model_result.content}",
+                        content=f"No code blocks found. The model's response was: {model_response.to_string()}",
                         source=agent_name,
                     )
                 )
@@ -309,7 +321,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             # Step 7: Yield a CodeGenerationEvent
             inferred_text_message: CodeGenerationEvent = CodeGenerationEvent(
                 retry_attempt=nth_try,
-                content=model_result.content,
+                content=model_response.content,
                 code_blocks=combined_blocks,
                 source=agent_name,
             )
@@ -365,14 +377,14 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                     # If we reached the maximum number of retries and the exit code is still non-zero, we break the loop
                     yield Response(
                         chat_message=TextMessage(
-                            content=f"Reached maximum retries ({max_retries_on_error}) with exit code {result.exit_code}. The model's response was: {model_result.content}",
+                            content=f"Reached maximum retries ({max_retries_on_error}) with exit code {result.exit_code}. The model's response was: {model_response.to_string()}",
                             source=agent_name,
                         )
                     )
 
                     await model_context.add_message(
                         SystemMessage(
-                            content=f"Reached maximum retries ({max_retries_on_error}) with exit code {result.exit_code}. The model's response was: {model_result.content}",
+                            content=f"Reached maximum retries ({max_retries_on_error}) with exit code {result.exit_code}. The model's response was: {model_response.to_string()}",
                             source=agent_name,
                         )
                     )
@@ -493,19 +505,27 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
                 f" shell_commands: {current_history_path[i].shell_commands}"
                 for i in range(len(current_history_path))
             )
-            + "\n\nPLEASE Write PREVIOUS_STATE: <number> to indicate which stage to continue from (unless you are trying to reflect the process, you don't need to specify previous state).\n\n"
-            "For environment issues (including missing packages):\n"
-            "1. Write ENVIRONMENT_ISSUE on a separate line\n"
-            "2. Follow it with a proper code block like this:\n"
+
+            + "\n\nGenerate a response to fix the issue using the following structure:\n\n"
+            
+            "content: Provide the solution as either:\n"
+            " - For environment issues: A shell command in a code block like this\n"
             "```sh\n"
             "pip install package_name\n"
             "```\n"
-            "3. PREVIOUS_STATE: <number> to indicate which stage to continue from, for the environment issue, the previous state must NOT be 0, because there will be no code blocks\n\n"
-            "For non-environment issues:\n"
-            "1. Write the code to fix the issue in a code block\n"
-            "2. PREVIOUS_STATE: <number> to indicate which stage to continue from, for the non environment issue, the previous state can be any number\n\n"
-            "Now generate code to fix the issue. If no solution exists, write PREVIOUS_STATE: -1\n"
-            "NOTE: you don't need to create the all new codeblocks by yourself, you can refer to the previous messages or error path (if available), and make some changes from them."
+            " - For non-environment issues: The code to fix the issue in a code block\n"
+            " - If no solution exists, explain why no solution is available\n\n"
+
+            "env_issue: Determine if this is an environment-related issue (missing packages, installation problems, etc.) True if the issue is related to the environment, otherwise False\n\n"
+
+            "previous_state: Specify which stage to continue from:\n"
+            "- For environment issues: Must NOT be 0 (since there will be no code blocks at stage 0)\n"
+            "- For non-environment issues: Can be any appropriate stage number\n"
+            "- Use -1 if no solution exists\n"
+            "- Leave as null only for reflection processes\n\n"
+
+            "Notes:\n"
+            "- Unless you are reflecting on the process, you should specify a previous state\n"
         )
 
     @classmethod
@@ -528,6 +548,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             "If the process was successful, please state clearly that the code was successful.\n"
             "IMPORTANT: do NOT repeat the code blocks!!!\n"
             "Remember: you are reflection agent, you do NOT have to provide PREVIOUS_STATE or ENVIRONMENT_ISSUE, you can just reflect on the process.\n"
+            "Please ensure to return the response ONLY in string format.\n"
         )
 
         all_messages = (
@@ -607,3 +628,38 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
             self._code_executor.upload_results_files_to_s3(self.user_id, self.chat_id)
             # exit
             await self._code_executor.countdown(self._countdown_timer)
+
+    @classmethod
+    async def _call_llm(
+        cls,
+        model_client: ChatCompletionClient,
+        model_client_stream: bool,
+        system_messages: List[SystemMessage],
+        model_context: ChatCompletionContext,
+        agent_name: str,
+        cancellation_token: CancellationToken,
+        output_content_type: type[BaseModel] | None,
+    ) -> AsyncGenerator[Union[CreateResult, ModelClientStreamingChunkEvent], None]:
+        """
+        Perform a model inference and yield either streaming chunk events or the final CreateResult.
+        """
+        all_messages = await model_context.get_messages()
+        llm_messages = cls._get_compatible_context(model_client=model_client, messages=system_messages + all_messages)
+
+        if model_client_stream:
+            model_result: Optional[CreateResult] = None
+            async for chunk in model_client.create_stream(
+                llm_messages, tools=[], cancellation_token=cancellation_token, json_output=output_content_type
+            ):
+                if isinstance(chunk, CreateResult):
+                    model_result = chunk
+                elif isinstance(chunk, str):
+                    yield ModelClientStreamingChunkEvent(content=chunk, source=agent_name)
+                else:
+                    raise RuntimeError(f"Invalid chunk type: {type(chunk)}")
+            if model_result is None:
+                raise RuntimeError("No final model result in streaming mode.")
+            yield model_result
+        else:
+            model_result = await model_client.create(llm_messages, tools=[], cancellation_token=cancellation_token, json_output=output_content_type)
+            yield model_result
