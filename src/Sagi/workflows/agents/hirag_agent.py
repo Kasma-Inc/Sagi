@@ -19,6 +19,7 @@ from Sagi.workflows.sagi_memory import SagiMemory
 class HiragAgent:
     agent: AssistantAgent
     mcp_tools: List[StdioMcpToolAdapter | SseMcpToolAdapter]
+    set_language_tool: Optional[StdioMcpToolAdapter | SseMcpToolAdapter] = None
     language: str
     memory: SagiMemory
 
@@ -27,6 +28,7 @@ class HiragAgent:
         model_client: ChatCompletionClient,
         memory: SagiMemory,
         mcp_tools: List[StdioMcpToolAdapter | SseMcpToolAdapter],
+        set_language_tool: Optional[StdioMcpToolAdapter | SseMcpToolAdapter] = None,
         language: str,
         model_client_stream: bool = True,
     ):
@@ -34,6 +36,7 @@ class HiragAgent:
         self.memory = memory
         self.language = language
         self.mcp_tools = mcp_tools
+        self.set_language_tool = set_language_tool
 
         system_prompt = self._get_system_prompt()
 
@@ -46,12 +49,12 @@ class HiragAgent:
             tools=self.mcp_tools,
         )
 
-    async def set_language(self, language: str, hirag_set_language_tool=None):
+    async def set_language(self, language: str):
         """Set the language for HiRAG retrieval system."""
-        if hirag_set_language_tool:
+        if self.set_language_tool:
             try:
                 # Use the MCP tool's run_json method for direct execution
-                result = await hirag_set_language_tool.run_json(
+                result = await self.set_language_tool.run_json(
                     {"language": language}, CancellationToken()
                 )
 
