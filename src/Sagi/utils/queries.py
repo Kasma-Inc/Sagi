@@ -1,13 +1,18 @@
+import os
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from asyncpg import DuplicateTableError
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from pgvector.sqlalchemy import Vector
 from sqlmodel import JSON, Field, SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+# Embedding service from HiRAG for generating embeddings
+from hirag_prod._llm import EmbeddingService
 
 
 class MultiRoundMemory(SQLModel, table=True):
@@ -18,6 +23,7 @@ class MultiRoundMemory(SQLModel, table=True):
     content: str
     source: str
     mimeType: str
+    embedding: Optional[List[float]] = Field(default=None, sa_type=Vector(int(os.getenv("EMBEDDING_DIM", "1536"))), nullable=True)
     createdAt: str = Field(default=datetime.now().isoformat())
 
 
@@ -34,14 +40,30 @@ class Chats(SQLModel, table=True):
     visibility: str = "private"
 
 
-def create_db_engine(postgres_url: str) -> AsyncEngine:
+async def create_db_engine(postgres_url: str) -> AsyncEngine:
+    """
+    Create database engine and ensure vector extension exists.
+    """
     # connect to postgres db
     # Replace postgres:// with postgresql:// for SQLAlchemy
-    postgres_url = postgres_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    if postgres_url.startswith("postgres://"):
+        postgres_url = postgres_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif postgres_url.startswith("postgresql://"):
+        postgres_url = postgres_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    elif postgres_url.startswith("postgresql+asyncpg://"):
+        pass
+    else:
+        raise ValueError("Invalid PostgreSQL URL format. Must start with 'postgresql://' or 'postgresql+asyncpg://'.")
+    
     db = create_async_engine(
         postgres_url,
         pool_pre_ping=True,  # tests connections before use
     )
+
+    # Create the vector extension if it doesn't exist
+    async with db.begin() as conn:
+        await conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector'))
+
     return db
 
 
@@ -76,11 +98,23 @@ async def saveMultiRoundMemory(
 ):
     await _ensure_table(session, MultiRoundMemory)
     timestamp = datetime.now().isoformat()
+    
+    # Generate embedding for the content using HiRAG's embedding service
+    try:
+        embedding_service = EmbeddingService()
+        content_embedding = await embedding_service.create_embeddings([content])
+        # Extract the embedding vector from the response
+        embedding = content_embedding[0] if content_embedding else None
+    except Exception as e:
+        print(f"Failed to generate embedding: {e}")
+        embedding = None
+    
     memory = MultiRoundMemory(
         chatId=chat_id,
         content=content,
         source=source,
         mimeType=mime_type,
+        embedding=embedding,
         createdAt=timestamp,
     )
     session.add(memory)
@@ -95,12 +129,27 @@ async def saveMultiRoundMemories(
     await _ensure_table(session, MultiRoundMemory)
     timestamp = datetime.now().isoformat()
 
-    for content_data in contents:
+    # Initialize embedding service once for batch processing
+    try:
+        embedding_service = EmbeddingService()
+        # Extract all content strings for batch embedding generation
+        content_texts = [content_data["content"] for content_data in contents]
+        # Generate embeddings in batch for efficiency
+        embeddings = await embedding_service.create_embeddings(content_texts)
+    except Exception as e:
+        print(f"Failed to generate embeddings: {e}")
+        embeddings = [None] * len(contents)
+
+    for i, content_data in enumerate(contents):
+        # Use the corresponding embedding from the batch
+        embedding = embeddings[i] if i < len(embeddings) else None
+        
         memory = MultiRoundMemory(
             chatId=chat_id,
             content=content_data["content"],
             source=content_data["source"],
             mimeType=content_data["mime_type"],
+            embedding=embedding,
             createdAt=timestamp,
         )
         session.add(memory)
