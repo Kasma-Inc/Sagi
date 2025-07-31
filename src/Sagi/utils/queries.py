@@ -133,7 +133,6 @@ async def saveMultiRoundMemories(
     contents: List[Dict[str, Any]],
 ):
     await _ensure_table(session, MultiRoundMemory)
-    timestamp = datetime.now().isoformat()
 
     # Initialize embedding service once for batch processing
     try:
@@ -148,6 +147,7 @@ async def saveMultiRoundMemories(
 
     for i, content_data in enumerate(contents):
         # Use the corresponding embedding from the batch
+        timestamp = datetime.now().isoformat()
         embedding = embeddings[i] if i < len(embeddings) else None
 
         memory = MultiRoundMemory(
