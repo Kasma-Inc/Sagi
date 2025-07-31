@@ -160,8 +160,61 @@ async def saveMultiRoundMemories(
 async def getMultiRoundMemory(
     session: AsyncSession,
     chat_id: str,
+    query_text: Optional[str] = None,
+    context_window: Optional[int] = None,
 ) -> List[MultiRoundMemory]:
     await _ensure_table(session, MultiRoundMemory)
+
+    # only if query_text and context_window are provided, we can rank and filter memories
+    if query_text and context_window:
+        embedding_service = EmbeddingService()
+        try:
+            # Generate embedding for the query text
+            query_embedding = await embedding_service.create_embeddings([query_text])
+            if query_embedding is None or len(query_embedding) == 0:
+                return []
+
+            # Use the embedding to filter memories by similarity
+            query_vector = query_embedding[0]
+            memory = await session.execute(
+                select(MultiRoundMemory)
+                .where(MultiRoundMemory.chatId == chat_id)
+                .where(MultiRoundMemory.embedding.is_not(None))
+                .order_by(MultiRoundMemory.embedding.op("<=>")(query_vector))
+            )
+
+            # Show Debug information
+            # print(f"Query vector: {query_vector}")
+            # print(f"Context window: {context_window}")
+
+            # Calculate the context length and remove memories that exceed the context window
+            memories = memory.scalars().all()
+            print(f"Number of memories found: {len(memories)}")
+            
+            total_tokens = 0
+            filtered_memories = []
+            for mem in memories:
+                content_length = len(mem.content.split())
+                if total_tokens + content_length <= context_window:
+                    filtered_memories.append(mem)
+                    total_tokens += content_length
+                else:   
+                    break
+            
+            # Sort memories by creation time
+            filtered_memories.sort(key=lambda x: x.createdAt)
+
+            # List out the filtered memories for debugging
+            print(f"Number of memories after filtered: {len(memories)}")
+            for mem in filtered_memories:
+                print(f"Memory ID: {mem.id}, Created At: {mem.createdAt}, Content: {mem.content[:50]}")
+
+            return filtered_memories
+
+        except Exception as e:
+            print(f"Failed to query memories with embedding: {e}")
+            return []
+
     memory = await session.execute(
         select(MultiRoundMemory)
         .where(MultiRoundMemory.chatId == chat_id)

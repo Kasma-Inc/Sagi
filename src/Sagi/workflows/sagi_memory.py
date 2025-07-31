@@ -109,6 +109,13 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
         self,
         model_context: ChatCompletionContext,
     ) -> UpdateContextResult:
+        """
+        Update the model context with the latest memories.
+        Args:
+            model_context: The model context to update
+        Returns:
+            UpdateContextResult with the updated memories
+        """
         messages = await model_context.get_messages()
         if not messages or len(messages) == 0:
             return UpdateContextResult(memories=MemoryQueryResult(results=[]))
@@ -164,10 +171,13 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
             ), "Session maker is not set, please call the set_session_maker method"
             async with self.session_maker() as session:
                 # Extract text for query, and we don't use it for now
-                # query_text = self._extract_text(query)
+                query_text = self._extract_text(query)
 
-                # Get all memories from the database
-                results = await getMultiRoundMemory(session, self.chat_id)
+                context_window = get_model_info(self.model_name).get("context_window")
+                assert context_window is not None, "Context window is not set"
+
+                # Get memories from the database via similarity search with the query and not exceed the context window
+                results = await getMultiRoundMemory(session, self.chat_id, query_text=query_text, context_window=context_window)
 
                 # Convert results to MemoryContent list
                 memory_results: List[MemoryContent] = (
