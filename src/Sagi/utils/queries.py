@@ -4,15 +4,15 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from asyncpg import DuplicateTableError
-from sqlalchemy import inspect, text
-from sqlalchemy.exc import ProgrammingError
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from pgvector.sqlalchemy import Vector
-from sqlmodel import JSON, Field, SQLModel, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 # Embedding service from HiRAG for generating embeddings
 from hirag_prod._llm import EmbeddingService
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import inspect, text
+from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlmodel import JSON, Field, SQLModel, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class MultiRoundMemory(SQLModel, table=True):
