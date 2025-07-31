@@ -23,7 +23,11 @@ class MultiRoundMemory(SQLModel, table=True):
     content: str
     source: str
     mimeType: str
-    embedding: Optional[List[float]] = Field(default=None, sa_type=Vector(int(os.getenv("EMBEDDING_DIM", "1536"))), nullable=True)
+    embedding: Optional[List[float]] = Field(
+        default=None,
+        sa_type=Vector(int(os.getenv("EMBEDDING_DIM", "1536"))),
+        nullable=True,
+    )
     createdAt: str = Field(default=datetime.now().isoformat())
 
 
@@ -53,8 +57,10 @@ async def create_db_engine(postgres_url: str) -> AsyncEngine:
     elif postgres_url.startswith("postgresql+asyncpg://"):
         pass
     else:
-        raise ValueError("Invalid PostgreSQL URL format. Must start with 'postgresql://' or 'postgresql+asyncpg://'.")
-    
+        raise ValueError(
+            "Invalid PostgreSQL URL format. Must start with 'postgresql://' or 'postgresql+asyncpg://'."
+        )
+
     db = create_async_engine(
         postgres_url,
         pool_pre_ping=True,  # tests connections before use
@@ -62,7 +68,7 @@ async def create_db_engine(postgres_url: str) -> AsyncEngine:
 
     # Create the vector extension if it doesn't exist
     async with db.begin() as conn:
-        await conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector'))
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
     return db
 
@@ -98,7 +104,7 @@ async def saveMultiRoundMemory(
 ):
     await _ensure_table(session, MultiRoundMemory)
     timestamp = datetime.now().isoformat()
-    
+
     # Generate embedding for the content using HiRAG's embedding service
     try:
         embedding_service = EmbeddingService()
@@ -108,7 +114,7 @@ async def saveMultiRoundMemory(
     except Exception as e:
         print(f"Failed to generate embedding: {e}")
         embedding = None
-    
+
     memory = MultiRoundMemory(
         chatId=chat_id,
         content=content,
@@ -143,7 +149,7 @@ async def saveMultiRoundMemories(
     for i, content_data in enumerate(contents):
         # Use the corresponding embedding from the batch
         embedding = embeddings[i] if i < len(embeddings) else None
-        
+
         memory = MultiRoundMemory(
             chatId=chat_id,
             content=content_data["content"],
@@ -190,7 +196,7 @@ async def getMultiRoundMemory(
             # Calculate the context length and remove memories that exceed the context window
             memories = memory.scalars().all()
             print(f"Number of memories found: {len(memories)}")
-            
+
             total_tokens = 0
             filtered_memories = []
             for mem in memories:
@@ -198,16 +204,18 @@ async def getMultiRoundMemory(
                 if total_tokens + content_length <= context_window:
                     filtered_memories.append(mem)
                     total_tokens += content_length
-                else:   
+                else:
                     break
-            
+
             # Sort memories by creation time
             filtered_memories.sort(key=lambda x: x.createdAt)
 
             # List out the filtered memories for debugging
             print(f"Number of memories after filtered: {len(memories)}")
             for mem in filtered_memories:
-                print(f"Memory ID: {mem.id}, Created At: {mem.createdAt}, Content: {mem.content[:50]}")
+                print(
+                    f"Memory ID: {mem.id}, Created At: {mem.createdAt}, Content: {mem.content[:50]}"
+                )
 
             return filtered_memories
 

@@ -177,7 +177,12 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
                 assert context_window is not None, "Context window is not set"
 
                 # Get memories from the database via similarity search with the query and not exceed the context window
-                results = await getMultiRoundMemory(session, self.chat_id, query_text=query_text, context_window=context_window)
+                results = await getMultiRoundMemory(
+                    session,
+                    self.chat_id,
+                    query_text=query_text,
+                    context_window=context_window,
+                )
 
                 # Convert results to MemoryContent list
                 memory_results: List[MemoryContent] = (
