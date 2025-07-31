@@ -97,11 +97,19 @@ class TestHiRAGSetLanguage:
             )
 
             result_str = str(test_result).lower()
-            if "error" in result_str and "not" in result_str and "attribute" in result_str:
-                logger.error(f"❌ Set language functionality not properly implemented: {test_result}")
-                logger.error("❌ The HiRAG MCP server needs to implement the set_language functionality")
+            if (
+                "error" in result_str
+                and "not" in result_str
+                and "attribute" in result_str
+            ):
+                logger.error(
+                    f"❌ Set language functionality not properly implemented: {test_result}"
+                )
+                logger.error(
+                    "❌ The HiRAG MCP server needs to implement the set_language functionality"
+                )
                 return False
-            
+
             if "successfully set to" in result_str:
                 logger.info("✅ Set language functionality is working correctly")
                 return True
@@ -151,7 +159,9 @@ class TestHiRAGSetLanguage:
                 result_str = str(result).lower()
                 if "error" in result_str:
                     logger.error(f"❌ Language '{language}' setting failed: {result}")
-                    raise AssertionError(f"Language '{language}' setting failed: {result}")
+                    raise AssertionError(
+                        f"Language '{language}' setting failed: {result}"
+                    )
 
                 logger.info(f"✅ Language '{language}' set successfully: {result}")
 
@@ -159,10 +169,12 @@ class TestHiRAGSetLanguage:
                 assert (
                     result is not None
                 ), f"Result should not be None for language: {language}"
-                
+
                 # Verify that the result indicates successful language setting
                 if "successfully set to" not in result_str:
-                    logger.warning(f"⚠️ Unexpected result format for language '{language}': {result}")
+                    logger.warning(
+                        f"⚠️ Unexpected result format for language '{language}': {result}"
+                    )
 
             except Exception as e:
                 logger.error(f"❌ Failed to set language '{language}': {e}")
@@ -192,9 +204,13 @@ class TestHiRAGSetLanguage:
                 # Check if the tool properly handles invalid languages
                 result_str = str(result).lower()
                 if "error" in result_str:
-                    logger.info(f"✅ Invalid language '{invalid_lang}' properly rejected: {result}")
+                    logger.info(
+                        f"✅ Invalid language '{invalid_lang}' properly rejected: {result}"
+                    )
                 else:
-                    logger.warning(f"⚠️ Invalid language '{invalid_lang}' was not rejected: {result}")
+                    logger.warning(
+                        f"⚠️ Invalid language '{invalid_lang}' was not rejected: {result}"
+                    )
 
             except Exception as e:
                 # It's acceptable for invalid languages to raise exceptions
@@ -218,9 +234,11 @@ class TestHiRAGSetLanguage:
             # First check if basic functionality is implemented
             basic_functionality_ok = await self.test_basic_functionality_check()
             test_results.append(basic_functionality_ok)
-            
+
             if not basic_functionality_ok:
-                logger.warning("⚠️ Basic set_language functionality not implemented - skipping remaining tests")
+                logger.warning(
+                    "⚠️ Basic set_language functionality not implemented - skipping remaining tests"
+                )
                 test_results.extend([False] * 2)  # Mark remaining tests as failed
             else:
                 test_results.append(await self.test_set_language_tool_available())

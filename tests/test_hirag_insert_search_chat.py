@@ -44,7 +44,9 @@ class TestHiRAGInsertSearchChat:
         self.hirag_tools = None
         self.insert_chat_tool = None
         self.search_chat_tool = None
-        self.test_chat_id = f"test_chat_{uuid.uuid4().hex[:8]}_{int(datetime.now().timestamp())}"
+        self.test_chat_id = (
+            f"test_chat_{uuid.uuid4().hex[:8]}_{int(datetime.now().timestamp())}"
+        )
 
     async def setup(self):
         """Setup the test environment by initializing MCP session and tools."""
@@ -109,36 +111,51 @@ class TestHiRAGInsertSearchChat:
                     "role": "user",
                     "content": "Test message for functionality check",
                 },
-                CancellationToken()
+                CancellationToken(),
             )
 
             result_str = str(test_result).lower()
             if "error" in result_str or "no attribute" in result_str:
-                logger.error(f"❌ Insert functionality not properly implemented: {test_result}")
-                logger.error("❌ The HiRAG MCP server needs to implement the 'insert_chat_message' method")
-                logger.error("❌ Skipping remaining tests - insert functionality needs to be implemented")
+                logger.error(
+                    f"❌ Insert functionality not properly implemented: {test_result}"
+                )
+                logger.error(
+                    "❌ The HiRAG MCP server needs to implement the 'insert_chat_message' method"
+                )
+                logger.error(
+                    "❌ Skipping remaining tests - insert functionality needs to be implemented"
+                )
                 return False
 
         except Exception as e:
             logger.error(f"❌ Insert functionality test failed: {e}")
             return False
 
-        # Test a simple search to check if the functionality is implemented  
+        # Test a simple search to check if the functionality is implemented
         try:
             search_result = await self.search_chat_tool.run_json(
                 {
                     "user_query": "test",
                     "chat_id": f"nonexistent_chat_{uuid.uuid4().hex[:4]}",
                 },
-                CancellationToken()
+                CancellationToken(),
             )
 
             result_str = str(search_result).lower()
-            if "failed to query" in result_str and "name or service not known" in result_str:
-                logger.error(f"❌ Search functionality has connectivity issues: {search_result}")
-                logger.error("❌ The HiRAG search functionality has network/database connectivity issues")
+            if (
+                "failed to query" in result_str
+                and "name or service not known" in result_str
+            ):
+                logger.error(
+                    f"❌ Search functionality has connectivity issues: {search_result}"
+                )
+                logger.error(
+                    "❌ The HiRAG search functionality has network/database connectivity issues"
+                )
                 logger.error("❌ Check database connection and network configuration")
-                logger.error("❌ Skipping remaining tests - search functionality has network/database issues")
+                logger.error(
+                    "❌ Skipping remaining tests - search functionality has network/database issues"
+                )
                 return False
 
         except Exception as e:
@@ -153,20 +170,16 @@ class TestHiRAGInsertSearchChat:
         logger.info("Testing if chat tools are available...")
 
         tool_names = [tool.name for tool in self.hirag_tools]
-        
+
         assert (
             "hi_insert_chat" in tool_names
         ), f"hi_insert_chat tool not found. Available tools: {tool_names}"
-        assert (
-            self.insert_chat_tool is not None
-        ), "Insert chat tool should not be None"
+        assert self.insert_chat_tool is not None, "Insert chat tool should not be None"
 
         assert (
             "hi_search_chat" in tool_names
         ), f"hi_search_chat tool not found. Available tools: {tool_names}"
-        assert (
-            self.search_chat_tool is not None
-        ), "Search chat tool should not be None"
+        assert self.search_chat_tool is not None, "Search chat tool should not be None"
 
         logger.info("✅ Both chat tools are available")
         return True
@@ -186,7 +199,7 @@ class TestHiRAGInsertSearchChat:
                 "content": "Hello, I need help with machine learning algorithms. Can you explain neural networks?",
             },
             {
-                "role": "assistant", 
+                "role": "assistant",
                 "content": "Neural networks are computational models inspired by biological neural networks. They consist of interconnected nodes (neurons) that process information through weighted connections.",
             },
             {
@@ -204,7 +217,9 @@ class TestHiRAGInsertSearchChat:
         ]
 
         for i, message in enumerate(test_messages):
-            logger.info(f"Inserting message {i+1}: {message['role']} - {message['content'][:50]}...")
+            logger.info(
+                f"Inserting message {i+1}: {message['role']} - {message['content'][:50]}..."
+            )
 
             try:
                 result = await self.insert_chat_tool.run_json(
@@ -213,7 +228,7 @@ class TestHiRAGInsertSearchChat:
                         "role": message["role"],
                         "content": message["content"],
                     },
-                    CancellationToken()
+                    CancellationToken(),
                 )
 
                 # Check if the result indicates an error
@@ -221,9 +236,11 @@ class TestHiRAGInsertSearchChat:
                 if "error" in result_str:
                     logger.error(f"❌ Message {i+1} insertion failed: {result}")
                     raise AssertionError(f"Message {i+1} insertion failed: {result}")
-                
+
                 logger.info(f"✅ Message {i+1} inserted successfully: {result}")
-                assert result is not None, f"Result should not be None for message {i+1}"
+                assert (
+                    result is not None
+                ), f"Result should not be None for message {i+1}"
 
             except Exception as e:
                 logger.error(f"❌ Failed to insert message {i+1}: {e}")
@@ -271,7 +288,7 @@ class TestHiRAGInsertSearchChat:
                         "user_query": query,
                         "chat_id": self.test_chat_id,
                     },
-                    CancellationToken()
+                    CancellationToken(),
                 )
 
                 # Check if the result indicates an error or no results due to functionality issues
@@ -279,13 +296,17 @@ class TestHiRAGInsertSearchChat:
                 if "error" in result_str or "failed to query" in result_str:
                     logger.error(f"❌ Search for '{query}' failed: {result}")
                     raise AssertionError(f"Search for '{query}' failed: {result}")
-                
+
                 # Also check if we got "no chat messages found" which might indicate the insert didn't work
                 if "no chat messages found" in result_str:
-                    logger.warning(f"⚠️ No messages found for '{query}' - this might indicate insert functionality issues")
-                
+                    logger.warning(
+                        f"⚠️ No messages found for '{query}' - this might indicate insert functionality issues"
+                    )
+
                 logger.info(f"✅ Search result for '{query}': {str(result)[:200]}...")
-                assert result is not None, f"Search result should not be None for query: {query}"
+                assert (
+                    result is not None
+                ), f"Search result should not be None for query: {query}"
 
             except Exception as e:
                 logger.error(f"❌ Failed to search for '{query}': {e}")
@@ -334,20 +355,28 @@ class TestHiRAGInsertSearchChat:
                         "chat_id": self.test_chat_id,
                         "role": [role],
                     },
-                    CancellationToken()
+                    CancellationToken(),
                 )
 
                 # Check if the result indicates an error or functionality issues
                 result_str = str(result).lower()
                 if "error" in result_str or "failed to query" in result_str:
-                    logger.error(f"❌ Role-filtered search for '{role}' + '{query}' failed: {result}")
+                    logger.error(
+                        f"❌ Role-filtered search for '{role}' + '{query}' failed: {result}"
+                    )
                     raise AssertionError(f"Role-filtered search failed: {result}")
 
-                logger.info(f"✅ Role-filtered search result for '{role}' + '{query}': {str(result)[:150]}...")
-                assert result is not None, f"Role-filtered search result should not be None"
+                logger.info(
+                    f"✅ Role-filtered search result for '{role}' + '{query}': {str(result)[:150]}..."
+                )
+                assert (
+                    result is not None
+                ), f"Role-filtered search result should not be None"
 
             except Exception as e:
-                logger.error(f"❌ Failed role-filtered search for '{role}' + '{query}': {e}")
+                logger.error(
+                    f"❌ Failed role-filtered search for '{role}' + '{query}': {e}"
+                )
                 raise AssertionError(f"Failed role-filtered search: {e}")
 
         logger.info("✅ All role-filtered searches completed successfully")
@@ -376,7 +405,11 @@ class TestHiRAGInsertSearchChat:
                 "description": "Empty content",
             },
             {
-                "params": {"chat_id": "test", "role": "invalid_role", "content": "test"},
+                "params": {
+                    "chat_id": "test",
+                    "role": "invalid_role",
+                    "content": "test",
+                },
                 "description": "Invalid role",
             },
         ]
@@ -403,7 +436,11 @@ class TestHiRAGInsertSearchChat:
                 "description": "Empty chat_id",
             },
             {
-                "params": {"user_query": "test", "chat_id": "test", "role": ["invalid_role"]},
+                "params": {
+                    "user_query": "test",
+                    "chat_id": "test",
+                    "role": ["invalid_role"],
+                },
                 "description": "Invalid role filter",
             },
         ]
@@ -439,12 +476,14 @@ class TestHiRAGInsertSearchChat:
                     "user_query": "test query",
                     "chat_id": empty_chat_id,
                 },
-                CancellationToken()
+                CancellationToken(),
             )
 
             logger.info(f"Empty chat search result: {result}")
             # Should return empty results or appropriate message
-            assert result is not None, "Empty chat search should return a result (even if empty)"
+            assert (
+                result is not None
+            ), "Empty chat search should return a result (even if empty)"
 
         except Exception as e:
             logger.info(f"Empty chat search raised exception (acceptable): {e}")
@@ -465,9 +504,11 @@ class TestHiRAGInsertSearchChat:
             # First check if basic functionality is implemented
             basic_functionality_ok = await self.test_basic_functionality_check()
             test_results.append(basic_functionality_ok)
-            
+
             if not basic_functionality_ok:
-                logger.warning("⚠️ Basic functionality not implemented - skipping remaining tests")
+                logger.warning(
+                    "⚠️ Basic functionality not implemented - skipping remaining tests"
+                )
                 test_results.extend([False] * 5)  # Mark remaining tests as failed
             else:
                 test_results.append(await self.test_chat_tools_available())

@@ -87,9 +87,16 @@ class HiragAgent:
             Success or error message
         """
         # Validate inputs
-        if not chat_id or not chat_id.strip() or not content or not content.strip() or not role or not role.strip():
+        if (
+            not chat_id
+            or not chat_id.strip()
+            or not content
+            or not content.strip()
+            or not role
+            or not role.strip()
+        ):
             return "Error: chat_id, role, and content cannot be empty"
-        
+
         # Validate role
         valid_roles = {"user", "assistant", "tool"}
         if role.lower() not in valid_roles:
@@ -99,12 +106,8 @@ class HiragAgent:
             try:
                 # Use the MCP tool's run_json method for direct execution
                 result = await self.insert_chat_tool.run_json(
-                    {
-                        "chat_id": chat_id,
-                        "role": role.lower(),
-                        "content": content
-                    }, 
-                    CancellationToken()
+                    {"chat_id": chat_id, "role": role.lower(), "content": content},
+                    CancellationToken(),
                 )
                 return f"Chat message inserted successfully: {result}"
 
@@ -113,7 +116,9 @@ class HiragAgent:
         else:
             return f"Insert chat tool not available - message not stored: chat_id={chat_id}, role={role}"
 
-    async def search_chat_history(self, user_query: str, chat_id: str, role: str = None) -> Union[str, dict]:
+    async def search_chat_history(
+        self, user_query: str, chat_id: str, role: str = None
+    ) -> Union[str, dict]:
         """
         Search the chat history for messages related to the user's query.
 
@@ -126,9 +131,14 @@ class HiragAgent:
             Search results as formatted string or error message
         """
         # Validate inputs
-        if not user_query or not user_query.strip() or not chat_id or not chat_id.strip():
+        if (
+            not user_query
+            or not user_query.strip()
+            or not chat_id
+            or not chat_id.strip()
+        ):
             return "Error: user_query and chat_id cannot be empty"
-        
+
         # Validate role if provided
         if role:
             valid_roles = {"user", "assistant", "tool"}
@@ -138,18 +148,17 @@ class HiragAgent:
         if self.search_chat_tool:
             try:
                 # Prepare parameters for the MCP tool
-                params = {
-                    "user_query": user_query,
-                    "chat_id": chat_id
-                }
-                
+                params = {"user_query": user_query, "chat_id": chat_id}
+
                 # Add role filter if provided
                 if role:
                     params["role"] = role.lower()
 
                 # Use the MCP tool's run_json method for direct execution
-                result = await self.search_chat_tool.run_json(params, CancellationToken())
-                
+                result = await self.search_chat_tool.run_json(
+                    params, CancellationToken()
+                )
+
                 return result
 
             except Exception as e:

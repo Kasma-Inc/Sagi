@@ -327,9 +327,15 @@ async def main_cmd(args: argparse.Namespace):
                     memory=memory,
                     mcp_tools=hirag_retrieval_tools,
                     language=args.language,
-                    set_language_tool=hirag_set_language_tool[0] if hirag_set_language_tool else None,
-                    insert_chat_tool=hirag_chat_insert_tool[0] if hirag_chat_insert_tool else None,
-                    search_chat_tool=hirag_chat_search_tool[0] if hirag_chat_search_tool else None,
+                    set_language_tool=(
+                        hirag_set_language_tool[0] if hirag_set_language_tool else None
+                    ),
+                    insert_chat_tool=(
+                        hirag_chat_insert_tool[0] if hirag_chat_insert_tool else None
+                    ),
+                    search_chat_tool=(
+                        hirag_chat_search_tool[0] if hirag_chat_search_tool else None
+                    ),
                 )
 
                 try:
