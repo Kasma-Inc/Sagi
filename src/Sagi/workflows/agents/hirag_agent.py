@@ -117,7 +117,7 @@ class HiragAgent:
             return f"Insert chat tool not available - message not stored: chat_id={chat_id}, role={role}"
 
     async def search_chat_history(
-        self, user_query: str, chat_id: str, role: str = None
+        self, user_query: str, chat_id: str, role: Union[str, List[str]] = None
     ) -> Union[str, dict]:
         """
         Search the chat history for messages related to the user's query.
@@ -140,10 +140,17 @@ class HiragAgent:
             return "Error: user_query and chat_id cannot be empty"
 
         # Validate role if provided
-        if role:
-            valid_roles = {"user", "assistant", "tool"}
-            if role.lower() not in valid_roles:
-                return f"Error: role must be one of {valid_roles} or None"
+        if role and isinstance(role, str):
+            role = role.lower()
+            if role not in {"user", "assistant", "tool"}:
+                return f"Error: role must be one of user, assistant, tool. Invalid role: {role}"
+        elif role and isinstance(role, list):
+            # Ensure all roles in the list are valid
+            for r in role:
+                if r.lower() not in {"user", "assistant", "tool"}:
+                    return f"Error: role must be one of user, assistant, tool. Invalid role: {r}"
+        elif role is not None:
+            return "Error: role must be a string or list of strings"
 
         if self.search_chat_tool:
             try:
