@@ -268,6 +268,15 @@ async def main_cmd(args: argparse.Namespace):
             tool for tool in hirag_retrieval_tools if tool.name == "hi_set_language"
         ]
 
+        # Chat insert & search tool
+        hirag_chat_insert_tool = [
+            tool for tool in hirag_retrieval_tools if tool.name == "hi_insert_chat"
+        ]
+
+        hirag_chat_search_tool = [
+            tool for tool in hirag_retrieval_tools if tool.name == "hi_search_chat"
+        ]
+
         hirag_retrieval_tools = [
             tool for tool in hirag_retrieval_tools if tool.name == "hi_search"
         ]
@@ -318,18 +327,15 @@ async def main_cmd(args: argparse.Namespace):
                     memory=memory,
                     mcp_tools=hirag_retrieval_tools,
                     language=args.language,
+                    set_language_tool=hirag_set_language_tool[0] if hirag_set_language_tool else None,
+                    insert_chat_tool=hirag_chat_insert_tool[0] if hirag_chat_insert_tool else None,
+                    search_chat_tool=hirag_chat_search_tool[0] if hirag_chat_search_tool else None,
                 )
 
-                # Set language in HiRAG server if the tool is available
-                if hirag_set_language_tool:
-                    try:
-                        language_result = await workflow.set_language(
-                            args.language, hirag_set_language_tool[0]
-                        )
-                        logging.info(f"Language setting result: {language_result}")
-                    except Exception as e:
-                        logging.error(f"Failed to set language in HiRAG server: {e}")
-                        # Continue execution even if language setting fails
+                try:
+                    await workflow.set_language(args.language)
+                except Exception as e:
+                    logging.error(f"Failed to set language: {e}")
 
                 chat_history = await Console(workflow.run_workflow(user_input))
                 messages = chat_history.messages

@@ -21,6 +21,9 @@ class HiragAgent:
     mcp_tools: List[StdioMcpToolAdapter | SseMcpToolAdapter]
     language: str
     memory: SagiMemory
+    set_language_tool: Optional[StdioMcpToolAdapter | SseMcpToolAdapter] = None
+    insert_chat_tool: Optional[StdioMcpToolAdapter | SseMcpToolAdapter] = None
+    search_chat_tool: Optional[StdioMcpToolAdapter | SseMcpToolAdapter] = None
 
     def __init__(
         self,
@@ -29,11 +32,17 @@ class HiragAgent:
         mcp_tools: List[StdioMcpToolAdapter | SseMcpToolAdapter],
         language: str,
         model_client_stream: bool = True,
+        set_language_tool: Optional[StdioMcpToolAdapter | SseMcpToolAdapter] = None,
+        insert_chat_tool: Optional[StdioMcpToolAdapter | SseMcpToolAdapter] = None,
+        search_chat_tool: Optional[StdioMcpToolAdapter | SseMcpToolAdapter] = None,
     ):
 
         self.memory = memory
         self.language = language
         self.mcp_tools = mcp_tools
+        self.set_language_tool = set_language_tool
+        self.insert_chat_tool = insert_chat_tool
+        self.search_chat_tool = search_chat_tool
 
         system_prompt = self._get_system_prompt()
 
@@ -46,12 +55,12 @@ class HiragAgent:
             tools=self.mcp_tools,
         )
 
-    async def set_language(self, language: str, hirag_set_language_tool=None):
+    async def set_language(self, language: str):
         """Set the language for HiRAG retrieval system."""
-        if hirag_set_language_tool:
+        if self.set_language_tool:
             try:
                 # Use the MCP tool's run_json method for direct execution
-                result = await hirag_set_language_tool.run_json(
+                result = await self.set_language_tool.run_json(
                     {"language": language}, CancellationToken()
                 )
 
@@ -64,6 +73,89 @@ class HiragAgent:
             # Just update the local language setting
             self.language = language
             return f"Language set to {language} (local only)"
+
+    async def insert_chat_message(self, chat_id: str, role: str, content: str):
+        """
+        Insert a User / Assistant / Tool message into the chat history.
+
+        Args:
+            chat_id: Unique identifier for the chat session
+            role: Role of the message sender (user, assistant, tool)
+            content: Content of the message
+
+        Returns:
+            Success or error message
+        """
+        # Validate inputs
+        if not chat_id or not chat_id.strip() or not content or not content.strip() or not role or not role.strip():
+            return "Error: chat_id, role, and content cannot be empty"
+        
+        # Validate role
+        valid_roles = {"user", "assistant", "tool"}
+        if role.lower() not in valid_roles:
+            return f"Error: role must be one of {valid_roles}"
+
+        if self.insert_chat_tool:
+            try:
+                # Use the MCP tool's run_json method for direct execution
+                result = await self.insert_chat_tool.run_json(
+                    {
+                        "chat_id": chat_id,
+                        "role": role.lower(),
+                        "content": content
+                    }, 
+                    CancellationToken()
+                )
+                return f"Chat message inserted successfully: {result}"
+
+            except Exception as e:
+                return f"Error inserting chat message: {e}"
+        else:
+            return f"Insert chat tool not available - message not stored: chat_id={chat_id}, role={role}"
+
+    async def search_chat_history(self, user_query: str, chat_id: str, role: str = None) -> Union[str, dict]:
+        """
+        Search the chat history for messages related to the user's query.
+
+        Args:
+            user_query: The search query to find relevant chat messages
+            chat_id: Unique identifier for the chat session
+            role: Optional role filter (user, assistant, tool)
+
+        Returns:
+            Search results as formatted string or error message
+        """
+        # Validate inputs
+        if not user_query or not user_query.strip() or not chat_id or not chat_id.strip():
+            return "Error: user_query and chat_id cannot be empty"
+        
+        # Validate role if provided
+        if role:
+            valid_roles = {"user", "assistant", "tool"}
+            if role.lower() not in valid_roles:
+                return f"Error: role must be one of {valid_roles} or None"
+
+        if self.search_chat_tool:
+            try:
+                # Prepare parameters for the MCP tool
+                params = {
+                    "user_query": user_query,
+                    "chat_id": chat_id
+                }
+                
+                # Add role filter if provided
+                if role:
+                    params["role"] = role.lower()
+
+                # Use the MCP tool's run_json method for direct execution
+                result = await self.search_chat_tool.run_json(params, CancellationToken())
+                
+                return result
+
+            except Exception as e:
+                return f"Error searching chat history: {e}"
+        else:
+            return f"Search chat tool not available - cannot search: query='{user_query}', chat_id='{chat_id}'"
 
     def _get_system_prompt(self):
         system_prompt = {

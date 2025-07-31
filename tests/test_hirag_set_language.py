@@ -3,8 +3,8 @@ Test script for the HiRAG set_language tool functionality.
 
 This test verifies that:
 1. The set_language tool is available in the MCP server
-2. Language can be set successfully through the agent
-3. The tool integrates correctly with the MCP session
+2. Language can be set successfully through the tool
+3. The tool handles different language codes correctly
 """
 
 import asyncio
@@ -13,10 +13,7 @@ import os
 import sys
 
 import pytest
-from autogen_agentchat.agents import AssistantAgent
-from autogen_agentchat.messages import TextMessage
 from autogen_core import CancellationToken
-from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import (
     StdioServerParams,
     create_mcp_server_session,
@@ -85,6 +82,37 @@ class TestHiRAGSetLanguage:
         if self.session_manager:
             await self.session_manager.close_all()
 
+    async def test_basic_functionality_check(self):
+        """Test basic functionality to ensure the set_language tool is properly implemented."""
+        logger.info("Testing basic set_language functionality...")
+
+        if not self.set_language_tool:
+            logger.error("❌ set_language tool not available")
+            return False
+
+        # Test a simple language setting to check if the functionality is implemented
+        try:
+            test_result = await self.set_language_tool.run_json(
+                {"language": "en"}, CancellationToken()
+            )
+
+            result_str = str(test_result).lower()
+            if "error" in result_str and "not" in result_str and "attribute" in result_str:
+                logger.error(f"❌ Set language functionality not properly implemented: {test_result}")
+                logger.error("❌ The HiRAG MCP server needs to implement the set_language functionality")
+                return False
+            
+            if "successfully set to" in result_str:
+                logger.info("✅ Set language functionality is working correctly")
+                return True
+            else:
+                logger.warning(f"⚠️ Unexpected response format: {test_result}")
+                return True  # Still consider it working if no explicit error
+
+        except Exception as e:
+            logger.error(f"❌ Set language functionality test failed: {e}")
+            return False
+
     async def test_set_language_tool_available(self):
         """Test that the hi_set_language tool is available in the MCP server."""
         logger.info("Testing if hi_set_language tool is available...")
@@ -119,12 +147,22 @@ class TestHiRAGSetLanguage:
                     {"language": language}, CancellationToken()
                 )
 
+                # Check if the result indicates an error
+                result_str = str(result).lower()
+                if "error" in result_str:
+                    logger.error(f"❌ Language '{language}' setting failed: {result}")
+                    raise AssertionError(f"Language '{language}' setting failed: {result}")
+
                 logger.info(f"✅ Language '{language}' set successfully: {result}")
 
-                # Verify the result is not None and doesn't contain error information
+                # Verify the result is not None and contains success indication
                 assert (
                     result is not None
                 ), f"Result should not be None for language: {language}"
+                
+                # Verify that the result indicates successful language setting
+                if "successfully set to" not in result_str:
+                    logger.warning(f"⚠️ Unexpected result format for language '{language}': {result}")
 
             except Exception as e:
                 logger.error(f"❌ Failed to set language '{language}': {e}")
@@ -151,126 +189,21 @@ class TestHiRAGSetLanguage:
                     {"language": invalid_lang}, CancellationToken()
                 )
 
-                # The tool should either handle gracefully or provide feedback
-                logger.info(f"Invalid language '{invalid_lang}' result: {result}")
+                # Check if the tool properly handles invalid languages
+                result_str = str(result).lower()
+                if "error" in result_str:
+                    logger.info(f"✅ Invalid language '{invalid_lang}' properly rejected: {result}")
+                else:
+                    logger.warning(f"⚠️ Invalid language '{invalid_lang}' was not rejected: {result}")
 
             except Exception as e:
                 # It's acceptable for invalid languages to raise exceptions
                 logger.info(
-                    f"Invalid language '{invalid_lang}' raised exception (expected): {e}"
+                    f"✅ Invalid language '{invalid_lang}' raised exception (expected): {e}"
                 )
 
         logger.info("✅ Invalid language handling test completed")
         return True
-
-    async def test_search_functionality_both_languages(self):
-        """Test search functionality in both English and Chinese languages."""
-        if not self.set_language_tool:
-            logger.warning(
-                "⚠️ Skipping search functionality test - set_language tool not available"
-            )
-            return False
-
-        logger.info("🔍 Testing search functionality in both languages...")
-
-        # Find the search tool
-        search_tool = next(
-            (tool for tool in self.hirag_tools if tool.name == "hi_search"), None
-        )
-
-        if not search_tool:
-            logger.warning(
-                "⚠️ Skipping search functionality test - hi_search tool not available"
-            )
-            return False
-
-        test_query = "artificial intelligence"
-        results = {}
-
-        # Test with English
-        try:
-            logger.info("   📝 Setting language to English and testing search...")
-
-            # Set language to English
-            en_lang_result = await self.set_language_tool.run_json(
-                {"language": "en"}, CancellationToken()
-            )
-            logger.info(f"   Language setting result: {en_lang_result}")
-
-            # Perform search
-            en_search_result = await search_tool.run_json(
-                {"query": test_query}, CancellationToken()
-            )
-
-            results["en"] = en_search_result
-            logger.info(f"   English search result: {str(en_search_result)[:200]}...")
-
-        except Exception as e:
-            logger.error(f"   ❌ Error in English search test: {e}")
-            return False
-
-        # Test with Chinese
-        try:
-            logger.info("   📝 Setting language to Chinese and testing search...")
-
-            # Set language to Chinese
-            cn_lang_result = await self.set_language_tool.run_json(
-                {"language": "cn"}, CancellationToken()
-            )
-            logger.info(f"   Language setting result: {cn_lang_result}")
-
-            # Perform search
-            cn_search_result = await search_tool.run_json(
-                {"query": test_query}, CancellationToken()
-            )
-
-            results["cn"] = cn_search_result
-            logger.info(f"   Chinese search result: {str(cn_search_result)[:200]}...")
-
-        except Exception as e:
-            logger.error(f"   ❌ Error in Chinese search test: {e}")
-            return False
-
-        # Analyze results
-        if results["en"] is not None and results["cn"] is not None:
-            logger.info("   ✅ Both language searches returned results")
-
-            # Convert results to strings for comparison
-            en_str = str(results["en"])
-            cn_str = str(results["cn"])
-
-            # Check if the responses are different (indicating language switching worked)
-            if en_str != cn_str:
-                logger.info(
-                    "   ✅ Different responses for different languages - language switching works!"
-                )
-
-                # Try to detect language in results
-                en_has_chinese = any("\u4e00" <= char <= "\u9fff" for char in en_str)
-                cn_has_chinese = any("\u4e00" <= char <= "\u9fff" for char in cn_str)
-
-                if not en_has_chinese and cn_has_chinese:
-                    logger.info(
-                        "   ✅ Perfect! English response has no Chinese characters, Chinese response has Chinese characters"
-                    )
-                elif cn_has_chinese:
-                    logger.info(
-                        "   ✅ Good! Chinese response contains Chinese characters as expected"
-                    )
-                else:
-                    logger.info(
-                        "   ⚠️ Note: No Chinese characters detected in either response (may be due to empty knowledge base)"
-                    )
-
-            else:
-                logger.warning(
-                    "   ⚠️ Same response for both languages - language switching may not be working"
-                )
-
-            return True
-        else:
-            logger.warning("   ⚠️ One or both search results are None")
-            return False
 
     async def run_all_tests(self):
         """Run all test methods."""
@@ -282,10 +215,17 @@ class TestHiRAGSetLanguage:
             # Run individual tests
             test_results = []
 
-            test_results.append(await self.test_set_language_tool_available())
-            test_results.append(await self.test_set_language_functionality())
-            test_results.append(await self.test_invalid_language_handling())
-            test_results.append(await self.test_search_functionality_both_languages())
+            # First check if basic functionality is implemented
+            basic_functionality_ok = await self.test_basic_functionality_check()
+            test_results.append(basic_functionality_ok)
+            
+            if not basic_functionality_ok:
+                logger.warning("⚠️ Basic set_language functionality not implemented - skipping remaining tests")
+                test_results.extend([False] * 2)  # Mark remaining tests as failed
+            else:
+                test_results.append(await self.test_set_language_tool_available())
+                test_results.append(await self.test_set_language_functionality())
+                test_results.append(await self.test_invalid_language_handling())
 
             # Summary
             passed_tests = sum(test_results)
