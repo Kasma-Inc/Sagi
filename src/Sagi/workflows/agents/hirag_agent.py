@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Dict, List, Optional, Union
 
 from autogen_agentchat.agents import AssistantAgent
@@ -68,7 +69,7 @@ class HiragAgent:
     def _get_system_prompt(self):
         system_prompt = {
             "en": "You are a information retrieval agent that provides relevant information from the internal database.",
-            "cn-s": "你是一个信息检索代理，从内部数据库中提供相关信息。",
+            "cn": "你是一个信息检索代理，从内部数据库中提供相关信息。",
             "cn-t": "你是一個信息檢索代理，從內部資料庫中提供相關信息。",
         }
         return system_prompt.get(self.language, system_prompt["en"])
