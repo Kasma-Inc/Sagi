@@ -360,7 +360,7 @@ async def main_cmd(args: argparse.Namespace):
                 logging.info("MCP session manager cleaned up successfully.")
             except Exception as session_error:
                 logging.error(f"Error cleaning up MCP session manager: {session_error}")
-        
+
         # Cleanup workflow if it exists
         if workflow is not None:
             try:
@@ -368,7 +368,7 @@ async def main_cmd(args: argparse.Namespace):
                 logging.info("Workflow cleaned up successfully.")
             except Exception as cleanup_error:
                 logging.error(f"Error during workflow cleanup: {cleanup_error}")
-        
+
         # Cleanup database engine
         try:
             await engine.dispose()
