@@ -1,12 +1,11 @@
 import os
 from contextlib import AsyncExitStack
-from typing import Sequence, List, Dict
+from typing import Dict, List, Sequence
 
 from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
-from autogen_agentchat.conditions import TextMessageTermination, \
-    TextMentionTermination
-from autogen_agentchat.messages import BaseChatMessage, BaseAgentEvent
-from autogen_agentchat.teams import RoundRobinGroupChat, SelectorGroupChat
+from autogen_agentchat.conditions import TextMentionTermination
+from autogen_agentchat.messages import BaseAgentEvent, BaseChatMessage
+from autogen_agentchat.teams import SelectorGroupChat
 from autogen_core import CancellationToken
 from autogen_ext.tools.mcp import (
     StdioServerParams,
@@ -16,9 +15,12 @@ from autogen_ext.tools.mcp import (
 
 from Sagi.tools.web_search_agent import WebSearchAgent
 from Sagi.utils.load_config import load_toml_with_env_vars
-from Sagi.utils.prompt import get_general_agent_prompt, \
-    get_web_search_agent_prompt, get_question_prediction_agent_prompt, \
-    get_rag_agent_prompt, get_question_validation_agent_prompt
+from Sagi.utils.prompt import (
+    get_question_prediction_agent_prompt,
+    get_question_validation_agent_prompt,
+    get_rag_agent_prompt,
+    get_web_search_agent_prompt,
+)
 from Sagi.workflows.planning.planning import ModelClientFactory
 
 DEFAULT_WEB_SEARCH_MAX_RETRIES = 3
@@ -26,8 +28,7 @@ PARTICIPANT_LIST: List[BaseChatAgent] = []
 PARTICIPANT_DICT: Dict[str, int] = {}
 
 
-def selector_func(
-    messages: Sequence[BaseAgentEvent | BaseChatMessage]) -> str | None:
+def selector_func(messages: Sequence[BaseAgentEvent | BaseChatMessage]) -> str | None:
     last_agent_name: str = messages[-1].source
     if last_agent_name == "question_validation_agent":
         return "question_prediction_agent"
@@ -93,8 +94,7 @@ class QuestionPredictionWorkflow:
         )
 
         hirag_retrieval = await self.session_manager.create_session(
-            "hirag_retrieval",
-            create_mcp_server_session(hirag_server_params)
+            "hirag_retrieval", create_mcp_server_session(hirag_server_params)
         )
         await hirag_retrieval.initialize()
         hirag_retrieval_tools = await mcp_server_tools(
@@ -117,8 +117,7 @@ class QuestionPredictionWorkflow:
                 return f"Failed to set language: {e}"
 
         hirag_retrieval_tools = [
-            tool for tool in hirag_retrieval_tools if
-            tool.name == "hi_search"
+            tool for tool in hirag_retrieval_tools if tool.name == "hi_search"
         ]
 
         return AssistantAgent(
@@ -135,14 +134,16 @@ class QuestionPredictionWorkflow:
         config_path: str,
         language: str,
         web_search: bool = False,
-        hirag: bool = False
+        hirag: bool = False,
     ):
         self = cls()
         self.language = language
         self.session_manager = MCPSessionManager()
 
         config = load_toml_with_env_vars(config_path)
-        config_question_prediction_client = config["model_clients"]["question_prediction_client"]
+        config_question_prediction_client = config["model_clients"][
+            "question_prediction_client"
+        ]
         self.question_prediction_model_client = ModelClientFactory.create_model_client(
             config_question_prediction_client
         )
