@@ -4,6 +4,10 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from asyncpg import DuplicateTableError
+from autogen_core.memory import (
+    MemoryContent,
+    MemoryMimeType,
+)
 
 # Embedding service from HiRAG for generating embeddings
 from hirag_prod._llm import EmbeddingService
@@ -13,11 +17,6 @@ from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlmodel import JSON, Field, SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
-
-from autogen_core.memory import (
-    MemoryContent,
-    MemoryMimeType,
-)
 
 from Sagi.utils.token_usage import count_tokens_messages
 
@@ -204,13 +203,18 @@ async def getMultiRoundMemory(
             # Calculate the context length and remove memories that exceed the context window
             memories = memory.scalars().all()
             print(f"Number of memories found: {len(memories)}")
-            
+
             # Filter memories based on token count and context window
             total_tokens = 0
             filtered_memories = []
             for mem in memories:
-                print(f"Processing memory ID: {mem.id}, Created At: {mem.createdAt}, Content: {mem.content}", end=", ")
-                content_tokens = count_tokens_messages([{"content": mem.content}], model=model_name)
+                print(
+                    f"Processing memory ID: {mem.id}, Created At: {mem.createdAt}, Content: {mem.content}",
+                    end=", ",
+                )
+                content_tokens = count_tokens_messages(
+                    [{"content": mem.content}], model=model_name
+                )
                 # Debug information
                 print(f"Tokens: {content_tokens}")
 
