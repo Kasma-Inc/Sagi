@@ -5,7 +5,6 @@ import string
 from dataclasses import dataclass
 from typing import Dict, List
 
-
 from Sagi.tools.pdf_extraction._utils import (
     cnt_files_in_s3,
     delete_dir_from_s3,
