@@ -315,9 +315,8 @@ editable_html_template = """
                     width: 'ffff-width',
                     height: 'ffff-height',
                     storageManager: false,
-                    panels: {
-                        defaults: []
-                    },
+                    avoidInlineStyle: false,
+                    panels: { defaults: [] },
                     styleManager: {
                         appendTo: `#style-manager-${className}`,
                         sectors: [{
@@ -353,16 +352,7 @@ editable_html_template = """
                             ]
                         }]
                     },
-                    canvas: {
-                        styles: [],
-                        scripts: []
-                    },
-                    plugins: [],
-                    pluginsOpts: {
-                        'gjs-preset-webpage': {
-                            layers: false,
-                        }
-                    }
+                    canvas: { styles: [], scripts: [] }
                 });
 
                 // Set initial content
@@ -375,26 +365,56 @@ editable_html_template = """
                     </style>
                     ${class_dict[className]}
                 `;
-
                 editors[editorId].setComponents(contentWithStyle);
 
-                // Setup auto-save after editor is ready
-                setupAutoSave(editorId);
+                editors[editorId].on('load', () => {
+                    setTimeout(() => {
+                        // Get all components
+                        const allComponents = editors[editorId].getWrapper().find('*');
+                        
+                        allComponents.forEach(component => {
+                            const element = component.getEl();
+                            if (element && element.getAttribute('style')) {
+                                const styleAttr = element.getAttribute('style');
+                                const styles = {};
+                                
+                                // Parse existing inline styles
+                                styleAttr.split(';').forEach(rule => {
+                                    const [prop, val] = rule.split(':').map(s => s.trim());
+                                    if (prop && val) {
+                                        styles[prop] = val;
+                                    }
+                                });
+                                
+                                // Apply to GrapesJS component
+                                component.setStyle(styles);
+                            }
+                        });
+                    }, 3000);
+                    
+                    const canvas = editors[editorId].Canvas;
+                    canvas.getFrameEl().style.pointerEvents = 'none';
+                });
 
-                // Initially set to view mode
+                // Make styles sync when changed
+                editors[editorId].on('component:update:style', (component) => {
+                    const element = component.getEl();
+                    if (element) {
+                        const styles = component.getStyle();
+                        const styleString = Object.keys(styles)
+                            .map(prop => `${prop}: ${styles[prop]}`)
+                            .join('; ');
+                        element.setAttribute('style', styleString);
+                    }
+                });
+
+                setupAutoSave(editorId);
                 setViewMode(editorId);
 
-                // Hide style panel on first load
                 const stylePanel = document.getElementById(`styleManagerPanel-${className}`);
                 if (stylePanel) {
                     stylePanel.classList.remove('show');
                 }
-
-                // Guarantee pointer-events is none after GrapesJS is ready
-                editors[editorId].on('load', () => {
-                    const canvas = editors[editorId].Canvas;
-                    canvas.getFrameEl().style.pointerEvents = 'none';
-                });
 
                 console.log(`GrapesJS initialized successfully for ${className}`);
             } catch (error) {
