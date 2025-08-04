@@ -3,9 +3,9 @@ from contextlib import AsyncExitStack
 from typing import Dict, List, Sequence
 
 from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
-from autogen_agentchat.conditions import TextMentionTermination
-from autogen_agentchat.messages import BaseAgentEvent, BaseChatMessage
-from autogen_agentchat.teams import SelectorGroupChat
+from autogen_agentchat.conditions import TextMessageTermination
+from autogen_agentchat.messages import BaseChatMessage
+from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_core import CancellationToken
 from autogen_ext.tools.mcp import (
     StdioServerParams,
@@ -13,29 +13,32 @@ from autogen_ext.tools.mcp import (
     mcp_server_tools,
 )
 
-from Sagi.tools.web_search_agent import WebSearchAgent
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.utils.prompt import (
-    get_question_prediction_agent_prompt,
-    get_question_validation_agent_prompt,
     get_rag_agent_prompt,
-    get_web_search_agent_prompt,
+    get_user_intent_recognition_agent_prompt,
 )
 from Sagi.workflows.planning.planning import ModelClientFactory
+from Sagi.workflows.question_prediction.question_prediction_agent import (
+    QuestionPredictionAgent,
+)
+from Sagi.workflows.question_prediction.question_prediction_web_search_agent import (
+    QuestionPredictionWebSearchAgent,
+)
 
 DEFAULT_WEB_SEARCH_MAX_RETRIES = 3
 PARTICIPANT_LIST: List[BaseChatAgent] = []
 PARTICIPANT_DICT: Dict[str, int] = {}
 
 
-def selector_func(messages: Sequence[BaseAgentEvent | BaseChatMessage]) -> str | None:
-    last_agent_name: str = messages[-1].source
-    if last_agent_name == "question_validation_agent":
-        return "question_prediction_agent"
-    elif last_agent_name not in PARTICIPANT_DICT:
-        return PARTICIPANT_LIST[0].name
-    else:
-        return PARTICIPANT_LIST[PARTICIPANT_DICT[last_agent_name] + 1].name
+# def selector_func(messages: Sequence[BaseAgentEvent | BaseChatMessage]) -> str | None:
+#     last_agent_name: str = messages[-1].source
+#     if last_agent_name == "question_validation_agent":
+#         return "question_prediction_agent"
+#     elif last_agent_name not in PARTICIPANT_DICT:
+#         return PARTICIPANT_LIST[0].name
+#     else:
+#         return PARTICIPANT_LIST[PARTICIPANT_DICT[last_agent_name] + 1].name
 
 
 class MCPSessionManager:
@@ -57,7 +60,7 @@ class MCPSessionManager:
 
 class QuestionPredictionWorkflow:
 
-    async def _init_web_search_agent(self):
+    async def _init_question_prediction_web_search_agent(self):
         web_search_server_params = StdioServerParams(
             command="npx",
             args=["-y", "@modelcontextprotocol/server-brave-search"],
@@ -71,14 +74,10 @@ class QuestionPredictionWorkflow:
             web_search_server_params, session=web_search
         )
 
-        return WebSearchAgent(
-            name="web_search",
-            description="a web search agent that collect data and relevant information from the web.",
-            system_message=get_web_search_agent_prompt(self.language),
+        return QuestionPredictionWebSearchAgent(
+            name="question_prediction_web_search_agent",
             model_client=self.question_prediction_model_client,
-            # reflect_on_tool_use=True,  # enable llm summary for contents web search returns
             tools=web_search_tools,
-            max_retries=DEFAULT_WEB_SEARCH_MAX_RETRIES,
         )
 
     async def _init_hirag_agent(self):
@@ -148,41 +147,44 @@ class QuestionPredictionWorkflow:
             config_question_prediction_client
         )
 
-        if web_search:
-            web_search_agent: WebSearchAgent = await self._init_web_search_agent()
-            PARTICIPANT_LIST.append(web_search_agent)
-            PARTICIPANT_DICT[web_search_agent.name] = len(PARTICIPANT_LIST) - 1
-
         if hirag:
             hirag_agent: AssistantAgent = await self._init_hirag_agent()
             PARTICIPANT_LIST.append(hirag_agent)
             PARTICIPANT_DICT[hirag_agent.name] = len(PARTICIPANT_LIST) - 1
 
+        # Create user_intent_recognition_agent agent
+        user_intent_recognition_agent = AssistantAgent(
+            name="user_intent_recognition_agent",
+            model_client=self.question_prediction_model_client,
+            model_client_stream=True,
+            system_message=get_user_intent_recognition_agent_prompt(self.language),
+        )
+        PARTICIPANT_LIST.append(user_intent_recognition_agent)
+        PARTICIPANT_DICT[user_intent_recognition_agent.name] = len(PARTICIPANT_LIST) - 1
+
+        if web_search:
+            question_prediction_web_search_agent: QuestionPredictionWebSearchAgent = (
+                await self._init_question_prediction_web_search_agent()
+            )
+            PARTICIPANT_LIST.append(question_prediction_web_search_agent)
+            PARTICIPANT_DICT[question_prediction_web_search_agent.name] = (
+                len(PARTICIPANT_LIST) - 1
+            )
+
         # Create question_prediction agent
-        question_prediction_agent = AssistantAgent(
+        question_prediction_agent = QuestionPredictionAgent(
             name="question_prediction_agent",
             model_client=self.question_prediction_model_client,
-            description="a question prediction agent that predict the next user question according to the chat history.",
-            system_message=get_question_prediction_agent_prompt(self.language),
+            model_client_stream=True,
         )
         PARTICIPANT_LIST.append(question_prediction_agent)
         PARTICIPANT_DICT[question_prediction_agent.name] = len(PARTICIPANT_LIST) - 1
 
-        # Create question_validation agent
-        question_validation_agent = AssistantAgent(
-            name="question_validation_agent",
-            model_client=self.question_prediction_model_client,
-            description="a question validation agent that validate the predicted questions.",
-            system_message=get_question_validation_agent_prompt(self.language),
-        )
-        PARTICIPANT_LIST.append(question_validation_agent)
-        PARTICIPANT_DICT[question_validation_agent.name] = len(PARTICIPANT_LIST) - 1
-
-        self.team = SelectorGroupChat(
+        self.team = RoundRobinGroupChat(
             participants=PARTICIPANT_LIST,
-            model_client=self.question_prediction_model_client,
-            selector_func=selector_func,
-            termination_condition=TextMentionTermination("APPROVE"),
+            termination_condition=TextMessageTermination(
+                source="question_prediction_agent"
+            ),
         )
         return self
 

@@ -466,21 +466,10 @@ def get_general_agent_prompt_cn() -> str:
     return "您是一个通用AI助手，为简单问题提供答案。回答使用中文。"
 
 
-def get_question_prediction_agent_prompt(language: str = "en") -> str:
-    """system prompt for question prediction agent"""
+def get_user_intent_recognition_agent_prompt(language: str = "en") -> str:
+    """system prompt for user intent recognition agent"""
     return {
-        "en": "You are a helpful AI assistant that predicts user questions. Please predict 3 questions that the user may ask according to the chat history provided and make modifications based on question validation agent's suggestions. Please output the predicted questions as a bulleted list. Use - marks as bullet points.",
-        "cn-s": "你是一个有用的人工智能助手，可以预测用户的问题。请根据提供的聊天记录预测用户可能提出的3个问题，并根据问题验证代理的建议进行修改。请将预测的问题以项目符号列表的形式输出。使用-标记作为项目符号。",
-        "cn-t": "你是一個有用的人工智能助手，可以預測用戶的問題。請根據提供的聊天記錄預測用戶可能提出的3個問題，並根據問題驗證代理的建議進行修改。請將預測的問題以專案符號清單的形式輸出。使用-標記作為專案符號。",
-    }[language]
-
-
-def get_question_validation_agent_prompt(language: str = "en") -> str:
-    """system prompt for question validation agent"""
-    return {
-        "en": "You are a helpful AI assistant that ensures all predicted questions are raised from the user's perspective and are in line with the scenario of the user chatting with the chatbot. If you believe that all questions are raised from the user's perspective and fit the scenario, respond with 'APPROVE'. Otherwise, provide modification suggestions.",
-        "cn-s": "你是一个有用的人工智能助手，确保所有预测的问题都是从用户角度提出的并且符合用户与聊天机器人聊天的场景。如果你认为所有问题都是从用户角度提出的，并且符合此场景，请回答“APPROVE”。否则，请提供修改建议。",
-        "cn-t": "你是一個有用的人工智能助手，確保所有預測的問題都是從用戶角度提出的並且符合用戶與聊天機器人聊天的場景。如果你認為所有問題都是從用戶角度提出的，并且符合此场景，請回答“APPROVE”。否則，請提供修改建議。",
+        "en": "You are a helpful AI assistant that recognizes user intent. The input is a chat history between a user and an AI assistant. Please describe the user's intent in one sentence based on the chat history.",
     }[language]
 
 
