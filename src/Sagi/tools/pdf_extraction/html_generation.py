@@ -1,15 +1,18 @@
-from Sagi.tools.pdf_extraction.Extraction_data import RectData, TextStyle
-from typing import List, Dict, Any, Tuple
+import asyncio
+import os
+import re
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+
 import fitz
 from autogen_agentchat.agents import AssistantAgent
-from Sagi.tools.pdf_extraction.prompt import non_image_generation_prompt
-from autogen_core import CancellationToken, Image
-from Sagi.tools.pdf_extraction.html_template import html_template
-from pathlib import Path
-import os
 from autogen_agentchat.messages import MultiModalMessage
-import re
-import asyncio
+from autogen_core import CancellationToken, Image
+
+from Sagi.tools.pdf_extraction.extraction_data import RectData, TextStyle
+from Sagi.tools.pdf_extraction.html_template import html_template
+from Sagi.tools.pdf_extraction.prompt import non_image_generation_prompt
+
 
 class HTMLGenerator:
     def __init__(
@@ -21,14 +24,21 @@ class HTMLGenerator:
         rightmost_coordinates: float,
         page_width: float,
         page_height: float,
-        model_client = None,
+        model_client=None,
         margin_top_decrease: int = 3,
         padding_left_ratio: float = 0.8,
         max_agents: int = 10,
         output_path: str | None = None,
     ):
 
-        self.rect_data = [[rect for rect in page_rects if rect.x0 <= rightmost_coordinates and rect.x1 >= leftmost_coordinates] for page_rects in rect_data]
+        self.rect_data = [
+            [
+                rect
+                for rect in page_rects
+                if rect.x0 <= rightmost_coordinates and rect.x1 >= leftmost_coordinates
+            ]
+            for page_rects in rect_data
+        ]
         self.output_path = output_path
         self.input_pdf_path = input_pdf_path
         self.images_dir = os.path.join(storage_dir, "components")
@@ -75,21 +85,42 @@ class HTMLGenerator:
         # Merge the spans that have the same style (ex. different lines mean different span which we can merge them together into the same span) and also consider the sub/sup script
         for span in spans:
             if rect_data.contain_rect(fitz.Rect(span["bbox"])):
-                new_text_style = TextStyle(font=span["font"], color=span["color"], alpha=span["alpha"], size=span["size"])
+                new_text_style = TextStyle(
+                    font=span["font"],
+                    color=span["color"],
+                    alpha=span["alpha"],
+                    size=span["size"],
+                )
                 origin = span["origin"][1]
 
-                if prev_origin != -1 and prev_origin + 0.3 < origin and prev_origin + 2 > origin and prev_size > span["size"]:
-                    sentence_design[-1][1] += f"<sub style='font-size: {span['size']}pt; color: {span['color']}; font-family: {span['font']};'>{span['text']}</sub>"
+                if (
+                    prev_origin != -1
+                    and prev_origin + 0.3 < origin
+                    and prev_origin + 2 > origin
+                    and prev_size > span["size"]
+                ):
+                    sentence_design[-1][
+                        1
+                    ] += f"<sub style='font-size: {span['size']}pt; color: {span['color']}; font-family: {span['font']};'>{span['text']}</sub>"
 
-                elif prev_origin != -1 and origin + 0.5 < prev_origin and origin + span["size"] > prev_origin and prev_size > span["size"]:
-                    sentence_design[-1][1] += f"<sup style='font-size: {span['size']}pt; color: {span['color']}; font-family: {span['font']};'>{span['text']}</sup>"
+                elif (
+                    prev_origin != -1
+                    and origin + 0.5 < prev_origin
+                    and origin + span["size"] > prev_origin
+                    and prev_size > span["size"]
+                ):
+                    sentence_design[-1][
+                        1
+                    ] += f"<sup style='font-size: {span['size']}pt; color: {span['color']}; font-family: {span['font']};'>{span['text']}</sup>"
 
-                elif len(sentence_design) == 0 or not sentence_design[-1][0].same_style(new_text_style):
+                elif len(sentence_design) == 0 or not sentence_design[-1][0].same_style(
+                    new_text_style
+                ):
                     sentence_design.append([new_text_style, span["text"]])
 
                 else:
                     sentence_design[-1][1] += span["text"]
-                
+
                 prev_origin = span["origin"][1]
                 prev_size = span["size"]
 
@@ -109,7 +140,9 @@ class HTMLGenerator:
                 weight_part = parts[-1].lower()
                 if "bold" in weight_part:
                     font_weight = "bold"
-                elif "light" in weight_part or "lg" in weight_part or "lt" in weight_part:
+                elif (
+                    "light" in weight_part or "lg" in weight_part or "lt" in weight_part
+                ):
                     font_weight = "300"
                 elif "regular" in weight_part or "regul" in weight_part:
                     font_weight = "normal"
@@ -131,7 +164,10 @@ class HTMLGenerator:
         # Generate the margin and padding style
         # Have to decrease the margin and padding because, in real html, the margin and padding are tend to be larger than the actual content
         margin_style = "margin-top: 0pt;"
-        if prev_y_coordinate != -1 and rect_data.y0 > prev_y_coordinate + self.margin_top_decrease:
+        if (
+            prev_y_coordinate != -1
+            and rect_data.y0 > prev_y_coordinate + self.margin_top_decrease
+        ):
             margin_style = f"margin-top: {(rect_data.y0 - prev_y_coordinate - self.margin_top_decrease)}pt;"
 
         padding_style = "padding-left: 0pt;"
@@ -148,10 +184,12 @@ class HTMLGenerator:
             return ""
 
     # Crop the image and save it to the images directory for the model to use
-    def crop_image(self, rect_data: RectData, page_number: int, file_path: str, dpi: int = 300):
+    def crop_image(
+        self, rect_data: RectData, page_number: int, file_path: str, dpi: int = 300
+    ):
         page = self.doc[page_number]
         page.set_cropbox(rect_data.get_org_rect())
-        mat = fitz.Matrix(dpi/72, dpi/72)
+        mat = fitz.Matrix(dpi / 72, dpi / 72)
         pix = page.get_pixmap(matrix=mat)
         pix.save(file_path)
 
@@ -186,12 +224,16 @@ class HTMLGenerator:
                     weight_part = parts[-1].lower()
                     if "bold" in weight_part:
                         font_weight = "bold"
-                    elif "light" in weight_part or "lg" in weight_part or "lt" in weight_part:
+                    elif (
+                        "light" in weight_part
+                        or "lg" in weight_part
+                        or "lt" in weight_part
+                    ):
                         font_weight = "300"
                     elif "regular" in weight_part or "regul" in weight_part:
                         font_weight = "normal"
 
-                style_info = f"font: {font_family}, color: {font_color}, opacity: {opacity}, size: {font_size}" 
+                style_info = f"font: {font_family}, color: {font_color}, opacity: {opacity}, size: {font_size}"
                 if font_weight:
                     style_info += f", weight: {font_weight}"
 
@@ -202,16 +244,21 @@ class HTMLGenerator:
         # Format the style information for the model request
         formatted_styles = []
         for i, (style_info, texts) in enumerate(style_dict.items(), 1):
-            text_list = ', '.join([f'"{text}"' for text in texts])
+            text_list = ", ".join([f'"{text}"' for text in texts])
 
-            formatted_styles.append(f"{i}. Text style: {style_info}\n   Texts: {text_list}")
-        
-        text_styles_format = '\n'.join(formatted_styles)
+            formatted_styles.append(
+                f"{i}. Text style: {style_info}\n   Texts: {text_list}"
+            )
+
+        text_styles_format = "\n".join(formatted_styles)
 
         # Generate the margin and padding style
         # Have to decrease the margin and padding because, in real html, the margin and padding are tend to be larger than the actual content
         margin_style = "margin-top: 0pt;"
-        if prev_y_coordinate != -1 and rect_data.y0 > prev_y_coordinate + self.margin_top_decrease:
+        if (
+            prev_y_coordinate != -1
+            and rect_data.y0 > prev_y_coordinate + self.margin_top_decrease
+        ):
             margin_style = f"margin-top: {(rect_data.y0 - prev_y_coordinate - self.margin_top_decrease)}pt;"
 
         padding_style = "padding-left: 0pt;"
@@ -224,31 +271,57 @@ class HTMLGenerator:
 
         # Generate the model request
         img = Image.from_file(Path(image_path))
-        message1 = MultiModalMessage(content=[img, f"Here is the text style information:\n{text_styles_format}", f"The class name is {class_name}"], source="user")
-        message2 = MultiModalMessage(content=[f"You have to fit the image into the container with the width of {rect_data.x1 - rect_data.x0}pt and a height of {rect_data.y1 - rect_data.y0}pt"], source="user")
+        message1 = MultiModalMessage(
+            content=[
+                img,
+                f"Here is the text style information:\n{text_styles_format}",
+                f"The class name is {class_name}",
+            ],
+            source="user",
+        )
+        message2 = MultiModalMessage(
+            content=[
+                f"You have to fit the image into the container with the width of {rect_data.x1 - rect_data.x0}pt and a height of {rect_data.y1 - rect_data.y0}pt"
+            ],
+            source="user",
+        )
 
         # If the model client is not None, then we can use the model to generate the HTML code
         if self.model_client is not None:
             # Store the model request to do it simultaneously in case we want to do concurrent requests to save the time
-            self.model_request.append([class_name, [message1, message2], image_path, rect_data.x1 - rect_data.x0, rect_data.y1 - rect_data.y0])
-            return (f"<div class='{class_name}' style='{margin_style} {padding_style} max-height: {rect_data.y1 - rect_data.y0}pt; width: {rect_data.x1 - rect_data.x0}pt;'>\n"
+            self.model_request.append(
+                [
+                    class_name,
+                    [message1, message2],
+                    image_path,
+                    rect_data.x1 - rect_data.x0,
+                    rect_data.y1 - rect_data.y0,
+                ]
+            )
+            return (
+                f"<div class='{class_name}' style='{margin_style} {padding_style} max-height: {rect_data.y1 - rect_data.y0}pt; width: {rect_data.x1 - rect_data.x0}pt;'>\n"
                 + f"ffff-{class_name}-content"
-                + "\n</div>")
+                + "\n</div>"
+            )
         else:
-            return (f"<div class='{class_name}' style='{margin_style} {padding_style}'>\n"
+            return (
+                f"<div class='{class_name}' style='{margin_style} {padding_style}'>\n"
                 + f"<div style='height: {rect_data.y1 - rect_data.y0}pt; width: {rect_data.x1 - rect_data.x0}pt; border: 1px solid black;'>\n"
                 + f"ffff-{class_name}-content"
                 + "\n</div>"
-                + "\n</div>")
-    
+                + "\n</div>"
+            )
+
     # Clean the grid coordinates to remove some small gaps/errors (ex. 2 columns of x-coordinates (1,12.6) and (12.7, 20), there is a small gap/error here which we can fix it to (1,12.65) and (12.65,20))
-    def clean_grid_coordinates(self, coords: List[float], tolerance: float = 15) -> List[float]:
+    def clean_grid_coordinates(
+        self, coords: List[float], tolerance: float = 15
+    ) -> List[float]:
         coords = sorted(coords)
         cleaned_data = [coords[0]]
 
         sum = 0
         cnt = 0
-        
+
         for i in range(1, len(coords)):
             current = coords[i]
             previous = cleaned_data[-1]
@@ -261,11 +334,13 @@ class HTMLGenerator:
                 sum += current
                 cnt += 1
                 cleaned_data[-1] = round(sum / cnt, 1)
-        
+
         return cleaned_data
 
     # Redistribute the grid coordinates to make the columns more balanced. Like divide the row into 3 part EQUALLY
-    def redistribute_grid_coordinates(self, rect_data: List[RectData], av_tolerance: int = 20):
+    def redistribute_grid_coordinates(
+        self, rect_data: List[RectData], av_tolerance: int = 20
+    ):
 
         coords = []
         start_x = -1
@@ -297,7 +372,7 @@ class HTMLGenerator:
                     for perm in generate_permutations(n - 1):
                         res.append([i] + perm)
                 return res
-        
+
         best_perm = None
         best_diff = 1000000
 
@@ -308,13 +383,13 @@ class HTMLGenerator:
             for segment_size in segment_sizes[:-1]:
                 new_coords.append(new_coords[-1] + segment_size)
             new_coords.append(coords[-1])
-            
+
             total_diff = sum(abs(coords[i] - new_coords[i]) for i in range(len(coords)))
-            
+
             if total_diff < best_diff:
                 best_diff = total_diff
                 best_perm = perm
-        
+
         # If the best diff is too large, then we don't need to redistribute the grid coordinates
         if best_diff > av_tolerance * (len(coords) - 2):
             return
@@ -328,7 +403,7 @@ class HTMLGenerator:
         new_coords.append(coords[-1])
 
         for i in range(len(coords)):
-            result[coords[i]] = round(new_coords[i],2)
+            result[coords[i]] = round(new_coords[i], 2)
 
         for rect in rect_data:
             rect.x0 = result[rect.x0] if rect.x0 in result else rect.x0
@@ -359,14 +434,18 @@ class HTMLGenerator:
 
         threshold = 1 if coord.type == "text" else 10
 
-        if self.is_column(coord, rect_data, bound_left, bound_right, spans, error=error):
-            
+        if self.is_column(
+            coord, rect_data, bound_left, bound_right, spans, error=error
+        ):
+
             if new_y - previous_y <= 2:
                 return False
 
-            if self.has_multiple_lines(coord, spans) and (coord.x0 > bound_left + error or coord.x1 < bound_right - error):
+            if self.has_multiple_lines(coord, spans) and (
+                coord.x0 > bound_left + error or coord.x1 < bound_right - error
+            ):
                 return False
-            
+
             ranges = []
             for rect in rect_data:
                 if new_y <= rect.y0 and rect.y0 <= new_y + threshold:
@@ -375,7 +454,7 @@ class HTMLGenerator:
             for rect in rect_data:
                 if new_y + threshold < rect.y0 <= new_y + threshold + 20:
                     overlap = False
-                    for (rx0, rx1) in ranges:
+                    for rx0, rx1 in ranges:
                         if min(rx1, rect.x1) - max(rx0, rect.x0) > 5:
                             overlap = True
                             break
@@ -398,9 +477,16 @@ class HTMLGenerator:
     ) -> bool:
 
         for rect in rect_data:
-            if rect != coord and rect.y1 - coord.y0 >= error and coord.y1 - rect.y0 >= error and (rect.x0 + error > coord.x1 or rect.x1 - error < coord.x0):
+            if (
+                rect != coord
+                and rect.y1 - coord.y0 >= error
+                and coord.y1 - rect.y0 >= error
+                and (rect.x0 + error > coord.x1 or rect.x1 - error < coord.x0)
+            ):
                 return True
-        if self.has_multiple_lines(coord, spans) and (coord.x0 > bound_left + error or coord.x1 < bound_right - error):
+        if self.has_multiple_lines(coord, spans) and (
+            coord.x0 > bound_left + error or coord.x1 < bound_right - error
+        ):
             return True
         return False
 
@@ -426,7 +512,7 @@ class HTMLGenerator:
         x_coordinates[-1] = bound_right
 
         for rect in rect_data:
-            rect.x0 = min(x_coordinates, key=lambda x: abs(x - rect.x0)) 
+            rect.x0 = min(x_coordinates, key=lambda x: abs(x - rect.x0))
             rect.x1 = min(x_coordinates, key=lambda x: abs(x - rect.x1))
         rect_data.sort(key=lambda r: (r.x0, r.y0))
 
@@ -456,18 +542,24 @@ class HTMLGenerator:
             if start_x == -1:
 
                 if rect.x0 != bound_left:
-                    columns_components.append(f"<div style='width: {rect.x0 - bound_left}pt;'></div>")
+                    columns_components.append(
+                        f"<div style='width: {rect.x0 - bound_left}pt;'></div>"
+                    )
 
                 start_x = rect.x0
                 max_x = rect.x1
             else:
                 if rect.x0 >= max_x:
-                    html_parts = await self.generate_row_html(temp, page_number, spans, start_x, max_x)
-                    columns_components.append((
-                        f"<div style='width: {max_x - start_x}pt;'>\n"
-                        + html_parts
-                        + "\n</div>"
-                    ))
+                    html_parts = await self.generate_row_html(
+                        temp, page_number, spans, start_x, max_x
+                    )
+                    columns_components.append(
+                        (
+                            f"<div style='width: {max_x - start_x}pt;'>\n"
+                            + html_parts
+                            + "\n</div>"
+                        )
+                    )
                     temp = []
                     start_x = rect.x0
                     max_x = rect.x1
@@ -476,15 +568,22 @@ class HTMLGenerator:
             temp.append(rect)
 
         if len(temp) != 0:
-            html_parts = await self.generate_row_html(temp, page_number, spans, start_x, max_x)
-            columns_components.append((
-                f"<div style='width: {max_x - start_x}pt;'>\n"
-                + html_parts
-                + "\n</div>"
-            ))
-        
+            html_parts = await self.generate_row_html(
+                temp, page_number, spans, start_x, max_x
+            )
+            columns_components.append(
+                (
+                    f"<div style='width: {max_x - start_x}pt;'>\n"
+                    + html_parts
+                    + "\n</div>"
+                )
+            )
+
         margin_style = "margin-top: 0pt;"
-        if prev_y_coordinate != -1 and rect_data[0].y0 > prev_y_coordinate + self.margin_top_decrease:
+        if (
+            prev_y_coordinate != -1
+            and rect_data[0].y0 > prev_y_coordinate + self.margin_top_decrease
+        ):
             margin_style = f"margin-top: {(rect_data[0].y0 - prev_y_coordinate - self.margin_top_decrease)}pt;"
 
         return (
@@ -517,22 +616,62 @@ class HTMLGenerator:
 
             # Check if the component is a new group of components (ex. a new paragraph or a new group of columns)
             # If it is a new group of components, then we will call 'generate_column_html' to generate the HTML code for the previous group of column component
-            temp_max_y = max(prev_y_coordinate, max(rect.y1 for rect in temp)) if len(temp) != 0 else prev_y_coordinate
-            if len(temp) != 0 and rect.y0 > temp_max_y and self.is_new_group(rect, temp_max_y, rect.y0, rect_data, bound_left, bound_right, spans):
-                html_parts.append(await self.generate_column_html(temp, page_number, spans, prev_y_coordinate, bound_left, bound_right))
+            temp_max_y = (
+                max(prev_y_coordinate, max(rect.y1 for rect in temp))
+                if len(temp) != 0
+                else prev_y_coordinate
+            )
+            if (
+                len(temp) != 0
+                and rect.y0 > temp_max_y
+                and self.is_new_group(
+                    rect, temp_max_y, rect.y0, rect_data, bound_left, bound_right, spans
+                )
+            ):
+                html_parts.append(
+                    await self.generate_column_html(
+                        temp,
+                        page_number,
+                        spans,
+                        prev_y_coordinate,
+                        bound_left,
+                        bound_right,
+                    )
+                )
                 for rect_temp in temp:
                     prev_y_coordinate = max(prev_y_coordinate, rect_temp.y1)
                 temp = []
 
             # If it is a row component, then we can directly generate the HTML code and add it to the html_parts list.
             if not self.is_column(rect, rect_data, bound_left, bound_right, spans):
-                if rect.type == "text" or rect.type == "header" or rect.type == "footer":
+                if (
+                    rect.type == "text"
+                    or rect.type == "header"
+                    or rect.type == "footer"
+                ):
                     self.cnt += 1
-                    html_parts.append(self.generate_text_html(rect, prev_y_coordinate, bound_left, f"component_{self.cnt}_({page_number})", spans))
+                    html_parts.append(
+                        self.generate_text_html(
+                            rect,
+                            prev_y_coordinate,
+                            bound_left,
+                            f"component_{self.cnt}_({page_number})",
+                            spans,
+                        )
+                    )
 
                 elif rect.type == "non-text":
                     self.cnt += 1
-                    html_parts.append(await self.generate_non_text_html(rect, prev_y_coordinate, bound_left, page_number, f"component_{self.cnt}_({page_number})", spans))
+                    html_parts.append(
+                        await self.generate_non_text_html(
+                            rect,
+                            prev_y_coordinate,
+                            bound_left,
+                            page_number,
+                            f"component_{self.cnt}_({page_number})",
+                            spans,
+                        )
+                    )
 
                 prev_y_coordinate = rect.y1
 
@@ -540,13 +679,17 @@ class HTMLGenerator:
                 temp.append(rect)
 
         if len(temp) != 0:
-            html_parts.append(await self.generate_column_html(temp, page_number, spans, prev_y_coordinate, bound_left, bound_right))
+            html_parts.append(
+                await self.generate_column_html(
+                    temp, page_number, spans, prev_y_coordinate, bound_left, bound_right
+                )
+            )
 
         return "\n".join(html_parts)
 
-
     # Generate the HTML code for each page
     async def generate_page_html(self, page_number: int) -> str:
+        self.cnt = 0
         page = self.doc[page_number]
         spans = []
         for block in page.get_text("dict")["blocks"]:
@@ -559,8 +702,12 @@ class HTMLGenerator:
         for rect1 in self.rect_data[page_number]:
             for rect2 in self.rect_data[page_number]:
                 if rect1 != rect2 and rect1.type == "text" and rect2.type != "text":
-                    x_overlap = max(0, min(rect1.x1, rect2.x1) - max(rect1.x0, rect2.x0))
-                    y_overlap = max(0, min(rect1.y1, rect2.y1) - max(rect1.y0, rect2.y0))
+                    x_overlap = max(
+                        0, min(rect1.x1, rect2.x1) - max(rect1.x0, rect2.x0)
+                    )
+                    y_overlap = max(
+                        0, min(rect1.y1, rect2.y1) - max(rect1.y0, rect2.y0)
+                    )
                     overlap_area = x_overlap * y_overlap
                     rect1_area = (rect1.x1 - rect1.x0) * (rect1.y1 - rect1.y0)
                     if rect1_area > 0 and overlap_area / rect1_area > 0.95:
@@ -571,10 +718,14 @@ class HTMLGenerator:
         result_html = f"<div class='background-page' id='page_{page_number}'>\n"
 
         # Consider the header part
-        header_rect_data = [rect for rect in self.rect_data[page_number] if rect.type == "header"]
+        header_rect_data = [
+            rect for rect in self.rect_data[page_number] if rect.type == "header"
+        ]
         if len(header_rect_data) > 0:
             header_y_coordinate = min(rect.y0 for rect in header_rect_data)
-            html_header = await self.generate_row_html(header_rect_data, page_number, spans)
+            html_header = await self.generate_row_html(
+                header_rect_data, page_number, spans
+            )
             result_html += f"""
                 <div class='header_{page_number}' style='position: absolute; top: {header_y_coordinate}pt; left: {self.padding}pt; right: {self.padding}pt;'>
                     {html_header}
@@ -582,7 +733,11 @@ class HTMLGenerator:
             """
 
         # Consider the body part
-        body_rect_data = [rect for rect in self.rect_data[page_number] if rect.type != "header" and rect.type != "footer"]
+        body_rect_data = [
+            rect
+            for rect in self.rect_data[page_number]
+            if rect.type != "header" and rect.type != "footer"
+        ]
         if len(body_rect_data) > 0:
             body_y_coordinate = min(rect.y0 for rect in body_rect_data)
             html_body = await self.generate_row_html(body_rect_data, page_number, spans)
@@ -593,16 +748,20 @@ class HTMLGenerator:
             """
 
         # Consider the footer part
-        footer_rect_data = [rect for rect in self.rect_data[page_number] if rect.type == "footer"]
+        footer_rect_data = [
+            rect for rect in self.rect_data[page_number] if rect.type == "footer"
+        ]
         if len(footer_rect_data) > 0:
             footer_y_coordinate = min(rect.y0 for rect in footer_rect_data)
-            html_footer = await self.generate_row_html(footer_rect_data, page_number, spans)
+            html_footer = await self.generate_row_html(
+                footer_rect_data, page_number, spans
+            )
             result_html += f"""
                 <div class='footer_{page_number}' style='position: absolute; top: {footer_y_coordinate}pt; left: {self.padding}pt; right: {self.padding}pt;'>
                     {html_footer}
                 </div>
             """
-        
+
         result_html += "\n</div>"
         return result_html
 
@@ -613,11 +772,13 @@ class HTMLGenerator:
 
     # Format the length of the html code to make it more accurate
     # Ex. the space between paragraph should be equal for every page (We generate each page seperately, so it might not be equal for each page)
-    def format_length(self, template_html: str, styles: List[Tuple[str, int]]): # List of tuples (style_field, tolerance)
+    def format_length(
+        self, template_html: str, styles: List[Tuple[str, int]]
+    ):  # List of tuples (style_field, tolerance)
 
         # Use regex for single pass (Don't have to read the whole long string multiple times)
-        field_pattern = '|'.join(re.escape(field) for field, _ in styles)
-        pattern = rf'({field_pattern}):\s*([0-9]*\.?[0-9]+)pt'
+        field_pattern = "|".join(re.escape(field) for field, _ in styles)
+        pattern = rf"({field_pattern}):\s*([0-9]*\.?[0-9]+)pt"
         style_dict = {style: [] for style, _ in styles}
         tolerances = {style: tolerance for style, tolerance in styles}
 
@@ -628,9 +789,11 @@ class HTMLGenerator:
 
         processed_dict = {}
         for style_field, data in style_dict.items():
-            if len(data)==0:
+            if len(data) == 0:
                 continue
-            cleaned_data = self.clean_grid_coordinates(data, tolerance=tolerances[style_field])
+            cleaned_data = self.clean_grid_coordinates(
+                data, tolerance=tolerances[style_field]
+            )
             cleaned_data = [round(length, 2) for length in cleaned_data]
             cleaned_data.append(0)
             processed_dict[style_field] = cleaned_data
@@ -645,7 +808,9 @@ class HTMLGenerator:
 
     # Process the model request to generate the HTML code for the non-text component
     # We can choose to do it simultaneously or not
-    async def process_model_request(self, template_html: str, simultaneous_requests: bool = True):
+    async def process_model_request(
+        self, template_html: str, simultaneous_requests: bool = True
+    ):
 
         if self.model_client is None or len(self.model_request) == 0:
             return template_html
@@ -655,9 +820,14 @@ class HTMLGenerator:
 
             try:
                 agent = await self.available_agents.get()
-                response = await agent.run(task = messages)
-                self.total_tokens += response.messages[-1].models_usage.completion_tokens + response.messages[-1].models_usage.prompt_tokens
-                print(f"Completion tokens: {response.messages[-1].models_usage.completion_tokens}, Prompt tokens: {response.messages[-1].models_usage.prompt_tokens}")
+                response = await agent.run(task=messages)
+                self.total_tokens += (
+                    response.messages[-1].models_usage.completion_tokens
+                    + response.messages[-1].models_usage.prompt_tokens
+                )
+                print(
+                    f"Completion tokens: {response.messages[-1].models_usage.completion_tokens}, Prompt tokens: {response.messages[-1].models_usage.prompt_tokens}"
+                )
 
             finally:
                 await agent.on_reset(CancellationToken())
@@ -665,8 +835,14 @@ class HTMLGenerator:
                 print(f"Completed request for {class_name}")
 
             if "CANNOT_BE_GENERATED" in response.messages[-1].content:
-                relative_image_path = os.path.relpath(image_path, os.path.dirname(self.output_path) if self.output_path else ".")
-                return [f"ffff-{class_name}-content", f"<img src='{relative_image_path}' style='width: {width}pt; height: {height}pt;'>"]
+                relative_image_path = os.path.relpath(
+                    image_path,
+                    os.path.dirname(self.output_path) if self.output_path else ".",
+                )
+                return [
+                    f"ffff-{class_name}-content",
+                    f"<img src='{relative_image_path}' style='width: {width}pt; height: {height}pt;'>",
+                ]
             else:
                 return [f"ffff-{class_name}-content", response.messages[-1].content]
 
@@ -679,14 +855,19 @@ class HTMLGenerator:
 
         # Use regex for single pass (Don't have to read the whole long string multiple times)
         replacements = {result[0]: result[1] for result in results}
-        pattern = '|'.join([re.escape(key) for key in replacements.keys()])
-        template_html = re.sub(pattern, lambda m: replacements[m.group(0)], template_html)
+        pattern = "|".join([re.escape(key) for key in replacements.keys()])
+        template_html = re.sub(
+            pattern, lambda m: replacements[m.group(0)], template_html
+        )
         return template_html
 
-    
     async def generate_all_pages(self, simultaneous_requests: bool = False):
         self.reset()
-        template = html_template.replace("ffff-width", str(self.page_width)).replace("ffff-height", str(self.page_height)).replace("ffff-padding", str(self.padding))
+        template = (
+            html_template.replace("ffff-width", str(self.page_width))
+            .replace("ffff-height", str(self.page_height))
+            .replace("ffff-padding", str(self.padding))
+        )
 
         html_parts = []
         for page_number in range(len(self.rect_data)):
@@ -694,7 +875,10 @@ class HTMLGenerator:
             html_parts.append(page_html)
 
         template = template.replace("ffff-content", "\n".join(html_parts))
-        template = self.format_length(template, [("margin-top", 0.3), ("top", 5), ("width", 4), ("padding-left", 4)])
+        template = self.format_length(
+            template,
+            [("margin-top", 0.3), ("top", 5), ("width", 4), ("padding-left", 4)],
+        )
 
         if self.model_client is not None:
             template = await self.process_model_request(template, simultaneous_requests)
@@ -706,5 +890,3 @@ class HTMLGenerator:
         print(f"Total tokens: {self.total_tokens}")
 
         return template
-    
-        

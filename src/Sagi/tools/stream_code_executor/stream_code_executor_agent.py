@@ -1,6 +1,13 @@
-import re
-from typing import Any, AsyncGenerator, List, Mapping, Optional, Sequence, Union, Literal
-import json
+from typing import (
+    Any,
+    AsyncGenerator,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Union,
+)
 
 from autogen_agentchat.agents import CodeExecutorAgent
 from autogen_agentchat.base import Response
@@ -23,6 +30,7 @@ from autogen_core.models import (
     SystemMessage,
     UserMessage,
 )
+from pydantic import BaseModel
 
 from Sagi.tools.stream_code_executor.stream_code_executor import (
     CodeBlockErrorHistory,
@@ -34,7 +42,6 @@ from Sagi.tools.stream_code_executor.stream_docker_command_line_code_executor im
     StreamDockerCommandLineCodeExecutor,
 )
 
-from pydantic import BaseModel
 
 class AgentResponse(BaseModel):
     content: str

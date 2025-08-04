@@ -1,9 +1,11 @@
-import os
-from typing import Dict, Any
-import requests
 import logging
+import os
+from typing import Any, Dict
+
 import boto3
+import requests
 from botocore.exceptions import ClientError
+
 
 def upload_file_to_s3(input_path: str, s3_path: str) -> bool:
     if os.getenv("AWS_ACCESS_KEY_ID", None) is None:
@@ -48,15 +50,16 @@ def list_files_in_s3(prefix: str) -> bool:
         logger.error(e)
         return False
 
+
 def cnt_files_in_s3(prefix: str) -> int:
     if os.getenv("AWS_ACCESS_KEY_ID", None) is None:
         raise ValueError("AWS_ACCESS_KEY_ID is not set")
     s3_client = boto3.client("s3")
-    
+
     aws_bucket_name = os.getenv("AWS_BUCKET_NAME")
     if aws_bucket_name is None:
         raise ValueError("AWS_BUCKET_NAME is not set")
-    
+
     try:
         response = s3_client.list_objects_v2(Bucket=aws_bucket_name, Prefix=prefix)
         return len(response["Contents"]) if "Contents" in response else 0
@@ -100,18 +103,19 @@ def delete_file_from_s3(s3_path: str) -> bool:
         logger.error(f"Error deleting {s3_path}: {e}")
         return False
 
+
 def delete_dir_from_s3(s3_path: str) -> bool:
     if os.getenv("AWS_ACCESS_KEY_ID", None) is None:
         raise ValueError("AWS_ACCESS_KEY_ID is not set")
     s3_client = boto3.client("s3")
-    
+
     aws_bucket_name = os.getenv("AWS_BUCKET_NAME")
     if aws_bucket_name is None:
         raise ValueError("AWS_BUCKET_NAME is not set")
 
     if not s3_path.endswith("/"):
         s3_path += "/"
-    
+
     try:
         response = s3_client.list_objects_v2(Bucket=aws_bucket_name, Prefix=s3_path)
         if "Contents" in response:
@@ -124,7 +128,6 @@ def delete_dir_from_s3(s3_path: str) -> bool:
         logger.error(e)
         return False
 
-    
 
 def ocr_parse(input_s3_path: str, output_s3_dir: str) -> Dict[str, Any]:
     api_url: str = os.getenv("OCR_BASE_URL", None)
@@ -153,7 +156,10 @@ def ocr_parse(input_s3_path: str, output_s3_dir: str) -> Dict[str, Any]:
         raise ValueError("AWS_BUCKET_NAME is not set")
 
     # Prepare data payload
-    data = {"input_s3_path": f"s3://{aws_bucket_name}/{input_s3_path}", "output_s3_path": f"s3://{aws_bucket_name}/{output_s3_dir}"}
+    data = {
+        "input_s3_path": f"s3://{aws_bucket_name}/{input_s3_path}",
+        "output_s3_path": f"s3://{aws_bucket_name}/{output_s3_dir}",
+    }
 
     try:
         logger.info(f"Sending OCR request for {input_s3_path}")

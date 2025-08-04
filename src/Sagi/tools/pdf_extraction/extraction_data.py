@@ -1,6 +1,7 @@
 from dataclasses import dataclass
+
 import fitz
-from typing import Dict, Any
+
 
 @dataclass
 class RectData:
@@ -32,7 +33,7 @@ class RectData:
             org_x0=self.org_x0,
             org_y0=self.org_y0,
             org_x1=self.org_x1,
-            org_y1=self.org_y1
+            org_y1=self.org_y1,
         )
 
     def contain_rect(self, rect: fitz.Rect) -> bool:
@@ -46,13 +47,25 @@ class RectData:
         overlap_width = max(0, overlap_x1 - overlap_x0)
         rect_width = rect.x1 - rect.x0
 
-        return (overlap_height + 2 >= 0.7 * rect_height) and (overlap_width + 2 >= 0.7 * rect_width)
-    
+        return (overlap_height + 1 >= 0.7 * rect_height) and (
+            overlap_width + 1 >= 0.7 * rect_width
+        )
+
     def get_org_rect(self, extend_by: int = 0):
-        return fitz.Rect(self.org_x0 - extend_by * 0.5, self.org_y0 - extend_by * 0.5, self.org_x1 + extend_by, self.org_y1 + extend_by)
+        return fitz.Rect(
+            self.org_x0 - extend_by * 0.5,
+            self.org_y0 - extend_by * 0.5,
+            self.org_x1 + extend_by,
+            self.org_y1 + extend_by,
+        )
 
     def get_rect(self, extend_by: int = 0):
-        return fitz.Rect(self.x0 - extend_by * 0.5, self.y0 - extend_by * 0.5, self.x1 + extend_by, self.y1 + extend_by)
+        return fitz.Rect(
+            self.x0 - extend_by * 0.5,
+            self.y0 - extend_by * 0.5,
+            self.x1 + extend_by,
+            self.y1 + extend_by,
+        )
 
 
 @dataclass
@@ -63,4 +76,9 @@ class TextStyle:
     size: float
 
     def same_style(self, other: "TextStyle") -> bool:
-        return self.font == other.font and self.color == other.color and self.alpha == other.alpha and self.size == other.size
+        return (
+            self.font == other.font
+            and self.color == other.color
+            and self.alpha == other.alpha
+            and self.size == other.size
+        )

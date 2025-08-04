@@ -29,7 +29,3 @@ Please provide ONLY the HTML code as plain text without any markdown formatting,
 Please don't use a fix height for the div, you may set only the max-height.
 Calculate the height of the table and chart first, NOT to exceed the given height of the image.
 """
-
-component_merging_prompt = """
-You will be given the image table
-"""
