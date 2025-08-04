@@ -53,21 +53,21 @@ def count_tokens_anthropic(
     # )
     # # ask the client as normal message
     # return response.input_tokens
-    
+
     # Currently, we don't have a direct API to count tokens for Anthropic models.
     # Instead, we can estimate based on character count.
-    
+
     # Based on empirical testing, Claude tokens are roughly:
     # - 1 token ≈ 3.5-4 characters for English text
     # - Similar to GPT models but slightly different tokenization
     total_chars = 0
-    
+
     # Handle both single message and list of messages
     if isinstance(message, dict):
         messages = [message]
     else:
         messages = message
-    
+
     for msg in messages:
         if isinstance(msg, dict):
             content = msg.get("content", "")
@@ -79,13 +79,14 @@ def count_tokens_anthropic(
         else:
             # Handle string messages
             total_chars += len(str(msg))
-    
+
     # Anthropic tokenization estimation:
     # - English text: ~3.8 characters per token
     # - Add some buffer for special tokens and formatting
     estimated_tokens = int(total_chars / 3.8) + 10
-    
+
     return estimated_tokens
+
 
 def count_tokens_deepseek(text: str, model: str = "deepseek-chat") -> int:
     """
@@ -120,7 +121,7 @@ def count_tokens_messages(
     total_tokens = 0
     provider = get_model_info(model).get("provider")
     assert provider is not None, "Provider is not set"
-    
+
     if provider.lower() == "anthropic":
         # For Anthropic, we use their API to count tokens
         return count_tokens_anthropic(messages, model)
