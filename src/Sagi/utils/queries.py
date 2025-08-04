@@ -14,6 +14,13 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlmodel import JSON, Field, SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from autogen_core.memory import (
+    MemoryContent,
+    MemoryMimeType,
+)
+
+from Sagi.utils.token_usage import count_tokens_messages
+
 
 class MultiRoundMemory(SQLModel, table=True):
     __tablename__ = "MultiRoundMemory"
@@ -166,13 +173,14 @@ async def saveMultiRoundMemories(
 async def getMultiRoundMemory(
     session: AsyncSession,
     chat_id: str,
+    model_name: Optional[str] = None,
     query_text: Optional[str] = None,
     context_window: Optional[int] = None,
 ) -> List[MultiRoundMemory]:
     await _ensure_table(session, MultiRoundMemory)
 
-    # only if query_text and context_window are provided, we can rank and filter memories
-    if query_text and context_window:
+    # only if query_text, context_window and model_name are provided, we can rank and filter memories
+    if query_text and context_window and model_name:
         embedding_service = EmbeddingService()
         try:
             # Generate embedding for the query text
@@ -196,26 +204,35 @@ async def getMultiRoundMemory(
             # Calculate the context length and remove memories that exceed the context window
             memories = memory.scalars().all()
             print(f"Number of memories found: {len(memories)}")
-
+            
+            # Filter memories based on token count and context window
             total_tokens = 0
             filtered_memories = []
             for mem in memories:
-                content_length = len(mem.content.split())
-                if total_tokens + content_length <= context_window:
+                print(f"Processing memory ID: {mem.id}, Created At: {mem.createdAt}, Content: {mem.content}", end=", ")
+                content_tokens = count_tokens_messages([{"content": mem.content}], model=model_name)
+                # Debug information
+                print(f"Tokens: {content_tokens}")
+
+                if total_tokens + content_tokens <= context_window:
                     filtered_memories.append(mem)
-                    total_tokens += content_length
+                    total_tokens += content_tokens
                 else:
+                    print(
+                        f"Skipping memories after {mem.id} due to exceeding context window. "
+                        f"Total tokens: {total_tokens}, Content tokens: {content_tokens}"
+                    )
                     break
 
             # Sort memories by creation time
             filtered_memories.sort(key=lambda x: x.createdAt)
 
             # List out the filtered memories for debugging
-            print(f"Number of memories after filtered: {len(memories)}")
-            for mem in filtered_memories:
-                print(
-                    f"Memory ID: {mem.id}, Created At: {mem.createdAt}, Content: {mem.content[:50]}"
-                )
+            # print(f"Number of memories after filtered: {len(memories)}")
+            # for mem in filtered_memories:
+            #     print(
+            #         f"Memory ID: {mem.id}, Created At: {mem.createdAt}, Content: {mem.content[:50]}"
+            #     )
 
             return filtered_memories
 
@@ -223,6 +240,7 @@ async def getMultiRoundMemory(
             print(f"Failed to query memories with embedding: {e}")
             return []
 
+    # If no query_text, context_window, or model_name is provided, return all memories
     memory = await session.execute(
         select(MultiRoundMemory)
         .where(MultiRoundMemory.chatId == chat_id)

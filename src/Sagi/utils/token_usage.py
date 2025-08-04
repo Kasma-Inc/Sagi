@@ -97,7 +97,7 @@ def count_tokens_messages(
         if provider.lower() == "openai":
             content_tokens = count_tokens_openai(content, model)
         elif provider.lower() == "anthropic":
-            content_tokens = count_tokens_anthropic(message, model, api_config)
+            content_tokens = count_tokens_anthropic(message, model)
         elif provider.lower() == "deepseek":
             content_tokens = count_tokens_deepseek(content, model)
         else:

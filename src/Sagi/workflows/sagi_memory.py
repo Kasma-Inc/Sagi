@@ -180,6 +180,7 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
                 results = await getMultiRoundMemory(
                     session,
                     self.chat_id,
+                    model_name=self.model_name,
                     query_text=query_text,
                     context_window=context_window,
                 )
