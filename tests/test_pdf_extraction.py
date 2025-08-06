@@ -1,8 +1,8 @@
 import os
 
 import pytest
-from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.models.anthropic import AnthropicChatCompletionClient
+from autogen_ext.models.openai import OpenAIChatCompletionClient
 from dotenv import load_dotenv
 
 from Sagi.tools.pdf_extraction.pdf_extraction import PDF_Extraction
@@ -25,7 +25,7 @@ async def test_pdf_extraction_with_model():
         api_key=api_key,
         max_tokens=16000,
     )
-    
+
     # model_client = AnthropicChatCompletionClient(
     #     model="claude-sonnet-4-latest",
     #     base_url=base_url.replace("/v1", ""),
@@ -60,10 +60,12 @@ async def test_pdf_extraction_without_model():
         title="test_editable_pdf_extraction",
     )
 
+
 import asyncio
 
 if __name__ == "__main__":
+
     async def main():
         await test_pdf_extraction_with_model()
-    
+
     asyncio.run(main())

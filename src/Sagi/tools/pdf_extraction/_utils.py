@@ -193,96 +193,125 @@ def setup_logging(verbose: bool = False):
     """Setup logging configuration."""
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
-        level=level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        level=level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 
 
 def main():
     """Main command-line interface."""
     import dotenv
+
     dotenv.load_dotenv()
-    
+
     parser = argparse.ArgumentParser(
         description="PDF Extraction S3 Utilities",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    
+
     # Add verbose flag
-    parser.add_argument('-v', '--verbose', action='store_true',
-                       help='Enable verbose logging')
-    
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose logging"
+    )
+
     # S3 operations
-    parser.add_argument('--list_files', metavar='PREFIX', type=str, nargs='?', const='', default=None,
-                       help='List files in S3 with the given prefix (optional, defaults to empty string to list all files)')
-    
-    parser.add_argument('--count_files', metavar='PREFIX', type=str,
-                       help='Count files in S3 with the given prefix')
-    
-    parser.add_argument('--upload', nargs=2, metavar=('LOCAL_PATH', 'S3_PATH'),
-                       help='Upload a file to S3 (local_path s3_path)')
-    
-    parser.add_argument('--download', nargs=2, metavar=('S3_PATH', 'LOCAL_PATH'),
-                       help='Download a file from S3 (s3_path local_path)')
-    
-    parser.add_argument('--delete', metavar='S3_PATH', type=str,
-                       help='Delete a file from S3')
-    
-    parser.add_argument('--delete_dir', metavar='S3_PATH', type=str,
-                       help='Delete a directory (and all its contents) from S3')
-    
-    parser.add_argument('--ocr_parse', nargs=2, metavar=('INPUT_S3_PATH', 'OUTPUT_S3_DIR'),
-                       help='Parse a document using OCR API (input_s3_path output_s3_dir)')
-    
+    parser.add_argument(
+        "--list_files",
+        metavar="PREFIX",
+        type=str,
+        nargs="?",
+        const="",
+        default=None,
+        help="List files in S3 with the given prefix (optional, defaults to empty string to list all files)",
+    )
+
+    parser.add_argument(
+        "--count_files",
+        metavar="PREFIX",
+        type=str,
+        help="Count files in S3 with the given prefix",
+    )
+
+    parser.add_argument(
+        "--upload",
+        nargs=2,
+        metavar=("LOCAL_PATH", "S3_PATH"),
+        help="Upload a file to S3 (local_path s3_path)",
+    )
+
+    parser.add_argument(
+        "--download",
+        nargs=2,
+        metavar=("S3_PATH", "LOCAL_PATH"),
+        help="Download a file from S3 (s3_path local_path)",
+    )
+
+    parser.add_argument(
+        "--delete", metavar="S3_PATH", type=str, help="Delete a file from S3"
+    )
+
+    parser.add_argument(
+        "--delete_dir",
+        metavar="S3_PATH",
+        type=str,
+        help="Delete a directory (and all its contents) from S3",
+    )
+
+    parser.add_argument(
+        "--ocr_parse",
+        nargs=2,
+        metavar=("INPUT_S3_PATH", "OUTPUT_S3_DIR"),
+        help="Parse a document using OCR API (input_s3_path output_s3_dir)",
+    )
+
     args = parser.parse_args()
-    
+
     # Setup logging
     setup_logging(args.verbose)
-    
+
     # If no arguments provided, show help
     if len(sys.argv) == 1:
         parser.print_help()
         return
-    
+
     try:
         # Execute the requested operation
         if args.list_files is not None:
             success = list_files_in_s3(args.list_files)
             sys.exit(0 if success else 1)
-        
+
         elif args.count_files:
             count = cnt_files_in_s3(args.count_files)
             print(f"Found {count} files with prefix '{args.count_files}'")
             sys.exit(0)
-        
+
         elif args.upload:
             local_path, s3_path = args.upload
             success = upload_file_to_s3(local_path, s3_path)
             sys.exit(0 if success else 1)
-        
+
         elif args.download:
             s3_path, local_path = args.download
             success = download_file_from_s3(s3_path, local_path)
             sys.exit(0 if success else 1)
-        
+
         elif args.delete:
             success = delete_file_from_s3(args.delete)
             sys.exit(0 if success else 1)
-        
+
         elif args.delete_dir:
             success = delete_dir_from_s3(args.delete_dir)
             sys.exit(0 if success else 1)
-        
+
         elif args.ocr_parse:
             input_path, output_dir = args.ocr_parse
             result = ocr_parse(input_path, output_dir)
             print(f"OCR parsing completed. Result: {result}")
             sys.exit(0)
-        
+
         else:
             parser.print_help()
             sys.exit(1)
-    
+
     except ValueError as e:
         logger.error(f"Configuration error: {e}")
         sys.exit(1)
