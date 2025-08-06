@@ -11,7 +11,9 @@ from autogen_core import CancellationToken, Image
 
 from Sagi.tools.pdf_extraction.extraction_data import RectData, TextStyle
 from Sagi.tools.pdf_extraction.html_template import html_template
-from Sagi.tools.pdf_extraction.prompt import non_image_generation_prompt
+from Sagi.tools.pdf_extraction.prompt import (
+    non_image_generation_prompt,
+)
 
 
 class HTMLGenerator:
@@ -292,6 +294,7 @@ class HTMLGenerator:
             self.model_request.append(
                 [
                     class_name,
+                    text_styles_format,
                     [message1, message2],
                     image_path,
                     rect_data.x1 - rect_data.x0,
@@ -299,7 +302,7 @@ class HTMLGenerator:
                 ]
             )
             return (
-                f"<div class='{class_name}' style='{margin_style} {padding_style} max-height: {rect_data.y1 - rect_data.y0}pt; width: {rect_data.x1 - rect_data.x0}pt;'>\n"
+                f"<div class='{class_name}' style='{margin_style} {padding_style} max-height: {rect_data.y1 - rect_data.y0}pt; width: {rect_data.x1 - rect_data.x0}pt; overflow-y: auto;'>\n"
                 + f"ffff-{class_name}-content"
                 + "\n</div>"
             )
@@ -638,12 +641,31 @@ class HTMLGenerator:
                         bound_right,
                     )
                 )
+                # Update prev_y_coordinate to the maximum Y-coordinate of all processed components in the group
                 for rect_temp in temp:
                     prev_y_coordinate = max(prev_y_coordinate, rect_temp.y1)
                 temp = []
 
             # If it is a row component, then we can directly generate the HTML code and add it to the html_parts list.
             if not self.is_column(rect, rect_data, bound_left, bound_right, spans):
+                # Process any pending column components before processing this row component
+                # to maintain proper Y-coordinate order
+                if len(temp) != 0:
+                    html_parts.append(
+                        await self.generate_column_html(
+                            temp,
+                            page_number,
+                            spans,
+                            prev_y_coordinate,
+                            bound_left,
+                            bound_right,
+                        )
+                    )
+                    # Update prev_y_coordinate for the column group
+                    for rect_temp in temp:
+                        prev_y_coordinate = max(prev_y_coordinate, rect_temp.y1)
+                    temp = []
+
                 if (
                     rect.type == "text"
                     or rect.type == "header"
@@ -655,7 +677,7 @@ class HTMLGenerator:
                             rect,
                             prev_y_coordinate,
                             bound_left,
-                            f"component_{self.cnt}_({page_number})",
+                            f"component_{self.cnt}_{page_number}",
                             spans,
                         )
                     )
@@ -668,7 +690,7 @@ class HTMLGenerator:
                             prev_y_coordinate,
                             bound_left,
                             page_number,
-                            f"component_{self.cnt}_({page_number})",
+                            f"component_{self.cnt}_{page_number}",
                             spans,
                         )
                     )
@@ -816,10 +838,17 @@ class HTMLGenerator:
             return template_html
 
         async def process_request(request: List[Any]):
-            class_name, messages, image_path, width, height = request
+            class_name, styles, messages, image_path, width, height = request
 
             try:
                 agent = await self.available_agents.get()
+                # Format the system message with the class name for unique variable names
+                try:
+                    formatted_prompt = non_image_generation_prompt.format(class_name=class_name)
+                    agent.system_message = formatted_prompt
+                except KeyError:
+                    # Fallback to original prompt if formatting fails
+                    agent.system_message = non_image_generation_prompt
                 response = await agent.run(task=messages)
                 self.total_tokens += (
                     response.messages[-1].models_usage.completion_tokens

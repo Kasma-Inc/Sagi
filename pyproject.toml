@@ -41,6 +41,8 @@ dependencies = [
     "xhtml2pdf>=0.2.17",
     "boto3>=1.39.3",
     "pgvector>=0.4.1",
+    "xxhash==3.5.0",
+    "pymupdf==1.26.3",
 ]
 
 [tool.uv.sources]
