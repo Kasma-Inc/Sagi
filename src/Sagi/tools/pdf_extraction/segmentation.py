@@ -45,18 +45,31 @@ class Segmentation:
         s3_output_path = os.path.join(s3_path, "ocr_output")
         s3_page_info_path = os.path.join(s3_output_path, "page_info")
 
-        upload_file_to_s3(input_path, s3_input_path)
-        ocr_parse(s3_input_path, s3_output_path)
+        res = upload_file_to_s3(input_path, s3_input_path)
+        if not res:
+            raise ValueError(f"Failed to upload {input_path} to S3")
 
+        try: 
+            ocr_parse(s3_input_path, s3_output_path)
+        except Exception as e:
+            raise ValueError(f"Failed to parse {s3_input_path} with OCR: {e}")
+
+        print(f"Downloading page info from S3: {s3_page_info_path}")
+        print(f"Files in S3: {cnt_files_in_s3(s3_page_info_path)}")
         for i in range(cnt_files_in_s3(s3_page_info_path)):
             filename = f"page_{i}.json"
-            download_file_from_s3(
+            print (f"Downloading {filename} from S3 to {storage_dir}")
+            res = download_file_from_s3(
                 os.path.join(s3_page_info_path, filename),
                 os.path.join(storage_dir, filename),
             )
+            if not res:
+                raise ValueError(f"Failed to download {filename} from S3")
 
         if not save_output_on_s3:
-            delete_dir_from_s3(s3_path)
+            res = delete_dir_from_s3(s3_path)
+            if not res:
+                raise ValueError(f"Failed to delete {s3_path} from S3")
 
     @classmethod
     def load_json_per_page(cls, storage_json_path: str):
