@@ -19,19 +19,19 @@ async def test_pdf_extraction_with_model():
         raise ValueError("LLM_API_KEY or LLM_BASE_URL is not set")
 
     # This is for testing purposes only, so the model here will be as small as possible and the result might not be perfect
-    # model_client = OpenAIChatCompletionClient(
-    #     model="gpt-4o-mini",
-    #     base_url=base_url,
-    #     api_key=api_key,
-    #     max_tokens=16000,
-    # )
-    
-    model_client = AnthropicChatCompletionClient(
-        model="claude-sonnet-4-latest",
-        base_url=base_url.replace("/v1", ""),
-        auth_token=api_key,
+    model_client = OpenAIChatCompletionClient(
+        model="gpt-4o-mini",
+        base_url=base_url,
+        api_key=api_key,
         max_tokens=16000,
     )
+    
+    # model_client = AnthropicChatCompletionClient(
+    #     model="claude-sonnet-4-latest",
+    #     base_url=base_url.replace("/v1", ""),
+    #     auth_token=api_key,
+    #     max_tokens=16000,
+    # )
 
     await PDF_Extraction.extract_pdf_with_model(
         input_path="tests/test_pdf_extraction.pdf",
