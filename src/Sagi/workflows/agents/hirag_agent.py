@@ -28,8 +28,8 @@ class HiragAgent:
         model_client: ChatCompletionClient,
         memory: SagiMemory,
         mcp_tools: List[StdioMcpToolAdapter | SseMcpToolAdapter],
-        set_language_tool: Optional[StdioMcpToolAdapter | SseMcpToolAdapter] = None,
         language: str,
+        set_language_tool: Optional[StdioMcpToolAdapter | SseMcpToolAdapter] = None,
         model_client_stream: bool = True,
     ):
 

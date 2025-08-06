@@ -27,8 +27,6 @@ from Sagi.workflows.question_prediction.question_prediction_web_search_agent imp
 )
 
 DEFAULT_WEB_SEARCH_MAX_RETRIES = 3
-PARTICIPANT_LIST: List[BaseChatAgent] = []
-PARTICIPANT_DICT: Dict[str, int] = {}
 
 
 # def selector_func(messages: Sequence[BaseAgentEvent | BaseChatMessage]) -> str | None:
@@ -59,6 +57,8 @@ class MCPSessionManager:
 
 
 class QuestionPredictionWorkflow:
+    participant_list: List[BaseChatAgent] = []
+    participant_dict: Dict[str, int] = {}
 
     async def _init_question_prediction_web_search_agent(self):
         web_search_server_params = StdioServerParams(
@@ -136,6 +136,8 @@ class QuestionPredictionWorkflow:
         hirag: bool = False,
     ):
         self = cls()
+        self.participant_list = []
+        self.participant_dict = {}
         self.language = language
         self.session_manager = MCPSessionManager()
 
@@ -149,8 +151,8 @@ class QuestionPredictionWorkflow:
 
         if hirag:
             hirag_agent: AssistantAgent = await self._init_hirag_agent()
-            PARTICIPANT_LIST.append(hirag_agent)
-            PARTICIPANT_DICT[hirag_agent.name] = len(PARTICIPANT_LIST) - 1
+            self.participant_list.append(hirag_agent)
+            self.participant_dict[hirag_agent.name] = len(self.participant_list) - 1
 
         # Create user_intent_recognition_agent agent
         user_intent_recognition_agent = AssistantAgent(
@@ -159,16 +161,18 @@ class QuestionPredictionWorkflow:
             model_client_stream=True,
             system_message=get_user_intent_recognition_agent_prompt(self.language),
         )
-        PARTICIPANT_LIST.append(user_intent_recognition_agent)
-        PARTICIPANT_DICT[user_intent_recognition_agent.name] = len(PARTICIPANT_LIST) - 1
+        self.participant_list.append(user_intent_recognition_agent)
+        self.participant_dict[user_intent_recognition_agent.name] = (
+            len(self.participant_list) - 1
+        )
 
         if web_search:
             question_prediction_web_search_agent: QuestionPredictionWebSearchAgent = (
                 await self._init_question_prediction_web_search_agent()
             )
-            PARTICIPANT_LIST.append(question_prediction_web_search_agent)
-            PARTICIPANT_DICT[question_prediction_web_search_agent.name] = (
-                len(PARTICIPANT_LIST) - 1
+            self.participant_list.append(question_prediction_web_search_agent)
+            self.participant_dict[question_prediction_web_search_agent.name] = (
+                len(self.participant_list) - 1
             )
 
         # Create question_prediction agent
@@ -177,11 +181,13 @@ class QuestionPredictionWorkflow:
             model_client=self.question_prediction_model_client,
             model_client_stream=True,
         )
-        PARTICIPANT_LIST.append(question_prediction_agent)
-        PARTICIPANT_DICT[question_prediction_agent.name] = len(PARTICIPANT_LIST) - 1
+        self.participant_list.append(question_prediction_agent)
+        self.participant_dict[question_prediction_agent.name] = (
+            len(self.participant_list) - 1
+        )
 
         self.team = RoundRobinGroupChat(
-            participants=PARTICIPANT_LIST,
+            participants=self.participant_list,
             termination_condition=TextMessageTermination(
                 source="question_prediction_agent"
             ),

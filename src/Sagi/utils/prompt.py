@@ -470,6 +470,8 @@ def get_user_intent_recognition_agent_prompt(language: str = "en") -> str:
     """system prompt for user intent recognition agent"""
     return {
         "en": "You are a helpful AI assistant that recognizes user intent. The input is a chat history between a user and an AI assistant. Please describe the user's intent in one sentence based on the chat history.",
+        "cn-s": "你是一个帮助AI助手，识别用户意图。输入是用户和AI助手之间的对话历史。请根据对话历史描述用户意图。",
+        "cn-t": "你是一個幫助AI助手，識別用戶意圖。輸入是用户和AI助手之間的對話歷史。請根據對話歷史描述用戶意圖。",
     }[language]
 
 
