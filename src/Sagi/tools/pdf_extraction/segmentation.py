@@ -49,7 +49,7 @@ class Segmentation:
         if not res:
             raise ValueError(f"Failed to upload {input_path} to S3")
 
-        try: 
+        try:
             ocr_parse(s3_input_path, s3_output_path)
         except Exception as e:
             raise ValueError(f"Failed to parse {s3_input_path} with OCR: {e}")
@@ -58,7 +58,7 @@ class Segmentation:
         print(f"Files in S3: {cnt_files_in_s3(s3_page_info_path)}")
         for i in range(cnt_files_in_s3(s3_page_info_path)):
             filename = f"page_{i}.json"
-            print (f"Downloading {filename} from S3 to {storage_dir}")
+            print(f"Downloading {filename} from S3 to {storage_dir}")
             res = download_file_from_s3(
                 os.path.join(s3_page_info_path, filename),
                 os.path.join(storage_dir, filename),
