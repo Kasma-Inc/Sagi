@@ -13,6 +13,7 @@ from Sagi.tools.pdf_extraction.extraction_data import RectData, TextStyle
 from Sagi.tools.pdf_extraction.html_template import html_template
 from Sagi.tools.pdf_extraction.prompt import (
     non_image_generation_prompt,
+    non_image_generation_prompt_mod,
 )
 
 
@@ -28,10 +29,29 @@ class HTMLGenerator:
         page_height: float,
         model_client=None,
         margin_top_decrease: int = 3,
+        margin_threshold: int = 8,
         padding_left_ratio: float = 0.8,
         max_agents: int = 10,
         output_path: str | None = None,
     ):
+        """
+        Initialize the HTML Generator.
+        
+        Args:
+            input_pdf_path: Path to the input PDF file
+            storage_dir: Directory to store generated images and components
+            rect_data: List of rectangle data for each page
+            leftmost_coordinates: Left boundary coordinate
+            rightmost_coordinates: Right boundary coordinate  
+            page_width: Width of the page
+            page_height: Height of the page
+            model_client: Optional model client for AI-generated content
+            margin_top_decrease: Amount to decrease top margin (default: 3pt)
+            margin_threshold: For tables and charts, leave some space for better readability (default: 8pt)
+            padding_left_ratio: Ratio for left padding calculation (default: 0.8)
+            max_agents: Maximum number of agents for parallel processing (default: 10)
+            output_path: Optional output file path
+        """
 
         self.rect_data = [
             [
@@ -53,6 +73,7 @@ class HTMLGenerator:
         self.page_width = page_width
         self.page_height = page_height
         self.margin_top_decrease = margin_top_decrease
+        self.margin_threshold = margin_threshold
         self.padding_left_ratio = padding_left_ratio
         self.model_client = model_client
         self.max_agents = max_agents
@@ -66,7 +87,7 @@ class HTMLGenerator:
                 html_agent = AssistantAgent(
                     name=f"HTMLGenerator_{i}",
                     model_client=model_client,
-                    system_message=non_image_generation_prompt,
+                    system_message=non_image_generation_prompt_mod,
                 )
                 self.available_agents.put_nowait(html_agent)
 
@@ -281,9 +302,13 @@ class HTMLGenerator:
             ],
             source="user",
         )
+        # Apply margin threshold to provide smaller dimensions for generation
+        generation_width = max(1, (rect_data.x1 - rect_data.x0) - self.margin_threshold)
+        generation_height = max(1, (rect_data.y1 - rect_data.y0) - self.margin_threshold)
+        
         message2 = MultiModalMessage(
             content=[
-                f"You have to fit the image into the container with the width of {rect_data.x1 - rect_data.x0}pt and a height of {rect_data.y1 - rect_data.y0}pt"
+                f"You have to fit the image into the container with the width of {generation_width}pt and a height of {generation_height}pt"
             ],
             source="user",
         )
@@ -299,10 +324,12 @@ class HTMLGenerator:
                     image_path,
                     rect_data.x1 - rect_data.x0,
                     rect_data.y1 - rect_data.y0,
+                    generation_width,
+                    generation_height,
                 ]
             )
             return (
-                f"<div class='{class_name}' style='{margin_style} {padding_style} max-height: {rect_data.y1 - rect_data.y0}pt; width: {rect_data.x1 - rect_data.x0}pt; overflow-y: auto;'>\n"
+                f"<div class='{class_name}' style='{margin_style} {padding_style} max-height: {rect_data.y1 - rect_data.y0}pt; width: {rect_data.x1 - rect_data.x0}pt;'>\n"
                 + f"ffff-{class_name}-content"
                 + "\n</div>"
             )
@@ -838,17 +865,17 @@ class HTMLGenerator:
             return template_html
 
         async def process_request(request: List[Any]):
-            class_name, styles, messages, image_path, width, height = request
+            class_name, styles, messages, image_path, width, height, generation_width, generation_height = request
 
             try:
                 agent = await self.available_agents.get()
                 # Format the system message with the class name for unique variable names
                 try:
-                    formatted_prompt = non_image_generation_prompt.format(class_name=class_name)
+                    formatted_prompt = non_image_generation_prompt_mod.format(class_name=class_name)
                     agent.system_message = formatted_prompt
                 except KeyError:
                     # Fallback to original prompt if formatting fails
-                    agent.system_message = non_image_generation_prompt
+                    agent.system_message = non_image_generation_prompt_mod
                 response = await agent.run(task=messages)
                 self.total_tokens += (
                     response.messages[-1].models_usage.completion_tokens
@@ -873,7 +900,12 @@ class HTMLGenerator:
                     f"<img src='{relative_image_path}' style='width: {width}pt; height: {height}pt;'>",
                 ]
             else:
-                return [f"ffff-{class_name}-content", response.messages[-1].content]
+                # Wrap the generated content in a container that accounts for the margin threshold
+                generated_content = response.messages[-1].content
+                return [
+                    f"ffff-{class_name}-content", 
+                    f"<div style='width: {generation_width}pt; height: {generation_height}pt; overflow: hidden;'>{generated_content}</div>"
+                ]
 
         results = None
         if simultaneous_requests:
