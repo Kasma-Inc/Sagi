@@ -12,6 +12,7 @@ from autogen_ext.tools.mcp import (
     create_mcp_server_session,
     mcp_server_tools,
 )
+from pydantic import BaseModel
 
 from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.utils.prompt import (
@@ -25,6 +26,11 @@ from Sagi.workflows.question_prediction.question_prediction_agent import (
 from Sagi.workflows.question_prediction.question_prediction_web_search_agent import (
     QuestionPredictionWebSearchAgent,
 )
+
+
+class QuestionsResponse(BaseModel):
+    questions: List[str]
+
 
 DEFAULT_WEB_SEARCH_MAX_RETRIES = 3
 
@@ -146,7 +152,8 @@ class QuestionPredictionWorkflow:
             "question_prediction_client"
         ]
         self.question_prediction_model_client = ModelClientFactory.create_model_client(
-            config_question_prediction_client
+            config_question_prediction_client,
+            response_format=QuestionsResponse,
         )
 
         if hirag:
