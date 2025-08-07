@@ -41,6 +41,8 @@ dependencies = [
     "xhtml2pdf>=0.2.17",
     "boto3>=1.39.3",
     "pgvector>=0.4.1",
+    "psycopg2==2.9.10",
+    "pyhumps==3.8.0",
 ]
 
 [tool.uv.sources]
