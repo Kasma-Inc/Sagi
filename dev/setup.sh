@@ -13,22 +13,16 @@ if [ -z "$DOCKER_SOCKET_PATH" ]; then
     export DOCKER_SOCKET_PATH=${DOCKER_SOCKET_PATH}
 fi
 
-
-
 export USERNAME=$(whoami)
-CONTAINER_NAME_1="${USERNAME}_sagi-dev"
-CONTAINER_NAME_2="${USERNAME}_markify_service"
+CONTAINER_NAME="${USERNAME}_sagi-dev"
 COMPOSE_PROJECT_NAME="${USERNAME}_sagi-dev-dc"
 
-
 start_docker_compose() {
-    # stop all containers if they are running
-    docker stop ${CONTAINER_NAME_1} 2>/dev/null || true
-    docker stop ${CONTAINER_NAME_2} 2>/dev/null || true
+    # stop container if it is running
+    docker stop ${CONTAINER_NAME} 2>/dev/null || true
 
-    # remove all containers
-    docker rm ${CONTAINER_NAME_1} 2>/dev/null || true
-    docker rm ${CONTAINER_NAME_2} 2>/dev/null || true
+    # remove container
+    docker rm ${CONTAINER_NAME} 2>/dev/null || true
 
     # start docker-compose
     echo "Starting docker-compose with project name: ${COMPOSE_PROJECT_NAME}..."
@@ -39,8 +33,8 @@ start_docker_compose() {
     fi
     echo "docker-compose started successfully."
 
-    # print container names
-    echo "You may run \"docker exec -it ${CONTAINER_NAME_1} /bin/bash\" to enter the sagi container"
+    # print container name
+    echo "You may run \"docker exec -it ${CONTAINER_NAME} /bin/bash\" to enter the sagi container"
 }
 
 set -e

@@ -17,6 +17,8 @@ from autogen_core.models import (
 from pydantic import BaseModel
 from typing_extensions import Self
 
+from Sagi.utils.prompt import get_question_prediction_agent_prompt
+
 
 class QuestionPredictionAgentConfig(BaseModel):
     name: str
@@ -39,52 +41,6 @@ class QuestionPredictionAgent(BaseChatAgent, Component[QuestionPredictionAgentCo
         )
         self._model_client = model_client
         self._model_client_stream = model_client_stream
-        self._prompt_template = """You are role-playing as a human USER interacting with an AI collaborator to complete a specific task. Your goal is to generate realistic, natural responses that a user might give in this scenario.
-
-## Input Information:
-You will be provided with:
-- Your Intent: The goal you want to achieve.
-- Web search results: The web search results you obtained.
-- Chat History: The ongoing conversation between you (as the user) and the AI
-
-Inputs:
-<|The Start of Your Intent (Not visible to the AI)|>
-{user_intent}
-<|The End of Your Intent|>
-
-<|The Start of Web Search Results (Not visible to the AI)|>
-{web_search_results}
-<|The End of Web Search Results|>
-
-<|The Start of Chat History|>
-{chat_history}
-<|The End of Chat History|>
-
-
-## Guidelines:
-- Stay in Character: Role-play as a human USER. You are NOT an AI. Maintain a consistent personality throughout the chat.
-- Minimize Effort: IMPORTANT! As a user, avoid being too detailed in your responses. Provide vague or incomplete demands in the early stages of the conversation to minimize your effort. Let the AI ask for clarification rather than providing everything upfront.
-- Knowledge Background: Reflect the user's knowledge level in the role-playing. Ask questions that demonstrate your current understanding and areas of confusion.
-- Mention Personal Preferences: Include preferences or constraints that might influence your requests or responses. For example, "I prefer short answers," "I need this done quickly," or "I like detailed comments in code."
-- Goal-Oriented: Keep the chat focused on your intent. Avoid small talk or digressions. Redirect the chat back to the main objective if it starts to stray.
-
-## Output Format:
-You should output a JSON object with three entries:
-- "current_answer" (str): Briefly summerize the AI's current solution to the task.
-- "thought" (str): Output your thought process as a user deciding what to say next. Consider:
-1. What specific part of the problem or solution are you struggling with?
-2. Has the AI asked you to perform a task or answer a question? If so, how should you approach it?
-3. Are you noticing any patterns or potential misunderstandings that need clarification?
-4. If you're stuck, how can you phrase your question to get the most helpful response while demonstrating your current understanding?
-- "response" (list of str): Based on your thought process, respond to the AI as the user you are role-playing. Please provide 3 possible responses and output them as a JSON list. Stop immediately when the 3 responses are completed.
-
-## Important Notes:
-- Respond Based on Previous Messages: Your responses should be based on the context of the current chat history. Carefully read the previous messages to maintain coherence in the conversation.
-- Conversation Flow: If "Current Chat History" is empty, start the conversation from scratch with an initial request. Otherwise, continue based on the existing conversation.
-- Don't Copy Input Directly: Use the provided information for understanding context only. Avoid copying target queries or any provided information directly in your responses.
-- Double check if the JSON object is formatted correctly. Ensure that all fields are present and properly structured.
-
-Remember to stay in character as a user throughout your response, and follow the instructions and guidelines carefully."""
 
     @property
     def produced_message_types(self) -> Sequence[type[BaseChatMessage]]:
@@ -127,7 +83,7 @@ Remember to stay in character as a user throughout your response, and follow the
         )
 
         query: UserMessage = UserMessage(
-            content=self._prompt_template.format(
+            content=get_question_prediction_agent_prompt(
                 user_intent=user_intent,
                 web_search_results=web_search_results,
                 chat_history=chat_history,

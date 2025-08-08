@@ -43,6 +43,8 @@ dependencies = [
     "pgvector>=0.4.1",
     "xxhash==3.5.0",
     "pymupdf==1.26.3",
+    "psycopg2==2.9.10",
+    "pyhumps==3.8.0",
 ]
 
 [tool.uv.sources]

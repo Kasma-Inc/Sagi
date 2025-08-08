@@ -38,6 +38,8 @@ uvloop==0.19.0
 watchfiles==0.22.0
 websockets==12.0
 litellm==1.61.20
+psycopg2==2.9.10
+pyhumps==3.8.0
 black
 blackdoc
 isort
