@@ -73,8 +73,17 @@ async def create_db_engine(postgres_url: str) -> AsyncEngine:
     )
 
     # Create the vector extension if it doesn't exist
-    async with db.begin() as conn:
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+    try:
+        async with db.begin() as conn:
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        
+        # If you are experiencing issues with the vector extension due to just dropping the MultiRoundMemory table,
+        # you might want to clear the procedure cache to ensure that the new vector type is recognized
+        # await conn.execute(text("DISCARD ALL;"))
+        
+    except Exception as e:
+        print(f"Warning: Could not create vector extension: {e}")
+        # Continue anyway - the extension might already exist or be unavailable
 
     return db
 
@@ -84,12 +93,15 @@ async def _ensure_table(session: AsyncSession, table) -> None:
     Create table on first access.
     SQLModel / SQLAlchemy's DDL calls can only be executed in a synchronous context,
     so we need to proxy to the synchronous engine via `run_sync()`.
-    """
-
-    def _sync_create(sync_session: AsyncSession):
-        # Use the inspector from sqlalchemy to check if table exists
+    """  
+        
+    def _sync_check_schema(sync_session: AsyncSession):
+        # Check if the columns are present and match the expected schema
         engine = sync_session.get_bind()
-        if not inspect(engine).has_table(table.__tablename__):
+        inspector = inspect(engine)
+        
+        # Ensure the table exists
+        if not inspector.has_table(table.__tablename__):
             try:
                 SQLModel.metadata.create_all(engine, tables=[table.__table__])
             except ProgrammingError as e:
@@ -97,8 +109,19 @@ async def _ensure_table(session: AsyncSession, table) -> None:
                     pass
                 else:
                     raise
-
-    await session.run_sync(_sync_create)
+        
+        # Check if the columns match the expected schema
+        columns = inspector.get_columns(table.__tablename__)
+        expected_columns = {col.name for col in table.__table__.columns}
+        actual_columns = {col['name'] for col in columns}
+        if expected_columns != actual_columns:
+            raise ValueError(
+                f"Table {table.__tablename__} schema mismatch. Expected columns: {expected_columns}, "
+                f"Actual columns: {actual_columns} \n"
+                f"You may want to execute 'DROP TABLE IF EXISTS \"{table.__tablename__}\"; DISCARD ALL;' and restart the database or wait for ~10 minutes to reset the schema."
+            )
+            
+    await session.run_sync(_sync_check_schema)
 
 
 async def saveMultiRoundMemory(
