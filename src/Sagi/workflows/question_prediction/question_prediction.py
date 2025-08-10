@@ -1,6 +1,6 @@
 import os
 from contextlib import AsyncExitStack
-from typing import Dict, List, Sequence
+from typing import Dict, List, Optional, Sequence
 
 from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
 from autogen_agentchat.conditions import TextMessageTermination
@@ -201,8 +201,8 @@ class QuestionPredictionWorkflow:
         )
         return self
 
-    def run_workflow(self, user_input: Sequence[BaseChatMessage]):
-        return self.team.run_stream(task=user_input)
+    def run_workflow(self, user_input: Sequence[BaseChatMessage], cancellation_token: Optional[CancellationToken] = None):
+        return self.team.run_stream(task=user_input, cancellation_token=cancellation_token)
 
     def reset(self):
         return self.team.reset()
