@@ -18,7 +18,7 @@ class ModelClientFactory:
 
     @staticmethod
     def _apply_provider_specific_config(
-        client_config: Dict[str, Any]
+        client_config: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Apply provider-specific configurations based on base_url."""
         config = client_config.copy()
