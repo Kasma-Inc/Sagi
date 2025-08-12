@@ -17,17 +17,19 @@ class ModelClientFactory:
         return None
 
     @staticmethod
-    def _apply_provider_specific_config(client_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_provider_specific_config(
+        client_config: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Apply provider-specific configurations based on base_url."""
         config = client_config.copy()
         base_url = config.get("base_url", "")
-        
+
         # yunwu.ai specific configurations
         if "yunwu.ai" in base_url:
             # Ensure stream_options for token usage tracking
             if "stream_options" not in config:
                 config["stream_options"] = {"include_usage": True}
-        
+
         return config
 
     @classmethod
@@ -39,7 +41,7 @@ class ModelClientFactory:
     ) -> OpenAIChatCompletionClient:
         # Apply provider-specific configurations
         client_config = cls._apply_provider_specific_config(client_config)
-        
+
         model_info = cls._init_model_info(client_config)
         client_kwargs = {
             "model": client_config["model"],
