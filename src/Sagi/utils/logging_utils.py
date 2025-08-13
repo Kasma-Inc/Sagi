@@ -69,13 +69,6 @@ class ReadableFormatter(logging.Formatter):
             lines.append(f"\n📊 Token Usage:")
             lines.append(f"    Prompt: {usage.get('prompt_tokens', 0)}")
             lines.append(f"    Completion: {usage.get('completion_tokens', 0)}")
-            if (
-                usage.get("total_tokens", 0) is not None
-                and usage.get("total_tokens", 0) is not None
-            ):
-                lines.append(
-                    f"    Total: {usage.get('prompt_tokens', 0) + usage.get('completion_tokens', 0)}"
-                )
 
         # Show content
         content = response.get("content")
@@ -119,13 +112,6 @@ class ReadableFormatter(logging.Formatter):
                 lines.append(f"\n📊 Token Usage:")
                 lines.append(f"    Prompt: {usage.get('prompt_tokens', 0)}")
                 lines.append(f"    Completion: {usage.get('completion_tokens', 0)}")
-                if (
-                    usage.get("total_tokens", 0) is not None
-                    and usage.get("total_tokens", 0) is not None
-                ):
-                    lines.append(
-                        f"    Total: {usage.get('prompt_tokens', 0) + usage.get('completion_tokens', 0)}"
-                    )
 
             # Show response summary
             choices = response.get("choices", [])
