@@ -3,7 +3,7 @@ import os
 from contextlib import AsyncExitStack
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Type, TypeVar
+from typing import Any, Dict, List, Literal, Optional, TypeVar
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ModelFamily, ModelInfo
@@ -102,8 +102,6 @@ class ModelClientFactory:
     def create_model_client(
         cls,
         client_config: Dict[str, Any],
-        response_format: Optional[Type[T]] = None,
-        parallel_tool_calls: Optional[bool] = None,
     ) -> OpenAIChatCompletionClient:
         model_info = cls._init_model_info(client_config)
         client_kwargs = {
@@ -114,11 +112,12 @@ class ModelClientFactory:
             "max_tokens": client_config["max_tokens"],
         }
 
-        if response_format:
-            client_kwargs["response_format"] = response_format
+        # Handle optional parameters from client_config
+        if "response_format" in client_config:
+            client_kwargs["response_format"] = client_config["response_format"]
 
-        if parallel_tool_calls is not None:
-            client_kwargs["parallel_tool_calls"] = parallel_tool_calls
+        if "parallel_tool_calls" in client_config:
+            client_kwargs["parallel_tool_calls"] = client_config["parallel_tool_calls"]
 
         if "default_headers" in client_config:
             client_kwargs["default_headers"] = client_config["default_headers"]
@@ -174,14 +173,16 @@ class PlanningWorkflow:
             config_orchestrator_client
         )
 
-        config_reflection_client = config["model_clients"]["reflection_client"]
+        config_reflection_client = config["model_clients"]["reflection_client"].copy()
+        config_reflection_client["response_format"] = ReflectionResponse
         self.reflection_model_client = ModelClientFactory.create_model_client(
-            config_reflection_client, response_format=ReflectionResponse
+            config_reflection_client
         )
 
-        config_step_triage_client = config["model_clients"]["step_triage_client"]
+        config_step_triage_client = config["model_clients"]["step_triage_client"].copy()
+        config_step_triage_client["response_format"] = StepTriageResponse
         self.step_triage_model_client = ModelClientFactory.create_model_client(
-            config_step_triage_client, response_format=StepTriageResponse
+            config_step_triage_client
         )
 
         config_code_client = config["model_clients"]["code_client"]
@@ -198,33 +199,38 @@ class PlanningWorkflow:
         )
         if parallel_tool_calls_setting is True:
             # Only pass parallel_tool_calls=True if we expect to use tools
+            config_single_tool_use_client_with_parallel = (
+                config_single_tool_use_client.copy()
+            )
+            config_single_tool_use_client_with_parallel["parallel_tool_calls"] = True
             self.single_tool_use_model_client = ModelClientFactory.create_model_client(
-                config_single_tool_use_client,
-                parallel_tool_calls=True,
+                config_single_tool_use_client_with_parallel
             )
         else:
             # Don't set parallel_tool_calls to avoid OpenAI API errors when no tools
             self.single_tool_use_model_client = ModelClientFactory.create_model_client(
-                config_single_tool_use_client,
+                config_single_tool_use_client
             )
 
         config_planning_client = config["model_clients"]["planning_client"]
+        config_planning_client_with_format = config_planning_client.copy()
+        config_planning_client_with_format["response_format"] = PlanningResponse
         self.planning_model_client = ModelClientFactory.create_model_client(
-            config_planning_client, response_format=PlanningResponse
+            config_planning_client_with_format
         )
 
         # Initialize template based planning client using the same config as planning client
+        config_template_planning_client = config_planning_client.copy()
+        config_template_planning_client["response_format"] = HighLevelPlanPPT
         self.template_based_planning_model_client = (
-            ModelClientFactory.create_model_client(
-                config_planning_client, response_format=HighLevelPlanPPT
-            )
+            ModelClientFactory.create_model_client(config_template_planning_client)
         )
 
         # Initialize single group planning client using the same config as planning client
+        config_single_group_planning_client = config_planning_client.copy()
+        config_single_group_planning_client["response_format"] = Task
         self.single_group_planning_model_client = (
-            ModelClientFactory.create_model_client(
-                config_planning_client, response_format=Task
-            )
+            ModelClientFactory.create_model_client(config_single_group_planning_client)
         )
 
         # Initialize template selection client if template_work_dir is provided
@@ -239,10 +245,10 @@ class PlanningWorkflow:
             class TemplateSelection(BaseModel):
                 template_id: TemplateList
 
+            config_template_selection_client = config_planning_client.copy()
+            config_template_selection_client["response_format"] = TemplateSelection
             self.template_selection_model_client = (
-                ModelClientFactory.create_model_client(
-                    config_planning_client, response_format=TemplateSelection
-                )
+                ModelClientFactory.create_model_client(config_template_selection_client)
             )
 
         # MCP Tools initialization - use external tools if provided, otherwise create own sessions
