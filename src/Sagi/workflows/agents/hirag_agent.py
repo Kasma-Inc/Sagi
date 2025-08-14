@@ -1,162 +1,97 @@
-import json
-import logging
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from autogen_agentchat.agents import AssistantAgent
-from autogen_agentchat.messages import (
-    TextMessage,
-    ToolCallExecutionEvent,
-    ToolCallRequestEvent,
-    ToolCallSummaryMessage,
-)
-from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient
-from autogen_ext.tools.mcp._sse import SseMcpToolAdapter
-from autogen_ext.tools.mcp._stdio import StdioMcpToolAdapter
+from hirag_prod import HiRAG
+from hirag_prod.parser import (
+    DictParser,
+)
+from hirag_prod.prompt import PROMPTS
 
 from Sagi.workflows.sagi_memory import SagiMemory
 
 
-class HiragAgent:
+class RagSummaryAgent:
     agent: AssistantAgent
-    mcp_tools: List[StdioMcpToolAdapter | SseMcpToolAdapter]
-    set_language_tool: Optional[StdioMcpToolAdapter | SseMcpToolAdapter] = None
     language: str
     memory: SagiMemory
+    vdb_path: str
+    gdb_path: str
+    model_client_stream: bool
 
     def __init__(
         self,
         model_client: ChatCompletionClient,
         memory: SagiMemory,
-        mcp_tools: List[StdioMcpToolAdapter | SseMcpToolAdapter],
         language: str,
-        set_language_tool: Optional[StdioMcpToolAdapter | SseMcpToolAdapter] = None,
+        vdb_path: str,
+        gdb_path: str,
         model_client_stream: bool = True,
     ):
-
         self.memory = memory
         self.language = language
-        self.mcp_tools = mcp_tools
-        self.set_language_tool = set_language_tool
+        self.rag_instance = None
+        self.system_prompt = None
+        self.rag_summary_agent = None
+        self.model_client = model_client
+        self.model_client_stream = model_client_stream
+        self.memory = memory
+        self.vdb_path = vdb_path
+        self.gdb_path = gdb_path
 
-        system_prompt = self._get_system_prompt()
-
-        self.agent = AssistantAgent(
-            name="hirag_agent",
+    @classmethod
+    async def create(
+        cls,
+        model_client: ChatCompletionClient,
+        memory: SagiMemory,
+        language: str,
+        vdb_path: str,
+        gdb_path: str,
+        model_client_stream: bool = True,
+    ):
+        self = cls(
             model_client=model_client,
-            model_client_stream=True,
-            memory=[memory],
-            system_message=system_prompt,
-            tools=self.mcp_tools,
+            memory=memory,
+            language=language,
+            vdb_path=vdb_path,
+            gdb_path=gdb_path,
+            model_client_stream=model_client_stream,
+        )
+        self.rag_instance = await HiRAG.create(vdb_path=vdb_path, gdb_path=gdb_path)
+        return self
+
+    def _init_rag_summary_agent(self):
+        self.rag_summary_agent = AssistantAgent(
+            name="rag_summary_agent",
+            model_client=self.model_client,
+            model_client_stream=self.model_client_stream,
+            memory=[self.memory],
+            system_message=self.system_prompt,
         )
 
-    async def set_language(self, language: str):
-        """Set the language for HiRAG retrieval system."""
-        if self.set_language_tool:
-            try:
-                # Use the MCP tool's run_json method for direct execution
-                result = await self.set_language_tool.run_json(
-                    {"language": language}, CancellationToken()
-                )
+    def set_system_prompt(self, chunks: List[Dict[str, Any]]):
+        raw_prompt = PROMPTS["summary_all_" + self.language]
+        placeholder = PROMPTS["REFERENCE_PLACEHOLDER"]
+        parser = DictParser()
+        retrieved_chunks = (
+            "Chunks:\n" + parser.parse_list_of_dicts(chunks, "table") + "\n\n"
+        )
+        system_prompt = raw_prompt.format(
+            data=retrieved_chunks,
+            max_report_length=5000,
+            reference_placeholder=placeholder,
+        )
+        self.system_prompt = system_prompt
 
-                self.language = language
-                return f"Language successfully set to {language}: {result}"
-
-            except Exception as e:
-                return f"Failed to set language: {e}"
-        else:
-            # Just update the local language setting
-            self.language = language
-            return f"Language set to {language} (local only)"
-
-    def _get_system_prompt(self):
-        system_prompt = {
-            "en": "You are a information retrieval agent that provides relevant information from the internal database.",
-            "cn": "你是一个信息检索代理，从内部数据库中提供相关信息。",
-            "cn-t": "你是一個信息檢索代理，從內部資料庫中提供相關信息。",
-        }
-        return system_prompt.get(self.language, system_prompt["en"])
-
-    def run_workflow(
+    async def run_workflow(
         self,
         user_input: str,
         experimental_attachments: Optional[List[Dict[str, str]]] = None,
     ):
-        # TODO(klma): handle the case of experimental_attachments
-        response = self.agent.run_stream(
-            task=user_input,
-        )
-        return response
+        ret = await self.rag_instance.query(user_input, summary=False)
+        self.set_system_prompt(ret["chunks"])
+        self._init_rag_summary_agent()
+        return self.rag_summary_agent.run_stream(task=user_input)
 
     async def cleanup(self):
         pass
-
-    def message_to_memory_content(
-        self,
-        message: Union[
-            TextMessage,
-            ToolCallRequestEvent,
-            ToolCallExecutionEvent,
-            ToolCallSummaryMessage,
-        ],
-    ) -> str:
-        if isinstance(message, TextMessage):
-            # This is the message from the user
-            return message.content
-        elif isinstance(message, ToolCallRequestEvent):
-            # function call name and arguments
-            function_call_name = message.content[0].name
-            function_call_args = message.content[0].arguments
-            return json.dumps(
-                {
-                    "name": function_call_name,
-                    "args": function_call_args,
-                }
-            )
-        elif isinstance(message, ToolCallExecutionEvent):
-            # function call name and arguments
-            result = json.loads(json.loads(message.content[0].content)[0]["text"])
-            entity_fields = ["text", "entity_type", "description", "_relevance_score"]
-            entities = [
-                {k: v for k, v in e.items() if k in entity_fields}
-                for e in result["entities"]
-            ]
-
-            # chunks
-            chunk_fields = ["text", "_relevance_score"]
-            chunks = [
-                {k: v for k, v in c.items() if k in chunk_fields}
-                for c in result["chunks"]
-            ]
-
-            # summary
-            summary = result["summary"]
-
-            # relations
-            relations = [
-                r.get("properties", {}).get("description") for r in result["relations"]
-            ]
-
-            # neighbors
-            neighbors = [
-                {
-                    "text": n.get("page_content"),
-                    "entity_type": n.get("metadata", {}).get("entity_type"),
-                    "_relevance_score": n.get("metadata", {}).get("description"),
-                }
-                for n in result["neighbors"]
-            ]
-
-            return json.dumps(
-                {
-                    "entities": entities,
-                    "chunks": chunks,
-                    "summary": summary,
-                    "relations": relations,
-                    "neighbors": neighbors,
-                }
-            )
-        elif isinstance(message, ToolCallSummaryMessage):
-            return message.content
-        else:
-            raise ValueError(f"Unsupported message type: {type(message)}")
