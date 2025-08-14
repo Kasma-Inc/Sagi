@@ -13,7 +13,7 @@ from autogen_core.memory import (
 )
 
 # Embedding service from HiRAG for generating embeddings
-from hirag_prod._llm import LocalEmbeddingService
+from hirag_prod._llm import EmbeddingService, LocalEmbeddingService
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import ProgrammingError
@@ -22,6 +22,11 @@ from sqlmodel import JSON, Field, SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from Sagi.utils.token_usage import count_tokens_messages
+
+if os.getenv("EMBEDDING_SERVICE_TYPE") == "local":
+    memory_embedding_service = LocalEmbeddingService()
+else:
+    memory_embedding_service = EmbeddingService()
 
 TEST_TIMING = True
 
@@ -110,7 +115,7 @@ class MultiRoundMemory(SQLModel, table=True):
     mimeType: str
     embedding: Optional[List[float]] = Field(
         default=None,
-        sa_type=Vector(int(os.getenv("EMBEDDING_DIM", "1536"))),
+        sa_type=Vector(int(os.getenv("EMBEDDING_DIM", "4096"))),
         nullable=True,
     )
     createdAt: str = Field(default=datetime.now().isoformat())
@@ -194,11 +199,10 @@ async def saveMultiRoundMemory(
 
     # Generate embedding for the content using HiRAG's embedding service
     try:
-        async with async_time_operation("Embedding generation (single)"):
-            embedding_service = LocalEmbeddingService()
-            content_embedding = await embedding_service.create_embeddings([content])
-            # Extract the embedding vector from the response
-            embedding = content_embedding[0] if content_embedding else None
+        global memory_embedding_service
+        content_embedding = await memory_embedding_service.create_embeddings([content])
+        # Extract the embedding vector from the response
+        embedding = content_embedding[0] if content_embedding else None
     except Exception as e:
         print(f"Failed to generate embedding: {e}")
         embedding = None
@@ -225,12 +229,11 @@ async def saveMultiRoundMemories(
 
     # Initialize embedding service once for batch processing
     try:
-        async with async_time_operation(f"Embedding generation (batch of {len(contents)})"):
-            embedding_service = LocalEmbeddingService()
-            # Extract all content strings for batch embedding generation
-            content_texts = [content_data["content"] for content_data in contents]
-            # Generate embeddings in batch for efficiency
-            embeddings = await embedding_service.create_embeddings(content_texts)
+        memory_embedding_service = LocalEmbeddingService()
+        # Extract all content strings for batch embedding generation
+        content_texts = [content_data["content"] for content_data in contents]
+        # Generate embeddings in batch for efficiency
+        embeddings = await memory_embedding_service.create_embeddings(content_texts)
     except Exception as e:
         print(f"Failed to generate embeddings: {e}")
         embeddings = [None] * len(contents)
@@ -262,14 +265,29 @@ async def getMultiRoundMemory(
     context_window: Optional[int] = None,
 ) -> List[MultiRoundMemory]:
     await _ensure_table(session, MultiRoundMemory)
+    
+    # first get everything back and test if exceeds context window
+    memories = await session.execute(
+        select(MultiRoundMemory)
+        .where(MultiRoundMemory.chatId == chat_id)
+        .order_by(MultiRoundMemory.createdAt)
+    )
+    all_memories = memories.scalars().all()
+    total_tokens = sum(count_tokens_messages([{"content": mem.content}], model=model_name) for mem in all_memories)
 
-    # only if query_text, context_window and model_name are provided, we can rank and filter memories
+    if total_tokens <= context_window:
+        return all_memories
+
+    print(f"Total tokens {total_tokens} exceed context window {context_window}")
+
+    # only if memory exceeds limit && query_text, context_window and model_name are provided, we can rank and filter memories
     if query_text and context_window and model_name:
+        global memory_embedding_service
         try:
             # Generate embedding for the query text
-            async with async_time_operation("Query embedding generation"):
-                embedding_service = LocalEmbeddingService()
-                query_embedding = await embedding_service.create_embeddings([query_text])
+            query_embedding = await memory_embedding_service.create_embeddings(
+                [query_text]
+            )
             if query_embedding is None or len(query_embedding) == 0:
                 return []
 
@@ -332,13 +350,7 @@ async def getMultiRoundMemory(
             print(f"Failed to query memories with embedding: {e}")
             return []
 
-    # If no query_text, context_window, or model_name is provided, return all memories
-    memory = await session.execute(
-        select(MultiRoundMemory)
-        .where(MultiRoundMemory.chatId == chat_id)
-        .order_by(MultiRoundMemory.createdAt)
-    )
-    return memory.scalars().all()
+    return all_memories
 
 
 @time_function("saveChats")
