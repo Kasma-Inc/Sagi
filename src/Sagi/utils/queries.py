@@ -182,7 +182,7 @@ async def getMultiRoundMemory(
     context_window: Optional[int] = None,
 ) -> List[MultiRoundMemory]:
     await _ensure_table(session, MultiRoundMemory)
-    
+
     # first get everything back and test if exceeds context window
     memories = await session.execute(
         select(MultiRoundMemory)
@@ -190,7 +190,10 @@ async def getMultiRoundMemory(
         .order_by(MultiRoundMemory.createdAt)
     )
     all_memories = memories.scalars().all()
-    total_tokens = sum(count_tokens_messages([{"content": mem.content}], model=model_name) for mem in all_memories)
+    total_tokens = sum(
+        count_tokens_messages([{"content": mem.content}], model=model_name)
+        for mem in all_memories
+    )
 
     if total_tokens <= context_window:
         return all_memories
