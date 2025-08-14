@@ -1,4 +1,4 @@
-from typing import Dict, List, Sequence, Any, Callable, Awaitable
+from typing import Any, Awaitable, Callable, Dict, List, Sequence
 
 from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
 from autogen_agentchat.conditions import TextMessageTermination
@@ -32,9 +32,12 @@ class QuestionPredictionWorkflow:
     async def create(
         cls,
         config_path: str,
-        mcp_tools: Dict[str, List[
-            BaseTool[Any, Any] | Callable[..., Any] | Callable[
-                ..., Awaitable[Any]]]],
+        mcp_tools: Dict[
+            str,
+            List[
+                BaseTool[Any, Any] | Callable[..., Any] | Callable[..., Awaitable[Any]]
+            ],
+        ],
         language: str,
         web_search: bool = False,
         hirag: bool = False,
@@ -66,10 +69,12 @@ class QuestionPredictionWorkflow:
         self.participant_list.append(user_intent_recognition_agent)
 
         if web_search:
-            question_prediction_web_search_agent: QuestionPredictionWebSearchAgent = QuestionPredictionWebSearchAgent(
-                name="question_prediction_web_search_agent",
-                model_client=self.model_client,
-                tools=mcp_tools["web_search"],
+            question_prediction_web_search_agent: QuestionPredictionWebSearchAgent = (
+                QuestionPredictionWebSearchAgent(
+                    name="question_prediction_web_search_agent",
+                    model_client=self.model_client,
+                    tools=mcp_tools["web_search"],
+                )
             )
             self.participant_list.append(question_prediction_web_search_agent)
         if hirag:
