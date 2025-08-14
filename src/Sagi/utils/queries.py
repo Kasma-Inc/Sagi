@@ -4,10 +4,6 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from asyncpg import DuplicateTableError
-from autogen_core.memory import (
-    MemoryContent,
-    MemoryMimeType,
-)
 
 # Embedding service from HiRAG for generating embeddings
 from hirag_prod._llm import EmbeddingService, LocalEmbeddingService
