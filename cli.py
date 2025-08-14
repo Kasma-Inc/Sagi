@@ -10,15 +10,9 @@ from autogen_agentchat.base import TaskResult
 from autogen_agentchat.messages import (
     BaseChatMessage,
     BaseMessage,
-    ToolCallSummaryMessage,
 )
 from autogen_agentchat.ui import Console
 from autogen_core.memory import MemoryContent
-from autogen_ext.tools.mcp import (
-    StdioServerParams,
-    create_mcp_server_session,
-    mcp_server_tools,
-)
 from dotenv import load_dotenv
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
@@ -29,12 +23,11 @@ from opentelemetry.semconv.resource import ResourceAttributes
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from Sagi.utils.logging_utils import setup_logging
-from Sagi.utils.mcp_utils import MCPSessionManager
 from Sagi.utils.message_to_memory import get_memory_type_for_message
 from Sagi.utils.model_client import ModelClientFactory
 from Sagi.utils.model_info import get_model_name_by_api_provider
 from Sagi.utils.queries import create_db_engine, saveChats
-from Sagi.workflows.agents.hirag_agent import HiragAgent
+from Sagi.workflows.agents.hirag_agent import RagSummaryAgent
 from Sagi.workflows.agents.multi_round import MultiRoundAgent
 from Sagi.workflows.general.general_chat import GeneralChatWorkflow
 from Sagi.workflows.planning.planning import PlanningWorkflow
@@ -127,6 +120,18 @@ def parse_args():
         type=str,
         default=DEFAULT_PLANNING_HTML_CONFIG_PATH,
         help="Specify the planning html config path",
+    )
+    parser.add_argument(
+        "--vector_db_path",
+        type=str,
+        default="/chatbot/kb/hirag.db",
+        help="Specify the vector db path",
+    )
+    parser.add_argument(
+        "--graph_db_path",
+        type=str,
+        default="/chatbot/kb/hirag.gpickle",
+        help="Specify the graph db path",
     )
     return parser.parse_args()
 
@@ -262,35 +267,6 @@ async def main_cmd(args: argparse.Namespace):
         )
         memory.set_session_maker(session_maker)
 
-        hirag_server_params = StdioServerParams(
-            command="mcp-hirag-tool",
-            args=[],
-            read_timeout_seconds=100,
-            env={
-                "LLM_API_KEY": os.getenv("OPENAI_API_KEY"),
-                "LLM_BASE_URL": os.getenv("OPENAI_BASE_URL"),
-                "VOYAGE_API_KEY": os.getenv("VOYAGE_API_KEY"),
-            },
-        )
-
-        session_manager = MCPSessionManager()
-        hirag_retrieval = await session_manager.create_session(
-            "hirag_retrieval", create_mcp_server_session(hirag_server_params)
-        )
-        await hirag_retrieval.initialize()
-        hirag_retrieval_tools = await mcp_server_tools(
-            hirag_server_params, session=hirag_retrieval
-        )
-
-        # Set language for HiRAG instance
-        hirag_set_language_tool = [
-            tool for tool in hirag_retrieval_tools if tool.name == "hi_set_language"
-        ]
-
-        hirag_retrieval_tools = [
-            tool for tool in hirag_retrieval_tools if tool.name == "hi_search"
-        ]
-
     else:
         raise ValueError(f"Invalid mode: {args.mode}")
 
@@ -342,30 +318,24 @@ async def main_cmd(args: argparse.Namespace):
                 )
                 memory.set_session_maker(session_maker)
 
-                workflow = HiragAgent(
+                workflow = await RagSummaryAgent.create(
                     model_client=model_client,
                     memory=memory,
-                    mcp_tools=hirag_retrieval_tools,
                     language=args.language,
-                    set_language_tool=(
-                        hirag_set_language_tool[0] if hirag_set_language_tool else None
-                    ),
+                    vdb_path=args.vector_db_path,
+                    gdb_path=args.graph_db_path,
+                    model_client_stream=True,
                 )
 
-                # Set language in HiRAG
-                language_result = await workflow.set_language(args.language)
-                logging.info(f"Language setting result: {language_result}")
-
-                chat_history = await Console(workflow.run_workflow(user_input))
+                chat_history = await Console(await workflow.run_workflow(user_input))
                 messages = chat_history.messages
                 messages = [
                     MemoryContent(
-                        content=workflow.message_to_memory_content(message),
+                        content=message.content,
                         mime_type=get_memory_type_for_message(message),
                         metadata={"source": message.source},
                     )
                     for message in messages
-                    if not isinstance(message, ToolCallSummaryMessage)
                 ]
                 await memory.add(messages)
             else:

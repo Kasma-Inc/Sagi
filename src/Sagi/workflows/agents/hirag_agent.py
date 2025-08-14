@@ -57,7 +57,9 @@ class RagSummaryAgent:
             gdb_path=gdb_path,
             model_client_stream=model_client_stream,
         )
-        self.rag_instance = await HiRAG.create(vdb_path=vdb_path, gdb_path=gdb_path)
+        self.rag_instance = await HiRAG.create(
+            vector_db_path=vdb_path, graph_db_path=gdb_path
+        )
         return self
 
     def _init_rag_summary_agent(self):
