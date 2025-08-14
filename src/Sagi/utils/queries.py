@@ -1,6 +1,9 @@
 import os
+import time
 import uuid
+from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime
+from functools import wraps
 from typing import Any, Dict, List, Optional
 
 from asyncpg import DuplicateTableError
@@ -25,6 +28,82 @@ if os.getenv("EMBEDDING_SERVICE_TYPE") == "local":
 else:
     memory_embedding_service = EmbeddingService()
 
+TEST_TIMING = True
+
+
+# Timing utilities
+@contextmanager
+def time_operation(operation_name: str):
+    """Context manager for timing synchronous operations."""
+    if not TEST_TIMING:
+        yield
+        return
+    
+    start_time = time.time()
+    try:
+        yield
+    finally:
+        end_time = time.time()
+        execution_time = end_time - start_time
+        print(f"[TIMING] {operation_name}: {execution_time:.4f} seconds")
+
+
+@asynccontextmanager
+async def async_time_operation(operation_name: str):
+    """Context manager for timing asynchronous operations."""
+    if not TEST_TIMING:
+        yield
+        return
+    
+    start_time = time.time()
+    try:
+        yield
+    finally:
+        end_time = time.time()
+        execution_time = end_time - start_time
+        print(f"[TIMING] {operation_name}: {execution_time:.4f} seconds")
+
+
+def time_function(func_name: str = None):
+    """Decorator for timing functions."""
+    def decorator(func):
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            if not TEST_TIMING:
+                return await func(*args, **kwargs)
+            
+            name = func_name or f"{func.__module__}.{func.__name__}"
+            start_time = time.time()
+            try:
+                result = await func(*args, **kwargs)
+                return result
+            finally:
+                end_time = time.time()
+                execution_time = end_time - start_time
+                print(f"[TIMING] {name}: {execution_time:.4f} seconds")
+        
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            if not TEST_TIMING:
+                return func(*args, **kwargs)
+            
+            name = func_name or f"{func.__module__}.{func.__name__}"
+            start_time = time.time()
+            try:
+                result = func(*args, **kwargs)
+                return result
+            finally:
+                end_time = time.time()
+                execution_time = end_time - start_time
+                print(f"[TIMING] {name}: {execution_time:.4f} seconds")
+        
+        # Return appropriate wrapper based on whether function is async
+        if hasattr(func, '__code__') and func.__code__.co_flags & 0x80:  # CO_COROUTINE
+            return async_wrapper
+        else:
+            return sync_wrapper
+    
+    return decorator
 
 class MultiRoundMemory(SQLModel, table=True):
     __tablename__ = "MultiRoundMemory"
@@ -55,6 +134,7 @@ class Chats(SQLModel, table=True):
     visibility: str = "private"
 
 
+@time_function("create_db_engine")
 async def create_db_engine(postgres_url: str) -> AsyncEngine:
     """
     Create database engine and ensure vector extension exists.
@@ -106,6 +186,7 @@ async def _ensure_table(session: AsyncSession, table) -> None:
     await session.run_sync(_sync_create)
 
 
+@time_function("saveMultiRoundMemory")
 async def saveMultiRoundMemory(
     session: AsyncSession,
     chat_id: str,
@@ -138,6 +219,7 @@ async def saveMultiRoundMemory(
     await session.commit()
 
 
+@time_function("saveMultiRoundMemories")
 async def saveMultiRoundMemories(
     session: AsyncSession,
     chat_id: str,
@@ -174,6 +256,7 @@ async def saveMultiRoundMemories(
         await session.refresh(memory)
 
 
+@time_function("getMultiRoundMemory")
 async def getMultiRoundMemory(
     session: AsyncSession,
     chat_id: str,
@@ -209,13 +292,14 @@ async def getMultiRoundMemory(
                 return []
 
             # Use the embedding to filter memories by similarity
-            query_vector = query_embedding[0]
-            memory = await session.execute(
-                select(MultiRoundMemory)
-                .where(MultiRoundMemory.chatId == chat_id)
-                .where(MultiRoundMemory.embedding.is_not(None))
-                .order_by(MultiRoundMemory.embedding.op("<=>")(query_vector))
-            )
+            async with async_time_operation("Database similarity search"):
+                query_vector = query_embedding[0]
+                memory = await session.execute(
+                    select(MultiRoundMemory)
+                    .where(MultiRoundMemory.chatId == chat_id)
+                    .where(MultiRoundMemory.embedding.is_not(None))
+                    .order_by(MultiRoundMemory.embedding.op("<=>")(query_vector))
+                )
 
             # Show Debug information
             # print(f"Query vector: {query_vector}")
@@ -226,28 +310,29 @@ async def getMultiRoundMemory(
             print(f"Number of memories found: {len(memories)}")
 
             # Filter memories based on token count and context window
-            total_tokens = 0
-            filtered_memories = []
-            for mem in memories:
-                print(
-                    f"Processing memory ID: {mem.id}, Created At: {mem.createdAt}, Content: {mem.content}",
-                    end=", ",
-                )
-                content_tokens = count_tokens_messages(
-                    [{"content": mem.content}], model=model_name
-                )
-                # Debug information
-                print(f"Tokens: {content_tokens}")
-
-                if total_tokens + content_tokens <= context_window:
-                    filtered_memories.append(mem)
-                    total_tokens += content_tokens
-                else:
+            async with async_time_operation("Memory filtering by context window"):
+                total_tokens = 0
+                filtered_memories = []
+                for mem in memories:
                     print(
-                        f"Skipping memories after {mem.id} due to exceeding context window. "
-                        f"Total tokens: {total_tokens}, Content tokens: {content_tokens}"
+                        f"Processing memory ID: {mem.id}, Created At: {mem.createdAt}, Content: {mem.content}",
+                        end=", ",
                     )
-                    break
+                    content_tokens = count_tokens_messages(
+                        [{"content": mem.content}], model=model_name
+                    )
+                    # Debug information
+                    print(f"Tokens: {content_tokens}")
+
+                    if total_tokens + content_tokens <= context_window:
+                        filtered_memories.append(mem)
+                        total_tokens += content_tokens
+                    else:
+                        print(
+                            f"Skipping memories after {mem.id} due to exceeding context window. "
+                            f"Total tokens: {total_tokens}, Content tokens: {content_tokens}"
+                        )
+                        break
 
             # Sort memories by creation time
             filtered_memories.sort(key=lambda x: x.createdAt)
@@ -268,6 +353,7 @@ async def getMultiRoundMemory(
     return all_memories
 
 
+@time_function("saveChats")
 async def saveChats(
     session: AsyncSession,
     chat_id: str,
@@ -295,6 +381,7 @@ async def saveChats(
     await session.commit()
 
 
+@time_function("getChats")
 async def getChats(
     session: AsyncSession,
     chat_id: str,
