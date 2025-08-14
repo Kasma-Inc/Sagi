@@ -93,7 +93,7 @@ class RagSummaryAgent:
         ret = await self.rag_instance.query(user_input, summary=False)
         self.set_system_prompt(ret["chunks"])
         self._init_rag_summary_agent()
-        return self.rag_summary_agent.run_stream(task=user_input)
+        return ret, self.rag_summary_agent.run_stream(task=user_input)
 
     async def cleanup(self):
         pass
