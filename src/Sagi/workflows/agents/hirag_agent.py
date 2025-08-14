@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Dict, List, Optional, Union
 
 from autogen_agentchat.agents import AssistantAgent
@@ -19,6 +20,7 @@ from Sagi.workflows.sagi_memory import SagiMemory
 class HiragAgent:
     agent: AssistantAgent
     mcp_tools: List[StdioMcpToolAdapter | SseMcpToolAdapter]
+    set_language_tool: Optional[StdioMcpToolAdapter | SseMcpToolAdapter] = None
     language: str
     memory: SagiMemory
 
@@ -28,12 +30,14 @@ class HiragAgent:
         memory: SagiMemory,
         mcp_tools: List[StdioMcpToolAdapter | SseMcpToolAdapter],
         language: str,
+        set_language_tool: Optional[StdioMcpToolAdapter | SseMcpToolAdapter] = None,
         model_client_stream: bool = True,
     ):
 
         self.memory = memory
         self.language = language
         self.mcp_tools = mcp_tools
+        self.set_language_tool = set_language_tool
 
         system_prompt = self._get_system_prompt()
 
@@ -46,12 +50,12 @@ class HiragAgent:
             tools=self.mcp_tools,
         )
 
-    async def set_language(self, language: str, hirag_set_language_tool=None):
+    async def set_language(self, language: str):
         """Set the language for HiRAG retrieval system."""
-        if hirag_set_language_tool:
+        if self.set_language_tool:
             try:
                 # Use the MCP tool's run_json method for direct execution
-                result = await hirag_set_language_tool.run_json(
+                result = await self.set_language_tool.run_json(
                     {"language": language}, CancellationToken()
                 )
 
@@ -68,7 +72,7 @@ class HiragAgent:
     def _get_system_prompt(self):
         system_prompt = {
             "en": "You are a information retrieval agent that provides relevant information from the internal database.",
-            "cn-s": "你是一个信息检索代理，从内部数据库中提供相关信息。",
+            "cn": "你是一个信息检索代理，从内部数据库中提供相关信息。",
             "cn-t": "你是一個信息檢索代理，從內部資料庫中提供相關信息。",
         }
         return system_prompt.get(self.language, system_prompt["en"])

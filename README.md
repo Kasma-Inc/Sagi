@@ -37,7 +37,6 @@ Sagi is a production-ready, open-source LLM agent framework that combines advanc
    ```bash
    git clone https://github.com/Kasma-Inc/Sagi.git
    cd Sagi
-   git submodule update --init --recursive  # Download MCP servers and Markify(MinerU)
    ```
 
 3. **Environment Setup**
@@ -65,7 +64,7 @@ Sagi is a production-ready, open-source LLM agent framework that combines advanc
    - **Option A:** Use [VSCode Remote Container](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) (Recommended). You can run `bash dev/install_vscode_extensions.sh` to install the basic plugins for the development.
    - **Option B:** Access via terminal:
      ```bash
-     docker exec -it "$(whoami)_chatbot_python" /bin/bash
+     docker exec -it "$(whoami)_sagi-dev" /bin/bash
      ```
 
 3. **Install Dependencies**

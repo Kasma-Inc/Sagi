@@ -10,13 +10,10 @@ services:
     image: sagicuhk/sagi:latest
     container_name: "${USERNAME}_sagi-dev"
     volumes:
-      # SAGI_DIR is the directory of the sagi project, please download from https://github.com/Kasma-Inc/Sagi.git if you don't have it
       - ${SAGI_DIR}:/chatbot
       - ${DOCKER_SOCKET_PATH}:/var/run/docker.sock
     cap_add:
       - SYS_ADMIN
-    depends_on:
-      - markify
     command: ["tail", "-f", "/dev/null"]  # keep docker running
     restart: unless-stopped
     deploy:
@@ -24,19 +21,5 @@ services:
     ports:
       - "8001"
     environment:
-      # These two environment variables are used to configure the docker_command_line_code_executor
       - DOCKER_HOST=unix:///var/run/docker.sock
       - HOST_PATH=${SAGI_DIR}
-
-  markify:
-    image: sagicuhk/markify:latest
-    container_name: "${USERNAME}_markify_service"
-    entrypoint: ["/bin/sh", "/root/preprocess.sh"]  # just restart to update quickly without rebuilding
-    ports:
-      - "20926"
-    command: ["tail", "-f", "/dev/null"]  # keep docker running
-    deploy:
-      mode: global
-
-volumes:
-  markify:

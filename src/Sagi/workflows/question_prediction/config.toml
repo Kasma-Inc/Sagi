@@ -1,6 +1,6 @@
 [model_clients]
   [model_clients.question_prediction_client]
-    model = "gpt-4o-mini"
+    model = "gpt-4o"
     base_url = "${OPENAI_BASE_URL}"
     api_key = "${OPENAI_API_KEY}"
     max_tokens = 16000

@@ -184,3 +184,6 @@ state_backup.json
 
 # ignore the generated kb
 kb/
+
+# ignore the test storage
+tests/storage/
