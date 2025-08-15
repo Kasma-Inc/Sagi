@@ -88,13 +88,13 @@ class RagSummaryAgent:
     async def run_workflow(
         self,
         user_input: str,
-        worspace_id: str,
+        workspace_id: str,
         knowledge_base_id: str,
         experimental_attachments: Optional[List[Dict[str, str]]] = None,
     ):
         ret = await self.rag_instance.query(
             user_input,
-            worspace_id=worspace_id,
+            workspace_id=workspace_id,
             knowledge_base_id=knowledge_base_id,
             summary=False,
         )
