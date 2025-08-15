@@ -88,9 +88,16 @@ class RagSummaryAgent:
     async def run_workflow(
         self,
         user_input: str,
+        worspace_id: str,
+        knowledge_base_id: str,
         experimental_attachments: Optional[List[Dict[str, str]]] = None,
     ):
-        ret = await self.rag_instance.query(user_input, summary=False)
+        ret = await self.rag_instance.query(
+            user_input,
+            worspace_id=worspace_id,
+            knowledge_base_id=knowledge_base_id,
+            summary=False,
+        )
         self.set_system_prompt(ret["chunks"])
         self._init_rag_summary_agent()
         return ret, self.rag_summary_agent.run_stream(task=user_input)
