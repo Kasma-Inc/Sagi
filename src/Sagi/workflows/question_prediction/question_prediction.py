@@ -1,18 +1,17 @@
-from typing import Any, Awaitable, Callable, Dict, List, Sequence
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence, TypeVar
 
 from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
 from autogen_agentchat.conditions import TextMessageTermination
 from autogen_agentchat.messages import BaseChatMessage
 from autogen_agentchat.teams import RoundRobinGroupChat
-from autogen_core.tools._base import BaseTool
+from autogen_core.tools import BaseTool
 from pydantic import BaseModel
+from resources.model_client_wrapper import ModelClientWrapper
 
-from Sagi.utils.load_config import load_toml_with_env_vars
 from Sagi.utils.prompt import (
     get_rag_agent_prompt,
     get_user_intent_recognition_agent_prompt,
 )
-from Sagi.workflows.planning.planning import ModelClientFactory
 from Sagi.workflows.question_prediction.question_prediction_agent import (
     QuestionPredictionAgent,
 )
@@ -25,13 +24,19 @@ class QuestionsResponse(BaseModel):
     questions: List[str]
 
 
+QuestionsResponse.model_json_schema()
+
+T = TypeVar("T", bound=BaseModel)
+
+
 class QuestionPredictionWorkflow:
     participant_list: List[BaseChatAgent] = []
 
     @classmethod
     async def create(
         cls,
-        config_path: str,
+        model_name: str,
+        response_formats: Dict[str, Optional[type[T]]],
         mcp_tools: Dict[
             str,
             List[
@@ -43,26 +48,16 @@ class QuestionPredictionWorkflow:
         hirag: bool = False,
     ):
         self = cls()
-        self.participant_list = []
-        self.participant_dict = {}
+        self.model_client_dict = {
+            name: ModelClientWrapper(model_name, response_format)
+            for name, response_format in response_formats.items()
+        }
         self.language = language
-
-        config = load_toml_with_env_vars(config_path)
-        config_question_prediction_client = config["model_clients"][
-            "question_prediction_client"
-        ]
-        self.model_client = ModelClientFactory.create_model_client(
-            config_question_prediction_client,
-        )
-
-        self.question_prediction_model_client = ModelClientFactory.create_model_client(
-            config_question_prediction_client,
-            response_format=QuestionsResponse,
-        )
+        self.participant_list = []
 
         user_intent_recognition_agent = AssistantAgent(
             name="user_intent_recognition_agent",
-            model_client=self.model_client,
+            model_client=self.model_client_dict["General"],
             model_client_stream=True,
             system_message=get_user_intent_recognition_agent_prompt(self.language),
         )
@@ -72,7 +67,7 @@ class QuestionPredictionWorkflow:
             question_prediction_web_search_agent: QuestionPredictionWebSearchAgent = (
                 QuestionPredictionWebSearchAgent(
                     name="question_prediction_web_search_agent",
-                    model_client=self.model_client,
+                    model_client=self.model_client_dict["General"],
                     tools=mcp_tools["web_search"],
                 )
             )
@@ -80,7 +75,7 @@ class QuestionPredictionWorkflow:
         if hirag:
             hirag_agent: AssistantAgent = AssistantAgent(
                 name="hirag_agent",
-                model_client=self.model_client,
+                model_client=self.model_client_dict["General"],
                 model_client_stream=True,
                 system_message=get_rag_agent_prompt(self.language),
                 tools=mcp_tools["hirag_retrieval"],
@@ -90,7 +85,7 @@ class QuestionPredictionWorkflow:
         # Create question_prediction agent
         question_prediction_agent = QuestionPredictionAgent(
             name="question_prediction_agent",
-            model_client=self.question_prediction_model_client,
+            model_client=self.model_client_dict["QuestionsResponse"],
             model_client_stream=True,
         )
         self.participant_list.append(question_prediction_agent)
@@ -105,6 +100,10 @@ class QuestionPredictionWorkflow:
 
     def run_workflow(self, user_input: Sequence[BaseChatMessage]):
         return self.team.run_stream(task=user_input)
+
+    def set_model(self, model_name: str) -> None:
+        for model_client in self.model_client_dict.values():
+            model_client.set_model_client(model_name=model_name)
 
     def reset(self):
         return self.team.reset()
