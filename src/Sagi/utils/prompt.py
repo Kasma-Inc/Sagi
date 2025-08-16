@@ -469,9 +469,9 @@ def get_general_agent_prompt_cn() -> str:
 def get_user_intent_recognition_agent_prompt(language: str = "en") -> str:
     """system prompt for user intent recognition agent"""
     return {
-        "en": "You are a helpful AI assistant that recognizes user intent. The input is a chat history between a user and an AI assistant. Please describe the user's intent in one sentence based on the chat history.",
-        "cn-s": "你是一个帮助AI助手，识别用户意图。输入是用户和AI助手之间的对话历史。请根据对话历史描述用户意图。",
-        "cn-t": "你是一個幫助AI助手，識別用戶意圖。輸入是用户和AI助手之間的對話歷史。請根據對話歷史描述用戶意圖。",
+        "en": "You are a helpful AI assistant that recognizes user intent. The input is a chat history between a user and an AI assistant. Please describe the user's intent in one sentence based on the chat history. Please use English to answer.",
+        "cn-s": "你是一个帮助AI助手，识别用户意图。输入是用户和AI助手之间的对话历史。请根据对话历史描述用户意图。请使用简体中文回答",
+        "cn-t": "你是一個幫助AI助手，識別用戶意圖。輸入是用户和AI助手之間的對話歷史。請根據對話歷史描述用戶意圖。請使用繁体中文回答",
     }[language]
 
 
@@ -566,7 +566,7 @@ You should output an array of questions:
 - Don't Copy Input Directly: Use the provided information for understanding context only. Avoid copying target queries or any provided information directly in your responses.
 - Double check if the JSON object is formatted correctly. Ensure that all fields are present and properly structured.
 
-Remember to stay in character as a user throughout your response, and follow the instructions and guidelines carefully.""",
+Remember to stay in character as a user throughout your response, and follow the instructions and guidelines carefully. Please use English to answer.""",
         "cn-s": f"""你是一个用户，正在与一个AI助手合作完成一个特定任务。你的目标是生成自然、真实的回答，就像用户可能会给出的回答一样。
 
 ## 输入信息：
@@ -605,7 +605,7 @@ Remember to stay in character as a user throughout your response, and follow the
 - 不要直接复制输入：仅使用提供的上下文来理解对话。避免直接复制目标查询或任何提供的任何信息。
 - 检查JSON对象是否格式正确：确保所有字段都存在且结构正确。
 
-记住在整个回答过程中保持用户角色，并严格遵循指令和指导原则。
+记住在整个回答过程中保持用户角色，并严格遵循指令和指导原则。请使用简体中文回答。
 """,
         "cn-t": f"""你是一個用戶，正在與一個AI助手合作完成一個特定任務。你的目標是生成自然、真實的回答，就像用戶可能會給出的回答一樣。
 
@@ -645,6 +645,6 @@ Remember to stay in character as a user throughout your response, and follow the
 - 不要直接複製輸入：僅使用提供的上下文來理解對話。避免直接複製目標查詢或任何提供的任何信息。
 - 檢查JSON對象是否格式正確：確保所有字段都存在且結構正確。
 
-記住在整個回答過程中保持用戶角色，並嚴格遵循指令和指導原則。
+記住在整個回答過程中保持用戶角色，並嚴格遵循指令和指導原則。請使用繁體中文回答。
 """,
     }[language]

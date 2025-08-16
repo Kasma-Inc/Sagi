@@ -33,9 +33,9 @@ class MultiRoundAgent:
 
     def _get_system_prompt(self):
         system_prompt = {
-            "en": "You are a helpful assistant that can answer questions and help with tasks.",
-            "cn-s": "你是一个乐于助人的助手，可以回答问题并帮助完成任务。",
-            "cn-t": "你是一個樂於助人的助手，可以回答問題並幫助完成任務。",
+            "en": "You are a helpful assistant that can answer questions and help with tasks. Please use English to answer.",
+            "cn-s": "你是一个乐于助人的助手，可以回答问题并帮助完成任务。请用简体中文回答",
+            "cn-t": "你是一個樂於助人的助手，可以回答問題並幫助完成任務。請用繁體中文回答",
         }
         return system_prompt.get(self.language, system_prompt["en"])
 

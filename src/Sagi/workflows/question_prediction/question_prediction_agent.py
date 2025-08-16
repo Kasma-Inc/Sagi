@@ -34,6 +34,7 @@ class QuestionPredictionAgent(BaseChatAgent, Component[QuestionPredictionAgentCo
         name: str,
         model_client: ChatCompletionClient,
         model_client_stream: bool = False,
+        language: str = "en",
     ):
         super().__init__(
             name=name,
@@ -41,6 +42,7 @@ class QuestionPredictionAgent(BaseChatAgent, Component[QuestionPredictionAgentCo
         )
         self._model_client = model_client
         self._model_client_stream = model_client_stream
+        self._language = language
 
     @property
     def produced_message_types(self) -> Sequence[type[BaseChatMessage]]:
@@ -87,6 +89,7 @@ class QuestionPredictionAgent(BaseChatAgent, Component[QuestionPredictionAgentCo
                 user_intent=user_intent,
                 web_search_results=web_search_results,
                 chat_history=chat_history,
+                language=self._language,
             ),
             source="user",
         )

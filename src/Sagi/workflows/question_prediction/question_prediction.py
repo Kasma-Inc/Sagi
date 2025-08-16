@@ -187,6 +187,7 @@ class QuestionPredictionWorkflow:
             name="question_prediction_agent",
             model_client=self.question_prediction_model_client,
             model_client_stream=True,
+            language=self.language,
         )
         self.participant_list.append(question_prediction_agent)
         self.participant_dict[question_prediction_agent.name] = (
