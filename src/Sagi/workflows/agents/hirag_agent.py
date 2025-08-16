@@ -60,6 +60,7 @@ class RagSummaryAgent:
         self.rag_instance = await HiRAG.create(
             vector_db_path=vdb_path, graph_db_path=gdb_path
         )
+        await self.rag_instance.set_language(language)
         return self
 
     def _init_rag_summary_agent(self):
