@@ -24,8 +24,6 @@ class QuestionsResponse(BaseModel):
     questions: List[str]
 
 
-QuestionsResponse.model_json_schema()
-
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -36,7 +34,6 @@ class QuestionPredictionWorkflow:
     async def create(
         cls,
         model_name: str,
-        response_formats: Dict[str, Optional[type[T]]],
         mcp_tools: Dict[
             str,
             List[
@@ -49,8 +46,11 @@ class QuestionPredictionWorkflow:
     ):
         self = cls()
         self.model_client_dict = {
-            name: ModelClientWrapper(model_name, response_format)
-            for name, response_format in response_formats.items()
+            "General": ModelClientWrapper(model_name, None),
+            "QuestionsResponse": ModelClientWrapper(
+                model_name, QuestionsResponse
+            ),
+
         }
         self.language = language
         self.participant_list = []
