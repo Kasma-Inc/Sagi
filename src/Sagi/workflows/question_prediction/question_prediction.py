@@ -1,4 +1,4 @@
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence, TypeVar
+from typing import Any, Awaitable, Callable, Dict, List, Sequence, TypeVar
 
 from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
 from autogen_agentchat.conditions import TextMessageTermination
@@ -47,10 +47,7 @@ class QuestionPredictionWorkflow:
         self = cls()
         self.model_client_dict = {
             "General": ModelClientWrapper(model_name, None),
-            "QuestionsResponse": ModelClientWrapper(
-                model_name, QuestionsResponse
-            ),
-
+            "QuestionsResponse": ModelClientWrapper(model_name, QuestionsResponse),
         }
         self.language = language
         self.participant_list = []
