@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional
 
 from autogen_agentchat.agents import AssistantAgent
+from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient
 from hirag_prod import HiRAG
 from hirag_prod.parser import (
@@ -92,6 +93,7 @@ class RagSummaryAgent:
         workspace_id: str,
         knowledge_base_id: str,
         experimental_attachments: Optional[List[Dict[str, str]]] = None,
+        cancellation_token: Optional[CancellationToken] = None,
     ):
         ret = await self.rag_instance.query(
             user_input,
@@ -101,7 +103,10 @@ class RagSummaryAgent:
         )
         self.set_system_prompt(ret["chunks"])
         self._init_rag_summary_agent()
-        return ret, self.rag_summary_agent.run_stream(task=user_input)
+        return ret, self.rag_summary_agent.run_stream(
+            task=user_input, 
+            cancellation_token=cancellation_token
+        )
 
     async def cleanup(self):
         pass

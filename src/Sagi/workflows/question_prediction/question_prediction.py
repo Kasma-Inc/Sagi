@@ -1,9 +1,10 @@
-from typing import Any, Awaitable, Callable, Dict, List, Sequence, TypeVar
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence, TypeVar
 
 from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
 from autogen_agentchat.conditions import TextMessageTermination
 from autogen_agentchat.messages import BaseChatMessage
 from autogen_agentchat.teams import RoundRobinGroupChat
+from autogen_core import CancellationToken
 from autogen_core.tools import BaseTool
 from pydantic import BaseModel
 from resources.model_client_wrapper import ModelClientWrapper
@@ -96,8 +97,15 @@ class QuestionPredictionWorkflow:
         )
         return self
 
-    def run_workflow(self, user_input: Sequence[BaseChatMessage]):
-        return self.team.run_stream(task=user_input)
+    def run_workflow(
+        self, 
+        user_input: Sequence[BaseChatMessage],
+        cancellation_token: Optional[CancellationToken] = None,
+    ):
+        return self.team.run_stream(
+            task=user_input,
+            cancellation_token=cancellation_token,
+        )
 
     def set_model(self, model_name: str) -> None:
         for model_client in self.model_client_dict.values():
