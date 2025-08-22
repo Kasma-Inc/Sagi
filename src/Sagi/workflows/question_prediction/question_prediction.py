@@ -98,7 +98,7 @@ class QuestionPredictionWorkflow:
         return self
 
     def run_workflow(
-        self, 
+        self,
         user_input: Sequence[BaseChatMessage],
         cancellation_token: Optional[CancellationToken] = None,
     ):
