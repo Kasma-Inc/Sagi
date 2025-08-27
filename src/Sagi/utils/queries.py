@@ -16,6 +16,7 @@ if os.getenv("EMBEDDING_SERVICE_TYPE") == "local":
 else:
     memory_embedding_service = EmbeddingService()
 
+
 class MultiRoundMemory(SQLModel, table=True):
     __tablename__ = "MultiRoundMemory"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -30,7 +31,6 @@ class MultiRoundMemory(SQLModel, table=True):
         nullable=True,
     )
     createdAt: str = Field(default=datetime.now().isoformat())
-
 
 
 async def saveMultiRoundMemory(
