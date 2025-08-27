@@ -2,11 +2,11 @@ from typing import Any, Dict, List, Optional
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ChatCompletionClient
-from hirag_prod import HiRAG
 from hirag_prod.parser import (
     DictParser,
 )
 from hirag_prod.prompt import PROMPTS
+from resources.functions import get_hi_rag_client, get_settings
 
 from Sagi.workflows.sagi_memory import SagiMemory
 
@@ -15,7 +15,6 @@ class RagSummaryAgent:
     agent: AssistantAgent
     language: str
     memory: SagiMemory
-    vdb_path: str
     gdb_path: str
     model_client_stream: bool
 
@@ -24,7 +23,6 @@ class RagSummaryAgent:
         model_client: ChatCompletionClient,
         memory: SagiMemory,
         language: str,
-        vdb_path: str,
         gdb_path: str,
         model_client_stream: bool = True,
     ):
@@ -36,7 +34,7 @@ class RagSummaryAgent:
         self.model_client = model_client
         self.model_client_stream = model_client_stream
         self.memory = memory
-        self.vdb_path = vdb_path
+        self.vdb_path = get_settings().postgres_url_async
         self.gdb_path = gdb_path
 
     @classmethod
@@ -45,7 +43,6 @@ class RagSummaryAgent:
         model_client: ChatCompletionClient,
         memory: SagiMemory,
         language: str,
-        vdb_path: str,
         gdb_path: str,
         model_client_stream: bool = True,
     ):
@@ -53,13 +50,10 @@ class RagSummaryAgent:
             model_client=model_client,
             memory=memory,
             language=language,
-            vdb_path=vdb_path,
             gdb_path=gdb_path,
             model_client_stream=model_client_stream,
         )
-        self.rag_instance = await HiRAG.create(
-            vector_db_path=vdb_path, graph_db_path=gdb_path
-        )
+        self.rag_instance = await get_hi_rag_client()
         await self.rag_instance.set_language(language)
         return self
 
