@@ -3,15 +3,10 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from asyncpg import DuplicateTableError
-
 # Embedding service from HiRAG for generating embeddings
 from hirag_prod._llm import EmbeddingService, LocalEmbeddingService
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import inspect, text
-from sqlalchemy.exc import ProgrammingError
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from sqlmodel import JSON, Field, SQLModel, select
+from sqlmodel import Field, SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from Sagi.utils.token_usage import count_tokens_messages
@@ -38,70 +33,6 @@ class MultiRoundMemory(SQLModel, table=True):
     createdAt: str = Field(default=datetime.now().isoformat())
 
 
-class Chats(SQLModel, table=True):
-    __tablename__ = "Chats"
-    id: str = Field(default=None, primary_key=True)
-    createdAt: str
-    title: str
-    userId: str
-    modelName: str
-    modelConfig: Dict[str, Any] = Field(sa_type=JSON)
-    modelClientStream: bool = True
-    systemPrompt: str = Field(default=None)
-    visibility: str = "private"
-
-
-async def create_db_engine(postgres_url: str) -> AsyncEngine:
-    """
-    Create database engine and ensure vector extension exists.
-    """
-    # connect to postgres db
-    # Replace postgres:// with postgresql:// for SQLAlchemy
-    if postgres_url.startswith("postgres://"):
-        postgres_url = postgres_url.replace("postgres://", "postgresql+asyncpg://", 1)
-    elif postgres_url.startswith("postgresql://"):
-        postgres_url = postgres_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    elif postgres_url.startswith("postgresql+asyncpg://"):
-        pass
-    else:
-        raise ValueError(
-            "Invalid PostgreSQL URL format. Must start with 'postgresql://' or 'postgresql+asyncpg://'."
-        )
-
-    db = create_async_engine(
-        postgres_url,
-        pool_pre_ping=True,  # tests connections before use
-    )
-
-    # Create the vector extension if it doesn't exist
-    async with db.begin() as conn:
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-
-    return db
-
-
-async def _ensure_table(session: AsyncSession, table) -> None:
-    """
-    Create table on first access.
-    SQLModel / SQLAlchemy's DDL calls can only be executed in a synchronous context,
-    so we need to proxy to the synchronous engine via `run_sync()`.
-    """
-
-    def _sync_create(sync_session: AsyncSession):
-        # Use the inspector from sqlalchemy to check if table exists
-        engine = sync_session.get_bind()
-        if not inspect(engine).has_table(table.__tablename__):
-            try:
-                SQLModel.metadata.create_all(engine, tables=[table.__table__])
-            except ProgrammingError as e:
-                if isinstance(e.__cause__.__cause__, DuplicateTableError):
-                    pass
-                else:
-                    raise
-
-    await session.run_sync(_sync_create)
-
-
 async def saveMultiRoundMemory(
     session: AsyncSession,
     chat_id: str,
@@ -109,7 +40,6 @@ async def saveMultiRoundMemory(
     source: str,
     mime_type: str,
 ):
-    await _ensure_table(session, MultiRoundMemory)
     timestamp = datetime.now().isoformat()
 
     # Generate embedding for the content using HiRAG's embedding service
@@ -139,8 +69,6 @@ async def saveMultiRoundMemories(
     chat_id: str,
     contents: List[Dict[str, Any]],
 ):
-    await _ensure_table(session, MultiRoundMemory)
-
     # Initialize embedding service once for batch processing
     try:
         memory_embedding_service = LocalEmbeddingService()
@@ -177,8 +105,6 @@ async def getMultiRoundMemory(
     query_text: Optional[str] = None,
     context_window: Optional[int] = None,
 ) -> List[MultiRoundMemory]:
-    await _ensure_table(session, MultiRoundMemory)
-
     # first get everything back and test if exceeds context window
     memories = await session.execute(
         select(MultiRoundMemory)
@@ -265,39 +191,3 @@ async def getMultiRoundMemory(
             return []
 
     return all_memories
-
-
-async def saveChats(
-    session: AsyncSession,
-    chat_id: str,
-    title: str,
-    user_id: str,
-    model_name: str,
-    model_config: Dict[str, Any],
-    model_client_stream: bool,
-    system_prompt: str,
-    visibility: str = "private",
-):
-    await _ensure_table(session, Chats)
-    chat = Chats(
-        id=chat_id,
-        createdAt=datetime.now().isoformat(),
-        title=title,
-        userId=user_id,
-        modelName=model_name,
-        modelConfig=model_config,
-        modelClientStream=model_client_stream,
-        systemPrompt=system_prompt,
-        visibility=visibility,
-    )
-    session.add(chat)
-    await session.commit()
-
-
-async def getChats(
-    session: AsyncSession,
-    chat_id: str,
-) -> Chats:
-    await _ensure_table(session, Chats)
-    chat = await session.execute(select(Chats).where(Chats.id == chat_id))
-    return chat.scalars().first()
