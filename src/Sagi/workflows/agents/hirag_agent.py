@@ -74,9 +74,7 @@ class RagSummaryAgent:
             {"id": i, "chunk": " ".join((c.get("text", "") or "").split())}
             for i, c in enumerate(chunks, start=1)
         ]
-        data = (
-            "Chunks\n" + parser.parse_list_of_dicts(clean_chunks, "table") + "\n\n"
-        )
+        data = "Chunks\n" + parser.parse_list_of_dicts(clean_chunks, "table") + "\n\n"
         system_prompt = raw_prompt.format(
             data=data,
             max_report_length=5000,
