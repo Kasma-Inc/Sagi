@@ -70,11 +70,15 @@ class RagSummaryAgent:
         raw_prompt = PROMPTS["summary_all_" + self.language]
         placeholder = PROMPTS["REFERENCE_PLACEHOLDER"]
         parser = DictParser()
-        retrieved_chunks = (
-            "Chunks:\n" + parser.parse_list_of_dicts(chunks, "table") + "\n\n"
+        clean_chunks = [
+            {"id": i, "chunk": " ".join((c.get("text", "") or "").split())}
+            for i, c in enumerate(chunks, start=1)
+        ]
+        data = (
+            "Chunks\n" + parser.parse_list_of_dicts(clean_chunks, "table") + "\n\n"
         )
         system_prompt = raw_prompt.format(
-            data=retrieved_chunks,
+            data=data,
             max_report_length=5000,
             reference_placeholder=placeholder,
         )
