@@ -109,7 +109,7 @@ class StreamCodeExecutorAgent(CodeExecutorAgent):
         Process the incoming messages with the assistant agent and yield events/responses as they happen.
         """
         if isinstance(self._code_executor, StreamDockerCommandLineCodeExecutor):
-            await self._code_executor.resume_docker_container()
+            await self._code_executor.resume_docker_container(cancellation_token)
 
         # Gather all relevant state here
         agent_name = self.name

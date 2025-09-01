@@ -354,7 +354,7 @@ class StreamDockerCommandLineCodeExecutor(
             self._countdown_task = None
 
     async def resume_docker_container(
-        self, cancellation_token: CancellationToken = CancellationToken()
+        self, cancellation_token: CancellationToken
     ):  # this will be called when user's response is received
         await self.stop_countdown()
         if self._running:
