@@ -4,8 +4,9 @@ import tiktoken
 from autogen_core.memory import MemoryContent
 from autogen_core.models import LLMMessage
 from pydantic import BaseModel
+from resources.functions import get_llm_provider
+from transformers import AutoTokenizer
 
-from Sagi.utils.model_info import get_model_info
 
 
 def count_tokens_openai(text: str, model: str = "gpt-4") -> int:
@@ -104,6 +105,16 @@ def count_tokens_deepseek(text: str, model: str = "deepseek-chat") -> int:
     return len(encoding.encode(text))
 
 
+def count_tokens_local(content: str, model: str, provider: str) -> int:
+    if provider[6:] == "qwen3-8b":
+        tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-8B")
+        return len(tokenizer.encode(content))
+    else:
+        raise ValueError(
+            f"Unsupported local provider: {provider[6:]} of model: {model}"
+        )
+
+
 def count_tokens_messages(
     messages: Union[List[Dict[str, Any]], List[LLMMessage], List[MemoryContent]],
     model: str,
@@ -119,7 +130,7 @@ def count_tokens_messages(
         Total number of tokens including message formatting overhead
     """
     total_tokens = 0
-    provider = get_model_info(model).get("provider")
+    provider = get_llm_provider(model)
     assert provider is not None, "Provider is not set"
 
     if provider.lower() == "anthropic":
@@ -137,8 +148,10 @@ def count_tokens_messages(
             content_tokens = count_tokens_openai(content, model)
         elif provider.lower() == "deepseek":
             content_tokens = count_tokens_deepseek(content, model)
+        elif provider.lower().startswith("local"):
+            content_tokens = count_tokens_local(content, provider.lower())
         else:
-            print(f"Unsupported provider: {provider} of model: {model}")
+            raise ValueError(f"Unsupported provider: {provider} of model: {model}")
 
         total_tokens += content_tokens
 
