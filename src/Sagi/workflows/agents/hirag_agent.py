@@ -54,7 +54,7 @@ class RagSummaryAgent:
             gdb_path=gdb_path,
             model_client_stream=model_client_stream,
         )
-        self.rag_instance = await get_hi_rag_client()
+        self.rag_instance = get_hi_rag_client()
         await self.rag_instance.set_language(language)
         return self
 
