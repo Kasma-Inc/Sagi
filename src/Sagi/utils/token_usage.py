@@ -8,7 +8,6 @@ from resources.functions import get_llm_provider
 from transformers import AutoTokenizer
 
 
-
 def count_tokens_openai(text: str, model: str = "gpt-4") -> int:
     """
     Count tokens for OpenAI models using tiktoken.
