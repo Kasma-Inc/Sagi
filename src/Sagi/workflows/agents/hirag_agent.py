@@ -97,7 +97,6 @@ class RagSummaryAgent:
         )
         self.set_system_prompt(ret["chunks"])
         self._init_rag_summary_agent()
-        print("system_prompt: ", self.system_prompt)
         return ret, self.rag_summary_agent.run_stream(task=user_input)
 
     async def cleanup(self):
