@@ -8,6 +8,7 @@ import fitz
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import MultiModalMessage
 from autogen_core import CancellationToken, Image
+from resources.functions import get_active_cancellation_token
 
 from Sagi.tools.pdf_extraction.extraction_data import RectData, TextStyle
 from Sagi.tools.pdf_extraction.html_template import html_template
@@ -898,7 +899,8 @@ class HTMLGenerator:
                 )
 
             finally:
-                await agent.on_reset(CancellationToken())
+                # Use the active token for reset to maintain cancellation consistency
+                await agent.on_reset(get_active_cancellation_token())
                 self.available_agents.put_nowait(agent)
                 print(f"Completed request for {class_name}")
 

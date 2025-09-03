@@ -1,6 +1,7 @@
 from typing import Dict, List, Optional
 
 from autogen_agentchat.agents import AssistantAgent
+from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient
 
 from Sagi.workflows.sagi_memory import SagiMemory
@@ -43,10 +44,12 @@ class MultiRoundAgent:
         self,
         user_input: str,
         experimental_attachments: Optional[List[Dict[str, str]]] = None,
+        cancellation_token: Optional[CancellationToken] = None,
     ):
         # TODO(klma): handle the case of experimental_attachments
         return self.agent.run_stream(
             task=user_input,
+            cancellation_token=cancellation_token,
         )
 
     async def cleanup(self):
