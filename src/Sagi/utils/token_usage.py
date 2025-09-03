@@ -30,15 +30,12 @@ def count_tokens_openai(text: str, model: str = "gpt-4") -> int:
 
 def count_tokens_anthropic(
     message: List[Dict[str, Any]],
-    model: str = "claude-3-sonnet-20240229",
 ) -> int:
     """
     Count tokens for Anthropic Claude models.
 
     Args:
         message: The message to count tokens for
-        model: The Anthropic model name
-        api_config: The API config for Anthropic
 
     Returns:
         Number of tokens
@@ -69,16 +66,12 @@ def count_tokens_anthropic(
         messages = message
 
     for msg in messages:
-        if isinstance(msg, dict):
-            content = msg.get("content", "")
-            role = msg.get("role", "")
-            # Count characters in content and role
-            total_chars += len(str(content)) + len(str(role))
-            # Add overhead for message structure (XML-like tags, etc.)
-            total_chars += 20  # Estimated overhead per message
-        else:
-            # Handle string messages
-            total_chars += len(str(msg))
+        content = msg.get("content", "")
+        role = msg.get("role", "")
+        # Count characters in content and role
+        total_chars += len(str(content)) + len(str(role))
+        # Add overhead for message structure (XML-like tags, etc.)
+        total_chars += 20  # Estimated overhead per message
 
     # Anthropic tokenization estimation:
     # - English text: ~3.8 characters per token
@@ -88,13 +81,12 @@ def count_tokens_anthropic(
     return estimated_tokens
 
 
-def count_tokens_deepseek(text: str, model: str = "deepseek-chat") -> int:
+def count_tokens_deepseek(text: str) -> int:
     """
     Count tokens for DeepSeek models.
 
     Args:
         text: The text to count tokens for
-        model: The DeepSeek model name
 
     Returns:
         Estimated number of tokens (using tiktoken cl100k_base as approximation)
@@ -134,7 +126,7 @@ def count_tokens_messages(
 
     if provider.lower() == "anthropic":
         # For Anthropic, we use their API to count tokens
-        return count_tokens_anthropic(messages, model)
+        return count_tokens_anthropic(messages)
 
     for message in messages:
         if isinstance(message, BaseModel):
@@ -146,9 +138,9 @@ def count_tokens_messages(
         if provider.lower() == "openai":
             content_tokens = count_tokens_openai(content, model)
         elif provider.lower() == "deepseek":
-            content_tokens = count_tokens_deepseek(content, model)
+            content_tokens = count_tokens_deepseek(content)
         elif provider.lower().startswith("local"):
-            content_tokens = count_tokens_local(content, provider.lower())
+            content_tokens = count_tokens_local(content, model, provider.lower())
         else:
             raise ValueError(f"Unsupported provider: {provider} of model: {model}")
 
