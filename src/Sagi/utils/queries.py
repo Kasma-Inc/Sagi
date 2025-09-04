@@ -1,7 +1,7 @@
 import os
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 # Embedding service from HiRAG for generating embeddings
 from hirag_prod._llm import EmbeddingService, LocalEmbeddingService
@@ -11,10 +11,17 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from Sagi.utils.token_usage import count_tokens_messages
 
-if os.getenv("EMBEDDING_SERVICE_TYPE") == "local":
-    memory_embedding_service = LocalEmbeddingService()
-else:
-    memory_embedding_service = EmbeddingService()
+EMBEDDING_SERVICE: Optional[Union[LocalEmbeddingService, EmbeddingService]] = None
+
+
+def get_memory_embedding_service():
+    global EMBEDDING_SERVICE
+    if not EMBEDDING_SERVICE:
+        if os.getenv("EMBEDDING_SERVICE_TYPE") == "local":
+            EMBEDDING_SERVICE = LocalEmbeddingService()
+        else:
+            EMBEDDING_SERVICE = EmbeddingService()
+    return EMBEDDING_SERVICE
 
 
 class MultiRoundMemory(SQLModel, table=True):
@@ -44,8 +51,9 @@ async def saveMultiRoundMemory(
 
     # Generate embedding for the content using HiRAG's embedding service
     try:
-        global memory_embedding_service
-        content_embedding = await memory_embedding_service.create_embeddings([content])
+        content_embedding = await get_memory_embedding_service().create_embeddings(
+            [content]
+        )
         # Extract the embedding vector from the response
         embedding = content_embedding[0] if content_embedding else None
     except Exception as e:
@@ -124,10 +132,9 @@ async def getMultiRoundMemory(
 
     # only if memory exceeds limit && query_text, context_window and model_name are provided, we can rank and filter memories
     if query_text and context_window and model_name:
-        global memory_embedding_service
         try:
             # Generate embedding for the query text
-            query_embedding = await memory_embedding_service.create_embeddings(
+            query_embedding = await get_memory_embedding_service().create_embeddings(
                 [query_text]
             )
             if query_embedding is None or len(query_embedding) == 0:
