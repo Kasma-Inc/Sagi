@@ -1,6 +1,7 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union, Sequence
 
 from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.messages import BaseChatMessage
 from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient
 
@@ -42,13 +43,13 @@ class MultiRoundAgent:
 
     def run_workflow(
         self,
-        user_input: str,
+        task: Union[str, BaseChatMessage, Sequence[BaseChatMessage]],
         experimental_attachments: Optional[List[Dict[str, str]]] = None,
         cancellation_token: Optional[CancellationToken] = None,
     ):
         # TODO(klma): handle the case of experimental_attachments
         return self.agent.run_stream(
-            task=user_input,
+            task=task,
             cancellation_token=cancellation_token,
         )
 
