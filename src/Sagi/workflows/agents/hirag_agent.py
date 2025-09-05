@@ -66,7 +66,7 @@ class RagSummaryAgent:
             system_message=self.system_prompt,
         )
 
-    def set_system_prompt(self, chunks: List[Dict[str, Any]]):
+    def set_system_prompt(self, user_query: str, chunks: List[Dict[str, Any]]):
         raw_prompt = PROMPTS["summary_all_" + self.language]
         placeholder = PROMPTS["REFERENCE_PLACEHOLDER"]
         parser = DictParser()
@@ -76,6 +76,7 @@ class RagSummaryAgent:
         ]
         data = "Chunks\n" + parser.parse_list_of_dicts(clean_chunks, "table") + "\n\n"
         system_prompt = raw_prompt.format(
+            user_query=user_query,
             data=data,
             max_report_length=5000,
             reference_placeholder=placeholder,
@@ -95,7 +96,7 @@ class RagSummaryAgent:
             knowledge_base_id=knowledge_base_id,
             summary=False,
         )
-        self.set_system_prompt(ret["chunks"])
+        self.set_system_prompt(user_input, ret["chunks"])
         self._init_rag_summary_agent()
         return ret, self.rag_summary_agent.run_stream(task=user_input)
 
