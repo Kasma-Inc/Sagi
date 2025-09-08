@@ -22,6 +22,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.semconv.resource import ResourceAttributes
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from Sagi.services.resource_manager import get_resource_manager
 from Sagi.utils.logging_utils import setup_logging
 from Sagi.utils.message_to_memory import get_memory_type_for_message
 from Sagi.utils.model_client import ModelClientFactory
@@ -133,6 +134,17 @@ def parse_args():
         default="/chatbot/kb/hirag.gpickle",
         help="Specify the graph db path",
     )
+    parser.add_argument(
+        "--enable-web-search",
+        action="store_true",
+        help="Enable enhanced web search with PDF processing and version retrieval",
+    )
+    parser.add_argument(
+        "--enable-hirag",
+        action="store_true", 
+        help="Enable local knowledge base integration",
+    )
+    
     return parser.parse_args()
 
 
@@ -293,10 +305,26 @@ async def main_cmd(args: argparse.Namespace):
                 )
                 memory.set_session_maker(session_maker)
 
-                workflow = MultiRoundAgent(
+                enable_web_search = getattr(args, 'enable_web_search', False)
+                enable_hirag = getattr(args, 'enable_hirag', False)
+                
+                mcp_tools = {}
+                try:
+                    resource_manager = get_resource_manager()
+                    shared_mcp_tools = resource_manager.get_shared_mcp_tools()
+                    if shared_mcp_tools:
+                        mcp_tools = shared_mcp_tools
+                        logging.info(f"Retrieved MCP tools for multi-rounds: web_search={len(mcp_tools.get('web_search', []))}, hirag={len(mcp_tools.get('hirag_retrieval', []))}")
+                except Exception as e:
+                    logging.warning(f"Could not retrieve MCP tools: {e}")
+                
+                workflow = await MultiRoundAgent.create(
                     model_client=model_client,
                     memory=memory,
                     language=args.language,
+                    mcp_tools=mcp_tools if mcp_tools else None,
+                    web_search=enable_web_search,
+                    hirag=enable_hirag,
                 )
 
                 chat_history = await Console(workflow.run_workflow(user_input))
