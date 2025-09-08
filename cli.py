@@ -141,10 +141,10 @@ def parse_args():
     )
     parser.add_argument(
         "--enable-hirag",
-        action="store_true", 
+        action="store_true",
         help="Enable local knowledge base integration",
     )
-    
+
     return parser.parse_args()
 
 
@@ -305,19 +305,21 @@ async def main_cmd(args: argparse.Namespace):
                 )
                 memory.set_session_maker(session_maker)
 
-                enable_web_search = getattr(args, 'enable_web_search', False)
-                enable_hirag = getattr(args, 'enable_hirag', False)
-                
+                enable_web_search = getattr(args, "enable_web_search", False)
+                enable_hirag = getattr(args, "enable_hirag", False)
+
                 mcp_tools = {}
                 try:
                     resource_manager = get_resource_manager()
                     shared_mcp_tools = resource_manager.get_shared_mcp_tools()
                     if shared_mcp_tools:
                         mcp_tools = shared_mcp_tools
-                        logging.info(f"Retrieved MCP tools for multi-rounds: web_search={len(mcp_tools.get('web_search', []))}, hirag={len(mcp_tools.get('hirag_retrieval', []))}")
+                        logging.info(
+                            f"Retrieved MCP tools for multi-rounds: web_search={len(mcp_tools.get('web_search', []))}, hirag={len(mcp_tools.get('hirag_retrieval', []))}"
+                        )
                 except Exception as e:
                     logging.warning(f"Could not retrieve MCP tools: {e}")
-                
+
                 workflow = await MultiRoundAgent.create(
                     model_client=model_client,
                     memory=memory,

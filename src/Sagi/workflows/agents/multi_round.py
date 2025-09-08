@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Union, Sequence, Any
+from typing import Any, Dict, List, Optional
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ChatCompletionClient
@@ -22,19 +22,20 @@ class MultiRoundAgent:
         self = cls()
         self.memory = memory
         self.language = language
-        
+
         all_tools = []
-        
+
         if web_search and mcp_tools and "web_search" in mcp_tools:
             all_tools.extend(mcp_tools["web_search"])
-            
+
         if hirag and mcp_tools and "hirag_retrieval" in mcp_tools:
             all_tools.extend(mcp_tools["hirag_retrieval"])
-        
+
         system_prompt = self._get_enhanced_system_prompt(web_search, hirag)
-        
+
         if web_search:
             from Sagi.tools.web_search_agent import WebSearchAgent
+
             self.agent = WebSearchAgent(
                 name="multi_round_agent",
                 model_client=model_client,
@@ -54,20 +55,22 @@ class MultiRoundAgent:
                 system_message=system_prompt,
                 tools=all_tools if all_tools else None,
             )
-        
+
         self.team = None
         return self
 
     def _get_enhanced_system_prompt(self, web_search: bool, hirag: bool) -> str:
         """Get enhanced system prompt based on enabled capabilities."""
         base_prompt = self._get_system_prompt()
-        
+
         enhancements = []
         if web_search:
-            enhancements.append("You have web search capabilities with PDF processing and version retrieval.")
+            enhancements.append(
+                "You have web search capabilities with PDF processing and version retrieval."
+            )
         if hirag:
             enhancements.append("You have access to knowledge retrieval tools.")
-            
+
         if enhancements:
             return f"{base_prompt}\n\nEnhanced capabilities: {' '.join(enhancements)}"
         return base_prompt
@@ -87,8 +90,8 @@ class MultiRoundAgent:
         experimental_attachments: Optional[List[Dict[str, str]]] = None,
     ):
         # TODO(klma): handle the case of experimental_attachments
-        
-        if hasattr(self, 'team') and self.team is not None:
+
+        if hasattr(self, "team") and self.team is not None:
             return self.team.run_stream(
                 task=user_input,
             )
@@ -98,5 +101,5 @@ class MultiRoundAgent:
             )
 
     async def cleanup(self):
-        if self.agent and hasattr(self.agent, 'cleanup'):
+        if self.agent and hasattr(self.agent, "cleanup"):
             await self.agent.cleanup()
