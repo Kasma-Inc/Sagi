@@ -65,6 +65,15 @@ def get_model_info(model_name: str) -> Dict[str, Any]:
             "type": "multimodal",
             "stream": True,
         },
+        # Grok models
+        "grok-4": {
+            "provider": "xai",
+            "max_tokens": 4096,
+            "context_window": 256000,
+            "input": ["text"],
+            "output": ["text"],
+            "stream": True,
+        },
         # Qwen models
         "qwen-turbo": {
             "provider": "qwen",
@@ -114,6 +123,7 @@ def get_model_name_by_api_provider(api_provider: str, model_name: str) -> str:
         "claude-opus-4": "anthropic/claude-opus-4",
         "claude-sonnet-4": "anthropic/claude-sonnet-4",
         "deepseek-r1": "deepseek/deepseek-r1",
+        "grok-4": "x-ai/grok-4-07-09",
         "qwen-turbo": "qwen-turbo",
         "qwen-plus": "qwen-plus",
         "qwen-max": "qwen-max",
@@ -125,6 +135,7 @@ def get_model_name_by_api_provider(api_provider: str, model_name: str) -> str:
         "claude-opus-4": "claude-opus-4-20250514",
         "claude-sonnet-4": "claude-sonnet-4-20250514",
         "deepseek-r1": "deepseek-r1",
+        "grok-4": "x-ai/grok-4-07-09",
         "qwen-turbo": "qwen-turbo",
         "qwen-plus": "qwen-plus",
         "qwen-max": "qwen-max",
