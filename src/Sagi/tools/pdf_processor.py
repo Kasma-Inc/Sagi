@@ -1,5 +1,3 @@
-"""PDF processing utilities for web search results."""
-
 import asyncio
 import logging
 import re
@@ -7,319 +5,181 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import aiohttp
+import fitz
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
+MAX_PDF_SIZE = 100 * 1024 * 1024
+MAX_PAGES = 200
+DEFAULT_TIMEOUT = 30
+
 
 def is_pdf_url(url: str) -> bool:
-    """Check if a URL points to a PDF file.
-
-    Args:
-        url: The URL to check
-
-    Returns:
-        True if the URL appears to be a PDF file
-    """
     if not url:
         return False
 
-    # Parse URL to get path and query parameters
-    parsed = urlparse(url.lower())
+    url_lower = url.lower()
+    parsed = urlparse(url_lower)
 
-    # Check file extension
     if parsed.path.endswith(".pdf"):
         return True
-
-    pdf_patterns = ["pdf", "doc_type=pdf", "doc_type=q", "format=pdf", "filetype=pdf"]
-
-    query_lower = parsed.query.lower()
-    for pattern in pdf_patterns:
-        if pattern in query_lower:
-            return True
-
-    pdf_hosts_patterns = [
-        "arxiv.org",
-        "researchgate.net",
-        "academia.edu",
-        "semanticscholar.org",
-    ]
-
-    hostname_lower = parsed.hostname.lower() if parsed.hostname else ""
-    for pattern in pdf_hosts_patterns:
-        if pattern in hostname_lower and (
-            "pdf" in url.lower() or "paper" in url.lower()
-        ):
+    
+    pdf_indicators = ["doc_type=pdf", "format=pdf", "filetype=pdf", ".pdf", "download.pdf"]
+    if any(indicator in parsed.query.lower() for indicator in pdf_indicators):
+        return True
+    
+    pdf_hosts = ["arxiv.org", "ieee.org", "acm.org", "researchgate.net"]
+    hostname = parsed.hostname.lower() if parsed.hostname else ""
+    if any(host in hostname for host in pdf_hosts):
+        if any(term in url_lower for term in ["pdf", "paper", "download"]):
             return True
 
     return False
 
 
-async def extract_pdf_content(url: str, max_pages: int = 200) -> Optional[str]:
-    """Extract text content from a PDF URL.
-
-    Args:
-        url: URL of the PDF file
-        max_pages: Maximum number of pages to extract (to prevent huge downloads)
-
-    Returns:
-        Extracted text content or None if extraction fails
-    """
+async def extract_pdf_content(url: str) -> Optional[str]:
     try:
-        import io
-
-        import fitz
-
-        timeout = aiohttp.ClientTimeout(total=30)
-
+        timeout = aiohttp.ClientTimeout(total=DEFAULT_TIMEOUT)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            try:
-                async with session.head(url) as response:
-                    content_type = response.headers.get("Content-Type", "").lower()
-                    content_length = response.headers.get("Content-Length")
-
-                    if (
-                        content_type
-                        and "application/pdf" not in content_type
-                        and "pdf" not in content_type
-                    ):
-                        logger.warning(
-                            f"URL {url} may not be a PDF (Content-Type: {content_type}), but trying anyway"
-                        )
-
-                    if content_length and int(content_length) > 100 * 1024 * 1024:
-                        logger.warning(
-                            f"PDF at {url} is too large ({content_length} bytes), skipping"
-                        )
-                        return None
-            except Exception as e:
-                logger.warning(
-                    f"HEAD request failed for {url}: {e}, proceeding with GET"
-                )
-
             async with session.get(url) as response:
                 if response.status != 200:
-                    logger.error(
-                        f"Failed to download PDF from {url}: HTTP {response.status}"
-                    )
-                    return None
+                    return f"❌ Failed to download PDF: HTTP {response.status}"
+                
+                pdf_data = await response.read()
+                if len(pdf_data) > MAX_PDF_SIZE:
+                    return f"❌ PDF too large: {len(pdf_data)} bytes > {MAX_PDF_SIZE}"
 
-                pdf_content = await response.read()
+        doc = fitz.open(stream=pdf_data, filetype="pdf")
+        text_parts = []
+        
+        pages_to_process = min(len(doc), MAX_PAGES)
+        for page_num in range(pages_to_process):
+            page = doc[page_num]
+            text = page.get_text()
+            if text.strip():
+                text_parts.append(f"--- Page {page_num + 1} ---\n{text}")
+        
+        if not text_parts:
+            return f"⚠️ PDF processed but no text extracted (may be image-based)"
 
-                if len(pdf_content) > 100 * 1024 * 1024:
-                    logger.warning(
-                        f"Downloaded PDF is too large ({len(pdf_content)} bytes), skipping extraction"
-                    )
-                    return None
-
-        try:
-            pdf_document = fitz.open(stream=pdf_content, filetype="pdf")
-
-            extracted_text = []
-            pages_processed = 0
-
-            for page_num in range(len(pdf_document)):
-                if pages_processed >= max_pages:
-                    logger.warning(
-                        f"PDF {url} has {len(pdf_document)} pages but only processed {max_pages} pages due to limit"
-                    )
-                    break
-
-                page = pdf_document.load_page(page_num)
-                page_text = page.get_text()
-
-                if page_text.strip():
-                    extracted_text.append(f"--- Page {page_num + 1} ---\n{page_text}")
-                    pages_processed += 1
-
-            pdf_document.close()
-
-            if not extracted_text:
-                return f"""
-[PDF DOCUMENT PROCESSED]
+        full_text = "\n\n".join(text_parts)
+        
+        total_pages = len(doc)
+        doc.close()
+        
+        result = f"""
+📄 PDF EXTRACTED
 URL: {url}
-Size: {len(pdf_content)} bytes
-Status: PDF appears to be image-based or encrypted - no text could be extracted
-Pages: {len(pdf_document)}
+Pages: {pages_to_process}/{total_pages}
+Content length: {len(full_text)} chars
 
-Note: This may be a scanned document that requires OCR processing.
-"""
-
-            full_text = "\n\n".join(extracted_text)
-
-            truncation_warning = ""
-            if pages_processed >= max_pages and len(pdf_document) > max_pages:
-                truncation_warning = f"\n⚠️  WARNING: Document truncated! Only processed {max_pages} pages out of {len(pdf_document)} total pages.\n"
-
-            result = f"""
-[PDF DOCUMENT EXTRACTED]
-URL: {url}
-Size: {len(pdf_content)} bytes
-Pages extracted: {pages_processed}/{len(pdf_document)}
-Text length: {len(full_text)} characters{truncation_warning}
-
---- EXTRACTED CONTENT ---
 {full_text}
---- END OF EXTRACTED CONTENT ---
 """
+        logger.info(f"Extracted PDF: {url} ({pages_to_process} pages)")
+        return result
 
-            logger.info(
-                f"Successfully extracted text from PDF {url} ({pages_processed} pages, {len(full_text)} chars)"
-            )
-            return result
-
-        except Exception as pdf_error:
-            logger.warning(f"PyMuPDF extraction failed: {pdf_error}, trying pypdf")
-
-            try:
-                from pypdf import PdfReader
-
-                pdf_reader = PdfReader(io.BytesIO(pdf_content))
-                extracted_text = []
-                pages_processed = 0
-
-                for page_num, page in enumerate(pdf_reader.pages):
-                    if pages_processed >= max_pages:
-                        logger.warning(
-                            f"PDF {url} has {len(pdf_reader.pages)} pages but only processed {max_pages} pages due to limit (pypdf fallback)"
-                        )
-                        break
-
-                    page_text = page.extract_text()
-                    if page_text.strip():
-                        extracted_text.append(
-                            f"--- Page {page_num + 1} ---\n{page_text}"
-                        )
-                        pages_processed += 1
-
-                if not extracted_text:
-                    return f"""
-[PDF DOCUMENT PROCESSED]
-URL: {url}
-Size: {len(pdf_content)} bytes
-Status: Could not extract text - PDF may be image-based or encrypted
-Pages: {len(pdf_reader.pages)}
-"""
-
-                full_text = "\n\n".join(extracted_text)
-
-                # Check if document was truncated (pypdf version)
-                truncation_warning = ""
-                if pages_processed >= max_pages and len(pdf_reader.pages) > max_pages:
-                    truncation_warning = f"\n⚠️  WARNING: Document truncated! Only processed {max_pages} pages out of {len(pdf_reader.pages)} total pages.\n"
-
-                result = f"""
-[PDF DOCUMENT EXTRACTED]
-URL: {url}
-Size: {len(pdf_content)} bytes
-Pages extracted: {pages_processed}/{len(pdf_reader.pages)}
-Text length: {len(full_text)} characters
-Method: pypdf (fallback){truncation_warning}
-
---- EXTRACTED CONTENT ---
-{full_text}
---- END OF EXTRACTED CONTENT ---
-"""
-
-                logger.info(
-                    f"Successfully extracted text from PDF {url} using pypdf fallback ({pages_processed} pages)"
-                )
-                return result
-
-            except Exception as fallback_error:
-                logger.error(
-                    f"Both PyMuPDF and pypdf extraction failed: {fallback_error}"
-                )
-                return f"""
-[PDF DOCUMENT PROCESSED]
-URL: {url}
-Size: {len(pdf_content)} bytes
-Status: Text extraction failed - PDF may be corrupted, encrypted, or image-only
-Error: {fallback_error}
-
-Note: PDF was successfully downloaded but text could not be extracted.
-"""
-
-    except asyncio.TimeoutError:
-        logger.error(f"Timeout while processing PDF from {url}")
-        return None
     except Exception as e:
-        logger.error(f"Error extracting content from PDF {url}: {e}")
+        logger.error(f"PDF extraction failed for {url}: {e}")
+        return f"❌ PDF extraction failed: {str(e)}"
+
+
+async def extract_web_content(url: str, max_length: int = 30000) -> Optional[str]:
+    try:
+        timeout = aiohttp.ClientTimeout(total=DEFAULT_TIMEOUT)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url) as response:
+                if response.status != 200:
+                    return None
+                html = await response.text()
+
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        for tag in soup(['script', 'style', 'nav', 'header', 'footer']):
+            tag.decompose()
+
+        content = None
+        for selector in ['main', 'article', '.content', '.main-content']:
+            element = soup.select_one(selector)
+            if element:
+                content = element.get_text(separator='\n', strip=True)
+                break
+        
+        if not content:
+            content = soup.get_text(separator='\n', strip=True)
+
+        content = re.sub(r'\n\s*\n\s*\n', '\n\n', content)
+        if len(content) > max_length:
+            content = content[:max_length] + "\n[Content truncated...]"
+
+        return f"""
+🌐 WEB CONTENT
+URL: {url}
+Length: {len(content)} chars
+
+{content}
+""" if len(content.strip()) > 50 else None
+
+    except Exception as e:
+        logger.error(f"Web extraction failed for {url}: {e}")
         return None
 
 
 def enhance_search_results_with_pdf_info(search_results: str) -> str:
-    """Enhance search results by detecting and marking PDF URLs.
-
-    Args:
-        search_results: Original search results text
-
-    Returns:
-        Enhanced search results with PDF URLs marked
-    """
     if not search_results:
         return search_results
 
     url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
     urls = re.findall(url_pattern, search_results)
-
-    enhanced_results = search_results
-    pdf_urls_found = []
-
+    
+    enhanced = search_results
+    pdf_count = 0
+    
     for url in urls:
         if is_pdf_url(url):
-            pdf_urls_found.append(url)
-            enhanced_results = enhanced_results.replace(url, f"{url} [PDF DOCUMENT]")
+            enhanced = enhanced.replace(url, f"{url} [PDF📄]")
+            pdf_count += 1
 
-    if pdf_urls_found:
-        pdf_summary = "\n\n=== PDF DOCUMENTS DETECTED ===\n"
-        pdf_summary += (
-            f"Found {len(pdf_urls_found)} PDF document(s) in search results:\n"
-        )
-        for i, pdf_url in enumerate(pdf_urls_found, 1):
-            pdf_summary += f"{i}. {pdf_url}\n"
-        pdf_summary += "\nNote: These are PDF documents that may contain detailed technical information.\n"
-        pdf_summary += (
-            "Consider extracting their content for more comprehensive analysis.\n"
-        )
+    if pdf_count > 0:
+        enhanced += f"\n\n🔍 Detected {pdf_count} PDF documents for deep content extraction"
+    
+    return enhanced
 
-        enhanced_results = enhanced_results + pdf_summary
+
+async def process_search_results_with_documents(search_results: str, max_docs: int = 2) -> str:
+    if not search_results:
+        return search_results
+
+    url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+    urls = re.findall(url_pattern, search_results)
+    
+    pdf_urls = [url for url in urls if is_pdf_url(url)]
+    web_urls = [url for url in urls[:5] if not is_pdf_url(url)]
+    
+    enhanced_results = enhance_search_results_with_pdf_info(search_results)
+    extracted_content = []
+
+    for pdf_url in pdf_urls[:max_docs]:
+        content = await extract_pdf_content(pdf_url)
+        if content:
+            extracted_content.append(content)
+
+    remaining_slots = max_docs - len(extracted_content)
+    for web_url in web_urls[:remaining_slots]:
+        content = await extract_web_content(web_url)
+        if content:
+            extracted_content.append(content)
+
+    if extracted_content:
+        enhanced_results += "\n\n" + "="*50 + " DOCUMENT CONTENT EXTRACTION " + "="*50
+        enhanced_results += "\n".join(extracted_content)
 
     return enhanced_results
+
+
+async def enhance_search_results_with_pdf_info_async(search_results: str) -> str:
+    return await process_search_results_with_documents(search_results)
 
 
 async def process_pdf_urls_in_search_results(search_results: str) -> str:
-    """Process search results and extract content from any PDF URLs found.
-
-    Args:
-        search_results: Original search results text
-
-    Returns:
-        Enhanced search results with PDF content included
-    """
-    if not search_results:
-        return search_results
-
-    # Find URLs in the search results
-    url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
-    urls = re.findall(url_pattern, search_results)
-
-    pdf_contents = []
-    for url in urls:
-        if is_pdf_url(url):
-            logger.info(f"Processing PDF URL: {url}")
-            content = await extract_pdf_content(url)
-            if content:
-                pdf_contents.append({"url": url, "content": content})
-
-    enhanced_results = search_results
-
-    if pdf_contents:
-        pdf_section = "\n\n=== EXTRACTED PDF CONTENT ===\n"
-        for i, pdf_info in enumerate(pdf_contents, 1):
-            pdf_section += f"\n--- PDF {i}: {pdf_info['url']} ---\n"
-            pdf_section += pdf_info["content"]
-            pdf_section += "\n" + "=" * 50 + "\n"
-
-        enhanced_results = enhanced_results + pdf_section
-
-    return enhanced_results
+    return await process_search_results_with_documents(search_results, max_docs=3)

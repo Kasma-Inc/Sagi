@@ -27,6 +27,8 @@ class MultiRoundAgent:
 
         if web_search and mcp_tools and "web_search" in mcp_tools:
             all_tools.extend(mcp_tools["web_search"])
+            import logging
+            logging.info(f"🔧 Added {len(mcp_tools['web_search'])} web search tools to MultiRoundAgent")
 
         if hirag and mcp_tools and "hirag_retrieval" in mcp_tools:
             all_tools.extend(mcp_tools["hirag_retrieval"])
@@ -35,6 +37,11 @@ class MultiRoundAgent:
 
         if web_search:
             from Sagi.tools.web_search_agent import WebSearchAgent
+
+            import logging
+            logging.info(f"🚀 Creating WebSearchAgent with {len(all_tools)} tools")
+            for i, tool in enumerate(all_tools):
+                logging.info(f"  Tool {i}: {getattr(tool, 'name', 'Unknown')} - {type(tool)}")
 
             self.agent = WebSearchAgent(
                 name="multi_round_agent",
@@ -61,19 +68,18 @@ class MultiRoundAgent:
 
     def _get_enhanced_system_prompt(self, web_search: bool, hirag: bool) -> str:
         """Get enhanced system prompt based on enabled capabilities."""
-        base_prompt = self._get_system_prompt()
-
-        enhancements = []
         if web_search:
-            enhancements.append(
-                "You have web search capabilities with PDF processing and version retrieval."
-            )
-        if hirag:
-            enhancements.append("You have access to knowledge retrieval tools.")
-
-        if enhancements:
-            return f"{base_prompt}\n\nEnhanced capabilities: {' '.join(enhancements)}"
-        return base_prompt
+            from Sagi.utils.prompt import get_web_search_agent_prompt
+            base_prompt = get_web_search_agent_prompt(self.language)
+            
+            if hirag:
+                base_prompt += "\n\nAdditional capability: You have access to knowledge retrieval tools."
+            return base_prompt
+        else:
+            base_prompt = self._get_system_prompt()
+            if hirag:
+                base_prompt += "\n\nEnhanced capability: You have access to knowledge retrieval tools."
+            return base_prompt
 
     def _get_system_prompt(self) -> str:
         """Get system prompt based on language."""

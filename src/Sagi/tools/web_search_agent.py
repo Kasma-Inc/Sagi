@@ -383,46 +383,11 @@ class WebSearchAgent(AssistantAgent):
         ]:
             try:
                 enhanced_content = base_result.content
-                original_query = arguments.get("query", "") if arguments else ""
-
-                logger.info(
-                    f"Applying enhancements to search results for tool: {tool_call.name}"
-                )
-
                 if enable_pdf_processing:
                     enhanced_content = enhance_search_results_with_pdf_info(
                         enhanced_content
                     )
-                    logger.info("Applied PDF processing enhancement")
-
-                if enable_version_retrieval and original_query:
-                    try:
-                        enhanced_content = (
-                            await WebSearchAgent._enhance_with_version_retrieval(
-                                query=original_query,
-                                search_results=enhanced_content,
-                                workbench=workbench,
-                            )
-                        )
-                        logger.info("Applied version retrieval enhancement")
-
-                    except Exception as e:
-                        logger.warning(f"Version retrieval enhancement failed: {e}")
-
-                if enable_knowledge_integration and hirag_tools and original_query:
-                    try:
-                        enhanced_content = (
-                            await WebSearchAgent._enhance_with_knowledge_integration(
-                                original_query=original_query,
-                                web_search_results=enhanced_content,
-                                hirag_tools=hirag_tools,
-                                workbench=workbench,
-                            )
-                        )
-                        logger.info("Applied knowledge integration enhancement")
-
-                    except Exception as e:
-                        logger.warning(f"Knowledge integration enhancement failed: {e}")
+                    logger.info("Applied basic PDF marking")
 
                 return (
                     tool_call,
@@ -440,121 +405,6 @@ class WebSearchAgent(AssistantAgent):
 
         return (tool_call, base_result)
 
-    @staticmethod
-    async def _enhance_with_knowledge_integration(
-        original_query: str,
-        web_search_results: str,
-        hirag_tools: List[BaseTool],
-        workbench: Workbench,
-    ) -> str:
-        if not hirag_tools:
-            return web_search_results
-
-        tool = hirag_tools[0]
-        try:
-            result = await workbench.call_tool(
-                name=tool.name, arguments={"query": original_query}
-            )
-
-            if not result.is_error and result.content:
-                deprecated_indicators = [
-                    "deprecated",
-                    "obsolete",
-                    "outdated",
-                    "legacy",
-                    "old version",
-                    "no longer supported",
-                    "end of life",
-                ]
-
-                warnings = []
-                content_lower = result.content.lower()
-                for indicator in deprecated_indicators:
-                    if indicator in content_lower:
-                        warnings.append(
-                            f"⚠️ Detected potential deprecated version info: contains '{indicator}'"
-                        )
-
-                enhanced_results = [web_search_results]
-                enhanced_results.append(
-                    "\n\n--- Local Knowledge Base Supplementary Information ---"
-                )
-                enhanced_results.append(f"**Local KB Query: {original_query}**:")
-                enhanced_results.append(
-                    result.content[:300] + ("..." if len(result.content) > 300 else "")
-                )
-
-                if warnings:
-                    enhanced_results.append("\n--- Version Alerts ---")
-                    enhanced_results.extend(warnings)
-                    enhanced_results.append(
-                        "💡 Recommend verifying document version validity"
-                    )
-
-                return "\n".join(enhanced_results)
-
-        except Exception as e:
-            logger.warning(f"Local knowledge base search failed: {e}")
-
-        return web_search_results
-
-    @staticmethod
-    async def _enhance_with_version_retrieval(
-        query: str, search_results: str, workbench: Workbench
-    ) -> str:
-        try:
-            import re
-            from datetime import datetime
-
-            version_patterns = [
-                r"v?(\d+\.\d+(?:\.\d+)?)",  # v1.0, 1.0.1, 2.3.4
-                r"v?(\d+\.\d+(?:\.\d+)?)[-\.]?(alpha|beta|rc|dev|pre|stable|lts)\d*",  # 1.0-beta, 2.0rc1, 3.18-stable
-                r"version\s+(\d+\.\d+(?:\.\d+)?(?:[-\.][\w]+\d*)?)",  # version 1.0-beta
-                r"(\d{4})",  # 2024, 2023
-            ]
-
-            found_versions = []
-            for pattern in version_patterns:
-                matches = re.findall(pattern, search_results.lower())
-                found_versions.extend(matches)
-
-            if found_versions:
-                unique_versions = list(set(found_versions))
-
-                version_analysis = "\n\n=== VERSION ANALYSIS ===\n"
-                version_analysis += f"Found {len(unique_versions)} versions:\n"
-
-                for i, version in enumerate(unique_versions, 1):
-                    is_recent = False
-                    try:
-                        if re.match(r"^\d{4}$", version):
-                            year = int(version)
-                            current_year = datetime.now().year
-                            is_recent = year >= current_year - 1
-                        elif "." in version:
-                            parts = [int(x) for x in version.split(".")]
-                            is_recent = parts[0] >= 3 or (
-                                parts[0] == 2 and len(parts) > 1 and parts[1] >= 20
-                            )
-                    except:
-                        pass
-
-                    status = " 🆕 LATEST" if is_recent else ""
-                    version_analysis += f"  {i}. v{version}{status}\n"
-
-                version_analysis += "\n💡 Recommend using the latest version for best support and features\n"
-                version_analysis += "📊 Version info based on search result analysis, please verify official docs"
-
-                return search_results + version_analysis
-            else:
-                return (
-                    search_results
-                    + "\n\n=== VERSION ANALYSIS ===\nNo clear version information detected"
-                )
-
-        except Exception as e:
-            logger.error(f"Version retrieval enhancement error: {e}")
-            return search_results
 
 
 def create_enhanced_web_search_agent(

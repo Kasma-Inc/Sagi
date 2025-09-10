@@ -523,9 +523,10 @@ class ResourceManager:
 
             # Store session and tools
             self._mcp_sessions["web_search"] = web_search_session
-            self._mcp_tools_cache["web_search"] = await mcp_server_tools(
+            original_tools = await mcp_server_tools(
                 web_search_server_params, session=web_search_session
             )
+            self._mcp_tools_cache["web_search"] = self._wrap_mcp_tools_for_autogen(original_tools)
 
             # Create cached MCP service if cache layer is available
             if self._mcp_cache_layer:
@@ -1056,6 +1057,76 @@ class ResourceManager:
     def list_workflow_pools(self) -> List[str]:
         """Get list of available workflow pool names."""
         return list(self._workflow_pools.keys())
+
+    def _wrap_mcp_tools_for_autogen(self, original_tools: List[Any]) -> List[Any]:
+        """
+        Wrap MCP tools to handle List[TextContent] results for AutoGen compatibility.
+        
+        AutoGen expects tool results to be strings, dicts, or Images, but MCP tools
+        return List[TextContent]. This wrapper converts the results appropriately.
+        """
+        from autogen_core.tools import FunctionTool
+        import inspect
+        
+        wrapped_tools = []
+        
+        for tool in original_tools:
+            if isinstance(tool, FunctionTool):
+                original_func = tool.func
+                def create_wrapper(original_function):
+                    if inspect.iscoroutinefunction(original_function):
+                        async def async_wrapper(*args, **kwargs):
+                            result = await original_function(*args, **kwargs)
+                            return self._convert_mcp_result(result)
+                        return async_wrapper
+                    else:
+                        def sync_wrapper(*args, **kwargs):
+                            result = original_function(*args, **kwargs)
+                            return self._convert_mcp_result(result)
+                        return sync_wrapper
+                wrapped_func = create_wrapper(original_func)
+                wrapped_tool = FunctionTool(
+                    wrapped_func,
+                    description=tool.description,
+                    name=tool.name,
+                    parameters_json_schema=tool.parameters_json_schema
+                )
+                wrapped_tools.append(wrapped_tool)
+            else:
+                wrapped_tools.append(tool)
+        
+        return wrapped_tools
+
+    def _convert_mcp_result(self, result):
+        """Convert MCP tool result to AutoGen-compatible format.
+        
+        MCP tools return list[TextContent] where TextContent has type and text attributes.
+        AutoGen expects string, dict, or Image instances.
+        """
+        # If result is a list of TextContent objects, extract and join the text
+        if isinstance(result, list):
+            text_parts = []
+            for item in result:
+                if hasattr(item, 'text') and hasattr(item, 'type'):
+                    if item.type == 'text':
+                        text_parts.append(str(item.text))
+                    else:
+                        text_parts.append(f"[{item.type}]: {str(item.text)}")
+                elif hasattr(item, 'text'):
+                    text_parts.append(str(item.text))
+                elif isinstance(item, str):
+                    text_parts.append(item)
+                elif hasattr(item, '__str__'):
+                    text_parts.append(str(item))
+                else:
+                    text_parts.append(repr(item))
+            
+            if text_parts:
+                return '\n'.join(text_parts)
+            else:
+                return ""
+        
+        return result
 
     def get_shared_mcp_tools(self) -> Optional[Dict[str, List[Any]]]:
         """
