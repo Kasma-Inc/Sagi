@@ -1,7 +1,8 @@
-from typing import Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ChatCompletionClient
+from autogen_core.tools import BaseTool
 
 from Sagi.utils.prompt import get_multi_round_agent_system_prompt
 from Sagi.workflows.sagi_memory import SagiMemory
@@ -19,18 +20,23 @@ class MultiRoundAgent:
         language: str,
         model_client_stream: bool = True,
         markdown_output: bool = False,
+        tools: Optional[List[BaseTool[Any, Any] | Callable[..., Any] | Callable[..., Awaitable[Any]]]] = None,
     ):
-
         self.memory = memory
         self.language = language
 
-        system_prompt = self._get_system_prompt(markdown_output)
+        # Update system prompt based on markdown_output and web search tools
+        if self._has_web_search_tools(tools):
+            system_prompt = self._get_web_search_system_prompt(markdown_output)
+        else:
+            system_prompt = self._get_system_prompt(markdown_output)
         self.agent = AssistantAgent(
             name="multi_round_agent",
             model_client=model_client,
             model_client_stream=model_client_stream,
             memory=[memory],
             system_message=system_prompt,
+            tools=tools,
         )
 
     def _get_system_prompt(self, markdown_output=False):
@@ -43,6 +49,27 @@ class MultiRoundAgent:
             markdown_prompt = get_multi_round_agent_system_prompt()
             return markdown_prompt.get(self.language, markdown_prompt["en"])
         return lang_prompt.get(self.language, lang_prompt["en"])
+
+    def _get_web_search_system_prompt(self, markdown_output=False):
+        """Get system prompt with web search capabilities"""
+        base_prompt = self._get_system_prompt(markdown_output)
+        web_search_addition = {
+            "en": " You have access to web search tools to find current information when needed.",
+            "cn-s": " 你可以使用网络搜索工具来查找所需的最新信息。",
+            "cn-t": " 你可以使用網路搜尋工具來查找所需的最新資訊。",
+        }
+        addition = web_search_addition.get(self.language, web_search_addition["en"])
+        return base_prompt + addition
+
+    def _has_web_search_tools(self, tools):
+        if not tools:
+            return False
+        
+        for tool in tools:
+            tool_name = getattr(tool, 'name', '') or getattr(tool, '__name__', '')
+            if 'search' in tool_name.lower() or 'brave' in tool_name.lower():
+                return True
+        return False
 
     def run_workflow(
         self,
