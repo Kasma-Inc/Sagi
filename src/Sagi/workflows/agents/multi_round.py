@@ -5,6 +5,10 @@ from autogen_core.models import ChatCompletionClient
 from autogen_core.tools import BaseTool
 
 from Sagi.utils.prompt import get_multi_round_agent_system_prompt
+from Sagi.utils.prompt import (
+    get_multi_round_agent_base_prompt,
+    get_multi_round_agent_web_search_prompt,
+)
 from Sagi.workflows.sagi_memory import SagiMemory
 
 
@@ -20,16 +24,25 @@ class MultiRoundAgent:
         language: str,
         model_client_stream: bool = True,
         markdown_output: bool = False,
-        tools: Optional[List[BaseTool[Any, Any] | Callable[..., Any] | Callable[..., Awaitable[Any]]]] = None,
+        tools: Optional[
+            List[
+                BaseTool[Any, Any] | Callable[..., Any] | Callable[..., Awaitable[Any]]
+            ]
+        ] = None,
     ):
         self.memory = memory
         self.language = language
 
-        # Update system prompt based on markdown_output and web search tools
-        if self._has_web_search_tools(tools):
-            system_prompt = self._get_web_search_system_prompt(markdown_output)
+        if markdown_output:
+            if self._has_web_search_tools(tools):
+                system_prompt = self._get_markdown_web_search_system_prompt()
+            else:
+                system_prompt = self._get_markdown_system_prompt()
         else:
-            system_prompt = self._get_system_prompt(markdown_output)
+            if self._has_web_search_tools(tools):
+                system_prompt = self._get_web_search_system_prompt(tools)
+            else:
+                system_prompt = self._get_system_prompt()
         self.agent = AssistantAgent(
             name="multi_round_agent",
             model_client=model_client,
@@ -39,20 +52,23 @@ class MultiRoundAgent:
             tools=tools,
         )
 
-    def _get_system_prompt(self, markdown_output=False):
-        lang_prompt = {
-            "en": "You are a helpful assistant that can answer questions and help with tasks. Please use English to answer.",
-            "cn-s": "你是一个乐于助人的助手, 可以回答问题并帮助完成任务。请用简体中文回答",
-            "cn-t": "你是一個樂於助人的助手, 可以回答問題並幫助完成任務。請用繁體中文回答",
-        }
-        if markdown_output:
-            markdown_prompt = get_multi_round_agent_system_prompt()
-            return markdown_prompt.get(self.language, markdown_prompt["en"])
-        return lang_prompt.get(self.language, lang_prompt["en"])
+    def _get_system_prompt(self):
+        return get_multi_round_agent_base_prompt(self.language)
 
-    def _get_web_search_system_prompt(self, markdown_output=False):
-        """Get system prompt with web search capabilities"""
-        base_prompt = self._get_system_prompt(markdown_output)
+    def _get_markdown_system_prompt(self):
+        markdown_prompt = get_multi_round_agent_system_prompt()
+        return markdown_prompt.get(self.language, markdown_prompt["en"])
+
+    def _get_web_search_system_prompt(self, tools):
+        base_prompt = self._get_system_prompt()
+        has_pdf_tools = self._has_pdf_tools(tools)
+        web_search_addition = get_multi_round_agent_web_search_prompt(
+            self.language, has_pdf_tools
+        )
+        return base_prompt + web_search_addition
+
+    def _get_markdown_web_search_system_prompt(self):
+        base_prompt = self._get_markdown_system_prompt()
         web_search_addition = {
             "en": " You have access to web search tools to find current information when needed.",
             "cn-s": " 你可以使用网络搜索工具来查找所需的最新信息。",
@@ -64,10 +80,20 @@ class MultiRoundAgent:
     def _has_web_search_tools(self, tools):
         if not tools:
             return False
-        
+
         for tool in tools:
-            tool_name = getattr(tool, 'name', '') or getattr(tool, '__name__', '')
-            if 'search' in tool_name.lower() or 'brave' in tool_name.lower():
+            tool_name = getattr(tool, "name", "") or getattr(tool, "__name__", "")
+            if "search" in tool_name.lower() or "brave" in tool_name.lower():
+                return True
+        return False
+
+    def _has_pdf_tools(self, tools):
+        if not tools:
+            return False
+
+        for tool in tools:
+            tool_name = getattr(tool, "name", "") or getattr(tool, "__name__", "")
+            if "pdf" in tool_name.lower() or "extractor" in tool_name.lower():
                 return True
         return False
 

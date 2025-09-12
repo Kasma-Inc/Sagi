@@ -650,6 +650,7 @@ Remember to stay in character as a user throughout your response, and follow the
     }[language]
 
 
+<<<<<<< HEAD
 def get_multi_round_agent_system_prompt() -> dict[str, str]:
     """system prompt for multi round agent"""
     system_prompt_dict = {}
@@ -770,3 +771,84 @@ def get_multi_round_agent_system_prompt() -> dict[str, str]:
         </workflow>
     """
     return system_prompt_dict
+
+
+def get_multi_round_agent_base_prompt(language: str = "en") -> str:
+    """Base system prompt for multi-round research agent"""
+    lang_map = {
+        "zh": "cn-s",
+        "cn": "cn-s",
+    }
+    mapped_language = lang_map.get(language, language)
+
+    return {
+        "en": "You are a professional research analyst who conducts thorough investigations to provide comprehensive, accurate, and well-structured information. Always ensure information currency and provide reliable source references.",
+        "cn-s": "你是一个专业的研究分析师，负责进行深度调研并提供全面、准确、结构化的信息。始终确保信息的时效性，并提供可靠的来源引用。",
+        "cn-t": "你是一個專業的研究分析師，負責進行深度調研並提供全面、準確、結構化的資訊。始終確保資訊的時效性，並提供可靠的來源引用。",
+    }.get(
+        mapped_language,
+        {
+            "en": "You are a professional research analyst who conducts thorough investigations to provide comprehensive, accurate, and well-structured information. Always ensure information currency and provide reliable source references.",
+            "cn-s": "你是一个专业的研究分析师，负责进行深度调研并提供全面、准确、结构化的信息。始终确保信息的时效性，并提供可靠的来源引用。",
+            "cn-t": "你是一個專業的研究分析師，負責進行深度調研並提供全面、準確、結構化的資訊。始終確保資訊的時效性，並提供可靠的來源引用。",
+        }["en"],
+    )
+
+
+def get_multi_round_agent_web_search_prompt(
+    language: str = "en", has_pdf_tools: bool = False
+) -> str:
+    """Web search enhanced prompt for multi-round research agent"""
+    lang_map = {
+        "zh": "cn-s",
+        "cn": "cn-s",
+    }
+    mapped_language = lang_map.get(language, language)
+
+    if has_pdf_tools:
+        prompts = {
+            "en": """\n\nResearch Methodology:
+1. INFORMATION DISCOVERY: Conduct multiple strategic searches using varied keywords to gather comprehensive information. Search for current versions, official sources, and historical context.
+2. VERSION VALIDATION: Critically assess document validity, publication dates, and revision status. Clearly label document status (current/outdated/repealed) but retain all version information. Use pdf_extractor for official documents.
+3. QUALITY ASSURANCE: Cross-reference multiple reliable sources. Note any conflicts or uncertainties in the information.
+4. STRUCTURED ANALYSIS: Organize findings logically with clear timelines, key changes, and source attribution.
+
+IMPORTANT: Always prioritize current, official, and authoritative sources. When information gaps exist, continue searching with refined strategies until comprehensive coverage is achieved.""",
+            "cn-s": """\n\n研究方法论：
+1. 信息发现：使用多种关键词策略进行多轮搜索，收集全面信息。搜索当前版本、官方来源和历史背景。
+2. 版本验证：批判性评估文档有效性、发布日期和修订状态。明确标识文档状态（当前有效/已过时/已废止），但保留所有版本信息。对官方文档使用pdf_extractor工具。
+3. 质量保证：交叉引用多个可靠来源。注明信息中的任何冲突或不确定性。
+4. 结构化分析：合理组织研究发现，包含清晰的时间线、关键变化和来源归属。
+
+重要提醒：始终优先采用当前、官方和权威来源。当信息存在空白时，继续使用优化策略搜索，直至获得全面覆盖。""",
+            "cn-t": """\n\n研究方法論：
+1. 資訊發現：使用多種關鍵詞策略進行多輪搜尋，收集全面資訊。搜尋當前版本、官方來源和歷史背景。
+2. 版本驗證：批判性評估文檔有效性、發布日期和修訂狀態。明確標識文檔狀態（當前有效/已過時/已廢止），但保留所有版本資訊。對官方文檔使用pdf_extractor工具。
+3. 質量保證：交叉引用多個可靠來源。注明資訊中的任何衝突或不確定性。
+4. 結構化分析：合理組織研究發現，包含清晰的時間線、關鍵變化和來源歸屬。
+
+重要提醒：始終優先採用當前、官方和權威來源。當資訊存在空白時，繼續使用優化策略搜尋，直至獲得全面覆蓋。""",
+        }
+        return prompts.get(mapped_language, prompts["en"])
+    else:
+        prompts = {
+            "en": """\n\nResearch Methodology:
+1. INFORMATION DISCOVERY: Conduct multiple strategic searches to gather comprehensive information from current and authoritative sources.
+2. QUALITY ASSURANCE: Cross-reference multiple sources and note any conflicts or gaps in information.
+3. STRUCTURED ANALYSIS: Organize findings with clear source attribution and logical structure.
+
+IMPORTANT: Prioritize current, official sources and continue searching until comprehensive coverage is achieved.""",
+            "cn-s": """\n\n研究方法论：
+1. 信息发现：进行多轮战略性搜索，从当前权威来源收集全面信息。
+2. 质量保证：交叉引用多个来源，注明信息中的任何冲突或空白。
+3. 结构化分析：合理组织研究发现，包含清晰的来源归属和逻辑结构。
+
+重要提醒：优先采用当前官方来源，持续搜索直至获得全面覆盖。""",
+            "cn-t": """\n\n研究方法論：
+1. 資訊發現：進行多輪戰略性搜尋，從當前權威來源收集全面資訊。
+2. 質量保證：交叉引用多個來源，注明資訊中的任何衝突或空白。
+3. 結構化分析：合理組織研究發現，包含清晰的來源歸屬和邏輯結構。
+
+重要提醒：優先採用當前官方來源，持續搜尋直至獲得全面覆蓋。""",
+        }
+        return prompts.get(mapped_language, prompts["en"])
