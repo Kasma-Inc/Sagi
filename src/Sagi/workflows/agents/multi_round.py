@@ -50,6 +50,7 @@ class MultiRoundAgent:
             memory=[memory],
             system_message=system_prompt,
             tools=tools,
+            tool_call_summary_format="{result}",
         )
 
     def _get_system_prompt(self):
