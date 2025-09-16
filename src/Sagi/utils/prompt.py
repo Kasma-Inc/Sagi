@@ -557,8 +557,10 @@ Inputs:
 - Goal-Oriented: Keep the chat focused on your intent. Avoid small talk or digressions. Redirect the chat back to the main objective if it starts to stray.
 
 ## Output Format:
-You should output an array of questions:
-- "questions" (list of str): Based on your thought process, respond to the AI as the user you are role-playing. Please provide 3 possible responses and output them as a JSON list. Stop immediately when the 3 responses are completed.
+You should output a JSON object with the following structure:
+{{"questions": ["response1", "response2", "response3"]}}
+
+Based on your thought process, respond to the AI as the user you are role-playing. Please provide 3 possible responses and output them in the "questions" array. Stop immediately when the 3 responses are completed.
 
 ## Important Notes:
 - Respond Based on Previous Messages: Your responses should be based on the context of the current chat history. Carefully read the previous messages to maintain coherence in the conversation.
@@ -596,8 +598,10 @@ Remember to stay in character as a user throughout your response, and follow the
 - 目标导向：保持对话专注于你的意图。避免闲聊或离题。如果对话开始偏离主题，请将其拉回主要目标。
 
 ## 输出格式：
-你应该输出一个数组，包含多个问题：
-- "questions" (list of str): 基于你的思考过程，以用户身份对AI做出回应。请提供3种可能的回答，并以JSON列表的形式输出。在完成3种回答后立即停止。
+你应该输出一个JSON对象，格式如下：
+{{"questions": ["回答1", "回答2", "回答3"]}}
+
+基于你的思考过程，以用户身份对AI做出回应。请提供3种可能的回答，并将它们放在"questions"数组中。在完成3种回答后立即停止。
 
 ## 重要提示：
 - 基于前几轮消息：你的回答应该基于当前的聊天历史。仔细阅读前几轮消息以保持对话的连贯性。
@@ -809,6 +813,17 @@ def get_multi_round_agent_web_search_prompt(
         prompts = {
             "en": """\n\nResearch Methodology:
 1. INFORMATION DISCOVERY: Conduct multiple strategic searches using varied keywords to gather comprehensive information. Search for current versions, official sources, and historical context.
+   
+   SEARCH KEYWORD OPTIMIZATION:
+   - Use specific, precise terminology rather than generic terms
+   - Include official names, titles, and technical terminology
+   - Combine main topic with qualifiers: "current", "latest", "official", "version"
+   - Try different language combinations when relevant
+   - Use quotes for exact phrases and specific document titles
+   - Add temporal qualifiers: year ranges, "recent", "updated"
+   - Include alternative spellings and abbreviations
+   - Search for both broad concepts and specific details
+
 2. VERSION VALIDATION: Critically assess document validity, publication dates, and revision status. Clearly label document status (current/outdated/repealed) but retain all version information. Use pdf_extractor for official documents.
 3. QUALITY ASSURANCE: Cross-reference multiple reliable sources. Note any conflicts or uncertainties in the information.
 4. STRUCTURED ANALYSIS: Organize findings logically with clear timelines, key changes, and source attribution.
@@ -816,6 +831,17 @@ def get_multi_round_agent_web_search_prompt(
 IMPORTANT: Always prioritize current, official, and authoritative sources. When information gaps exist, continue searching with refined strategies until comprehensive coverage is achieved.""",
             "cn-s": """\n\n研究方法论：
 1. 信息发现：使用多种关键词策略进行多轮搜索，收集全面信息。搜索当前版本、官方来源和历史背景。
+   
+   搜索关键词优化策略：
+   - 使用具体、精确的术语而非通用词汇
+   - 包含官方名称、标题和专业术语
+   - 结合主题与限定词："当前"、"最新"、"官方"、"版本"
+   - 在相关时尝试不同语言组合
+   - 对精确短语和具体文档标题使用引号
+   - 添加时间限定词：年份范围、"近期"、"更新"
+   - 包含替代拼写和缩写
+   - 同时搜索宽泛概念和具体细节
+
 2. 版本验证：批判性评估文档有效性、发布日期和修订状态。明确标识文档状态（当前有效/已过时/已废止），但保留所有版本信息。对官方文档使用pdf_extractor工具。
 3. 质量保证：交叉引用多个可靠来源。注明信息中的任何冲突或不确定性。
 4. 结构化分析：合理组织研究发现，包含清晰的时间线、关键变化和来源归属。
@@ -823,6 +849,17 @@ IMPORTANT: Always prioritize current, official, and authoritative sources. When 
 重要提醒：始终优先采用当前、官方和权威来源。当信息存在空白时，继续使用优化策略搜索，直至获得全面覆盖。""",
             "cn-t": """\n\n研究方法論：
 1. 資訊發現：使用多種關鍵詞策略進行多輪搜尋，收集全面資訊。搜尋當前版本、官方來源和歷史背景。
+   
+   搜尋關鍵詞優化策略：
+   - 使用具體、精確的術語而非通用詞彙
+   - 包含官方名稱、標題和專業術語
+   - 結合主題與限定詞：「當前」、「最新」、「官方」、「版本」
+   - 在相關時嘗試不同語言組合
+   - 對精確短語和具體文檔標題使用引號
+   - 添加時間限定詞：年份範圍、「近期」、「更新」
+   - 包含替代拼寫和縮寫
+   - 同時搜尋寬泛概念和具體細節
+
 2. 版本驗證：批判性評估文檔有效性、發布日期和修訂狀態。明確標識文檔狀態（當前有效/已過時/已廢止），但保留所有版本資訊。對官方文檔使用pdf_extractor工具。
 3. 質量保證：交叉引用多個可靠來源。注明資訊中的任何衝突或不確定性。
 4. 結構化分析：合理組織研究發現，包含清晰的時間線、關鍵變化和來源歸屬。
@@ -834,18 +871,45 @@ IMPORTANT: Always prioritize current, official, and authoritative sources. When 
         prompts = {
             "en": """\n\nResearch Methodology:
 1. INFORMATION DISCOVERY: Conduct multiple strategic searches to gather comprehensive information from current and authoritative sources.
+   
+   SEARCH KEYWORD OPTIMIZATION:
+   - Use specific, precise terminology rather than generic terms
+   - Include official names, titles, and technical terminology
+   - Combine main topic with qualifiers: "current", "latest", "official"
+   - Try different language combinations when relevant
+   - Add temporal qualifiers: year ranges, "recent", "updated"
+   - Search for both broad concepts and specific details
+
 2. QUALITY ASSURANCE: Cross-reference multiple sources and note any conflicts or gaps in information.
 3. STRUCTURED ANALYSIS: Organize findings with clear source attribution and logical structure.
 
 IMPORTANT: Prioritize current, official sources and continue searching until comprehensive coverage is achieved.""",
             "cn-s": """\n\n研究方法论：
 1. 信息发现：进行多轮战略性搜索，从当前权威来源收集全面信息。
+   
+   搜索关键词优化策略：
+   - 使用具体、精确的术语而非通用词汇
+   - 包含官方名称、标题和专业术语
+   - 结合主题与限定词："当前"、"最新"、"官方"
+   - 在相关时尝试不同语言组合
+   - 添加时间限定词：年份范围、"近期"、"更新"
+   - 同时搜索宽泛概念和具体细节
+
 2. 质量保证：交叉引用多个来源，注明信息中的任何冲突或空白。
 3. 结构化分析：合理组织研究发现，包含清晰的来源归属和逻辑结构。
 
 重要提醒：优先采用当前官方来源，持续搜索直至获得全面覆盖。""",
             "cn-t": """\n\n研究方法論：
 1. 資訊發現：進行多輪戰略性搜尋，從當前權威來源收集全面資訊。
+   
+   搜尋關鍵詞優化策略：
+   - 使用具體、精確的術語而非通用詞彙
+   - 包含官方名稱、標題和專業術語
+   - 結合主題與限定詞：「當前」、「最新」、「官方」
+   - 在相關時嘗試不同語言組合
+   - 添加時間限定詞：年份範圍、「近期」、「更新」
+   - 同時搜尋寬泛概念和具體細節
+
 2. 質量保證：交叉引用多個來源，注明資訊中的任何衝突或空白。
 3. 結構化分析：合理組織研究發現，包含清晰的來源歸屬和邏輯結構。
 
