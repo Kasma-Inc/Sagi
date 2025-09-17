@@ -18,7 +18,7 @@ class FileEditAgent:
         language: str,
         model_client_stream: bool = True,
     ):
-        
+
         self.memory = memory
         self.language = language
 
@@ -49,14 +49,13 @@ class FileEditAgent:
         experimental_attachments: Optional[List[Dict[str, str]]] = None,
     ):
 
-       
         task_description = (
             f"File Input: {file_input}\n"
             f"Highlighted Text: {highlight_text}\n"
             f"User Instruction: {user_instruction}\n"
             "Please modify the highlighted text section according to the user's instruction and provide the revised content."
         )
-        
+
         return self.agent.run_stream(
             task=task_description,
         )
