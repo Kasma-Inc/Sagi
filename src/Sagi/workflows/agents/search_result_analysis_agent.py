@@ -1,4 +1,4 @@
-from typing import AsyncGenerator, List, Optional, Sequence
+from typing import AsyncGenerator, Optional, Sequence
 
 from autogen_agentchat.agents import BaseChatAgent
 from autogen_agentchat.base import Response
@@ -33,10 +33,11 @@ class SearchResultAnalysisAgent(
 ):
     """
     An agent specialized in analyzing web search results and providing structured insights.
-    
+
     This agent takes raw search results as input and produces professional analysis
     including key findings, source evaluation, actionable insights, and summary assessment.
     """
+
     component_config_schema = SearchResultAnalysisAgentConfig
 
     def __init__(
@@ -77,11 +78,11 @@ class SearchResultAnalysisAgent(
     ) -> AsyncGenerator[BaseAgentEvent | BaseChatMessage | Response, None]:
         """
         Analyze the provided search results and generate structured analysis.
-        
+
         Expected input: A message containing raw search results from web search tools.
         Output: Structured analysis of the search results.
         """
-        
+
         search_results = ""
         if messages and isinstance(messages[-1].content, str):
             search_results = messages[-1].content
@@ -103,7 +104,7 @@ Please provide a structured analysis following the framework in your system inst
         )
 
         model_result: Optional[CreateResult] = None
-        
+
         if self._model_client_stream:
             async for chunk in self._model_client.create_stream(
                 [SystemMessage(content=self._system_message), query],
@@ -163,4 +164,3 @@ Please provide a structured analysis following the framework in your system inst
             language=self._language,
             model_client_stream=self._model_client_stream,
         )
-
