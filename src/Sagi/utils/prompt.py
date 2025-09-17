@@ -1000,7 +1000,6 @@ When analyzing search results, provide:
 - Include specific references to sources
 - Balance comprehensiveness with clarity
 - Focus on actionability and decision support""",
-        
         "cn-s": """你是一个专业的搜索结果分析师，专门从网络搜索结果中提取关键洞察，并为决策提供结构化分析。
 
 ## 核心职责：
@@ -1038,7 +1037,6 @@ When analyzing search results, provide:
 - 包含对来源的具体引用
 - 平衡全面性与清晰度
 - 专注于可操作性和决策支持""",
-        
         "cn-t": """你是一個專業的搜尋結果分析師，專門從網路搜尋結果中提取關鍵洞察，並為決策提供結構化分析。
 
 ## 核心職責：
@@ -1077,5 +1075,5 @@ When analyzing search results, provide:
 - 平衡全面性與清晰度
 - 專注於可操作性和決策支持""",
     }
-    
+
     return prompts.get(mapped_language, prompts["en"])
