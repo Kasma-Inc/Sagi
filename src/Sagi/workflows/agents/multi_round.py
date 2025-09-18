@@ -2,10 +2,12 @@ import re
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.conditions import TextMessageTermination
 from autogen_agentchat.messages import (
     TextMessage,
     ToolCallSummaryMessage,
 )
+from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient
 from autogen_core.tools import BaseTool
@@ -24,6 +26,7 @@ class MultiRoundAgent:
     language: str
     memory: SagiMemory
     search_analyzer: Optional[SearchResultAnalysisAgent]
+    team: RoundRobinGroupChat
 
     def __init__(
         self,
@@ -75,6 +78,11 @@ class MultiRoundAgent:
             system_message=system_prompt,
             tools=tools,
             tool_call_summary_format="{result}",
+        )
+
+        self.team = RoundRobinGroupChat(
+            participants=[self.agent],
+            termination_condition=TextMessageTermination("multi_round_agent"),
         )
 
     def _get_system_prompt(self):
@@ -129,14 +137,12 @@ class MultiRoundAgent:
     ):
         # TODO(klma): handle the case of experimental_attachments
         if self.search_analyzer is None:
-            return self.agent.run_stream(
-                task=user_input,
-            )
+            return self.team.run_stream(task=user_input)
         else:
             return self._run_workflow_with_search_analysis(user_input)
 
     async def _run_workflow_with_search_analysis(self, user_input: str):
-        async for message in self.agent.run_stream(task=user_input):
+        async for message in self.team.run_stream(task=user_input):
             is_search_result = self._is_web_search_result(message)
 
             if is_search_result:
