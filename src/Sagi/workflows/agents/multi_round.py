@@ -50,7 +50,7 @@ class MultiRoundAgent:
                     name="search_result_analyzer",
                     model_client=model_client,
                     language=language,
-                    model_client_stream=False,
+                    model_client_stream=True,
                 )
             else:
                 system_prompt = self._get_markdown_system_prompt()
@@ -62,7 +62,7 @@ class MultiRoundAgent:
                     name="search_result_analyzer",
                     model_client=model_client,
                     language=language,
-                    model_client_stream=False,
+                    model_client_stream=True,
                 )
             else:
                 system_prompt = self._get_system_prompt()
