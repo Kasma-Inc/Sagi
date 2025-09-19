@@ -1,4 +1,3 @@
-
 from utils.camel_model import CamelModel
 
 
