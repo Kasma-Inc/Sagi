@@ -2,9 +2,7 @@ from typing import Any, Dict, List, Optional
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ChatCompletionClient
-from hirag_prod.parser import (
-    DictParser,
-)
+from hirag_prod.parser import DictParser
 from hirag_prod.prompt import PROMPTS
 from resources.functions import get_hi_rag_client, get_settings
 

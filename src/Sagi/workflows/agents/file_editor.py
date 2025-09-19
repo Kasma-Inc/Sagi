@@ -42,8 +42,8 @@ class FileEditAgent:
     def _get_task_description_template(self):
         task_template = {
             "en": "File Content: {file_input}\nHighlighted Text: {highlight_text}\nUser Instruction: {user_instruction}\nPlease modify the highlighted text section according to the user's instruction and provide ONLY the revised content without any additional explanation.",
-            "cn-s": "文件内容: {file_input}\n高亮文本: {highlight_text}\n用户指令: {user_instruction}\n请根据用户指令修改高亮文本部分，并只返回修改后的内容，不要任何额外解释。",
-            "cn-t": "文件內容: {file_input}\n高亮文本: {highlight_text}\n用戶指令: {user_instruction}\n請根據用戶指令修改高亮文本部分，並只返回修改後的內容，不要任何額外解釋。",
+            "cn-s": "文件内容: {file_input}\n高亮文本: {highlight_text}\n用户指令: {user_instruction}\n请根据用户指令修改高亮文本部分, 并只返回修改后的内容, 不要任何额外解释。",
+            "cn-t": "文件內容: {file_input}\n高亮文本: {highlight_text}\n用戶指令: {user_instruction}\n請根據用戶指令修改高亮文本部分, 並只返回修改後的內容, 不要任何額外解釋。",
         }
         return task_template.get(self.language, task_template["en"])
 

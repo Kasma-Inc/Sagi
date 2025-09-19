@@ -11,9 +11,7 @@ from autogen_core import CancellationToken, Image
 
 from Sagi.tools.pdf_extraction.extraction_data import RectData, TextStyle
 from Sagi.tools.pdf_extraction.html_template import html_template
-from Sagi.tools.pdf_extraction.prompt import (
-    non_image_generation_prompt_mod,
-)
+from Sagi.tools.pdf_extraction.prompt import non_image_generation_prompt_mod
 
 
 class HTMLGenerator:
