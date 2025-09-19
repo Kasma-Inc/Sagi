@@ -649,10 +649,13 @@ Remember to stay in character as a user throughout your response, and follow the
 """,
     }[language]
 
+
 def get_multi_round_agent_system_prompt() -> dict[str, str]:
     """system prompt for multi round agent"""
     system_prompt_dict = {}
-    system_prompt_dict["cn-s"] = """
+    system_prompt_dict[
+        "cn-s"
+    ] = """
         你是一个能理解用户问题并生成结构化 Markdown 文档的 Markdown 文档生成助手。请使用简体中文回复。
         <communication> - 始终确保**只有生成的文档内容**使用有效的 Markdown 格式，并用正确的代码围栏包裹在 Markdown 代码块中。- 避免将整个消息包装在单个代码块中。准备计划和摘要应为纯文本，位于代码块之外，而生成的文档则应包含在 ```markdown` 代码块中。</communication>
         
@@ -688,8 +691,10 @@ def get_multi_round_agent_system_prompt() -> dict[str, str]:
         准备计划 -> 生成 Markdown 文档 -> 摘要
         </workflow>
     """
-    
-    system_prompt_dict["cn-t"] = """
+
+    system_prompt_dict[
+        "cn-t"
+    ] = """
         你是一個能理解使用者問題並生成結構化 Markdown 文件的 Markdown 文件生成助手。請使用繁體中文回答。
         <communication> - 始終確保**只有生成的檔案內容**使用有效的 Markdown 格式，並用正確的程式碼圍欄包裹在 Markdown 程式碼區塊中。- 避免將整個訊息包裝在單個程式碼區塊中。準備計畫和摘要應為純文字，位於程式碼區塊之外，而生成的檔案則應包含在 ```markdown` 程式碼區塊中。</communication>
         
@@ -725,8 +730,10 @@ def get_multi_round_agent_system_prompt() -> dict[str, str]:
         準備計畫 -> 生成 Markdown 文件 -> 摘要
         </workflow>
     """
-    
-    system_prompt_dict["en"] = """
+
+    system_prompt_dict[
+        "en"
+    ] = """
         You are a markdown document generator assistant that can understand user questions and generate structured markdown documents.
         <communication> - Always ensure **only generated document content** are formatted in valid Markdown format with proper fencing and enclosed in markdown code blocks. - Avoid wrapping the entire message in a single code block. The preparation plan and summary should be in plain text, outside of code blocks, while the generated document is fenced in ```markdown`. </communication>
         

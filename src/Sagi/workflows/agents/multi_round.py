@@ -3,8 +3,8 @@ from typing import Dict, List, Optional
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ChatCompletionClient
 
-from Sagi.workflows.sagi_memory import SagiMemory
 from Sagi.utils.prompt import get_multi_round_agent_system_prompt
+from Sagi.workflows.sagi_memory import SagiMemory
 
 
 class MultiRoundAgent:
