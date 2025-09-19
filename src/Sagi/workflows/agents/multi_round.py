@@ -4,6 +4,7 @@ from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ChatCompletionClient
 
 from Sagi.workflows.sagi_memory import SagiMemory
+from Sagi.utils.prompt import get_multi_round_agent_system_prompt
 
 
 class MultiRoundAgent:
@@ -39,14 +40,8 @@ class MultiRoundAgent:
             "cn-t": "你是一個樂於助人的助手, 可以回答問題並幫助完成任務。請用繁體中文回答",
         }
         if markdown_output:
-            markdown_prompt = {
-                "en": "Please format the output in Markdown, using standard Markdown syntax. Enclose the output in a Markdown code block",
-                "cn-s": "請將輸出格式設定為Markdown, 並使用標準Markdown語法。輸出內容需包含在Markdown程式碼區塊中",
-                "cn-t": "请将输出格式设置为Markdown, 并使用标准Markdown语法。输出内容需包含在Markdown代码块中",
-            }
-            return lang_prompt.get(
-                self.language, lang_prompt["en"]
-            ) + markdown_prompt.get(self.language, markdown_prompt["en"])
+            markdown_prompt = get_multi_round_agent_system_prompt()
+            return markdown_prompt.get(self.language, markdown_prompt["en"])
         return lang_prompt.get(self.language, lang_prompt["en"])
 
     def run_workflow(
