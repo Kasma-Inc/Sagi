@@ -12,9 +12,9 @@ from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient
 from autogen_core.tools import BaseTool
 
-from Sagi.utils.prompt import get_multi_round_agent_system_prompt
 from Sagi.utils.prompt import (
     get_multi_round_agent_base_prompt,
+    get_multi_round_agent_system_prompt,
     get_multi_round_agent_web_search_prompt,
 )
 from Sagi.workflows.agents.search_result_analysis_agent import SearchResultAnalysisAgent
