@@ -656,7 +656,6 @@ Remember to stay in character as a user throughout your response, and follow the
     }[language]
 
 
-<<<<<<< HEAD
 def get_multi_round_agent_system_prompt() -> dict[str, str]:
     """system prompt for multi round agent"""
     system_prompt_dict = {}
