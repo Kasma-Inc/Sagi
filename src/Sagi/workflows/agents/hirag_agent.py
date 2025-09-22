@@ -44,7 +44,7 @@ class RagSummaryAgent:
         self.vdb_path = get_settings().postgres_url_async
         self.gdb_path = gdb_path
         self.ret: Optional[Dict[str, Any]] = None
-        self.tool_name = "ragSeach"
+        self.tool_name = "ragSearch"
 
     @classmethod
     async def create(

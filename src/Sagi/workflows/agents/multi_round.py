@@ -143,6 +143,7 @@ class MultiRoundAgent:
 
     async def _run_workflow_with_search_analysis(self, user_input: str):
         async for message in self.team.run_stream(task=user_input):
+            message = self._mark_private_tool_output(message)
             is_search_result = self._is_web_search_result(message)
 
             if is_search_result:
@@ -173,6 +174,61 @@ class MultiRoundAgent:
                         yield error_message
             else:
                 yield message
+
+    def _mark_private_tool_output(self, message):
+        chat_message = None
+
+        if isinstance(message, ToolCallSummaryMessage):
+            chat_message = message
+        elif hasattr(message, "chat_message") and isinstance(
+            message.chat_message, ToolCallSummaryMessage
+        ):
+            chat_message = message.chat_message
+        else:
+            return message
+
+        content = getattr(chat_message, "content", "")
+        source = getattr(chat_message, "source", "") or ""
+        metadata = getattr(chat_message, "metadata", None)
+        raw_tool_names = ""
+
+        if isinstance(metadata, dict):
+            raw_tool_names = metadata.get("tool_names", "") or ""
+
+        tool_names = ""
+        if isinstance(raw_tool_names, str):
+            tool_names = raw_tool_names
+        elif isinstance(raw_tool_names, (list, tuple, set)):
+            tool_names = ",".join(str(name) for name in raw_tool_names)
+        else:
+            tool_names = str(raw_tool_names)
+
+        def _is_pdf_summary(text: str) -> bool:
+            if not isinstance(text, str):
+                return False
+            lowered = text.lower()
+            pdf_signals = [
+                "pdf document content",
+                "pdf processing failed",
+                "error: url is not a pdf file",
+            ]
+            if any(signal in lowered for signal in pdf_signals):
+                return True
+            if "pdf_extractor" in source.lower():
+                return True
+            if isinstance(tool_names, str) and "pdf_extractor" in tool_names.lower():
+                return True
+            return False
+
+        if _is_pdf_summary(content):
+            new_metadata = {}
+            if isinstance(metadata, dict):
+                new_metadata.update(metadata)
+            new_metadata["private"] = True
+            new_metadata.setdefault("tool_names", tool_names)
+            chat_message.metadata = new_metadata
+
+        return message
 
     def _is_web_search_result(self, message) -> bool:
         if isinstance(message, ToolCallSummaryMessage):
