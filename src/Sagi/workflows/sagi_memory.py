@@ -55,25 +55,6 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
         if isinstance(content_item, str):
             return content_item
 
-        if isinstance(content_item, list):
-            parts: List[str] = []
-            for item in content_item:
-                if isinstance(item, str):
-                    parts.append(item)
-                elif hasattr(item, "text"):
-                    try:
-                        parts.append(str(getattr(item, "text")))
-                    except Exception:
-                        parts.append(str(item))
-                elif hasattr(item, "data"):
-                    try:
-                        parts.append(str(getattr(item, "data")))
-                    except Exception:
-                        parts.append(str(item))
-                else:
-                    parts.append(str(item))
-            return "\n".join(parts)
-
         content = content_item.content
         mime_type = content_item.mime_type
 
@@ -83,11 +64,11 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
             if isinstance(content, dict):
                 # Store original JSON string representation
                 return str(content).lower()
-            return str(content)
+            raise ValueError("JSON content must be a dict")
         elif isinstance(content, Image):
             raise ValueError("Image content cannot be converted to text")
         else:
-            return str(content)
+            raise ValueError(f"Unsupported content type: {mime_type}")
 
     async def _drop_old_messages(
         self, model_context: ChatCompletionContext, memories: List[MemoryContent]
