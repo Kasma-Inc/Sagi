@@ -7,6 +7,7 @@ from hirag_prod.parser import DictParser
 from hirag_prod.prompt import PROMPTS
 from resources.functions import get_hi_rag_client, get_settings
 
+from Sagi.utils.prompt import get_multi_round_agent_system_prompt
 from Sagi.vercel import (
     RagSearchToolCallInput,
     RagSearchToolCallOutput,
@@ -32,6 +33,7 @@ class RagSummaryAgent:
         language: str,
         gdb_path: str,
         model_client_stream: bool = True,
+        markdown_output: bool = False,
     ):
         self.memory = memory
         self.language = language
@@ -45,6 +47,7 @@ class RagSummaryAgent:
         self.gdb_path = gdb_path
         self.ret: Optional[Dict[str, Any]] = None
         self.tool_name = "ragSearch"
+        self.markdown_output = markdown_output
 
     @classmethod
     async def create(
@@ -54,6 +57,7 @@ class RagSummaryAgent:
         language: str,
         gdb_path: str,
         model_client_stream: bool = True,
+        markdown_output: bool = False,
     ):
         self = cls(
             model_client=model_client,
@@ -61,6 +65,7 @@ class RagSummaryAgent:
             language=language,
             gdb_path=gdb_path,
             model_client_stream=model_client_stream,
+            markdown_output=markdown_output,
         )
         self.rag_instance = get_hi_rag_client()
         await self.rag_instance.set_language(language)
@@ -90,7 +95,14 @@ class RagSummaryAgent:
             max_report_length=5000,
             reference_placeholder=placeholder,
         )
+        if self.markdown_output:
+            markdown_prompt = self._get_markdown_system_prompt()
+            system_prompt = system_prompt + "\n" + markdown_prompt
         self.system_prompt = system_prompt
+
+    def _get_markdown_system_prompt(self):
+        markdown_prompt = get_multi_round_agent_system_prompt()
+        return markdown_prompt.get(self.language, markdown_prompt["en"])
 
     async def run_query(
         self,
