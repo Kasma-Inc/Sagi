@@ -5,6 +5,7 @@ from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.conditions import TextMessageTermination
 from autogen_agentchat.messages import (
     TextMessage,
+    ToolCallExecutionEvent,
     ToolCallSummaryMessage,
 )
 from autogen_agentchat.teams import RoundRobinGroupChat
@@ -84,6 +85,7 @@ class MultiRoundAgent:
             participants=[self.agent],
             termination_condition=TextMessageTermination("multi_round_agent"),
         )
+        self._pending_tool_source: Optional[str] = None
 
     def _get_system_prompt(self):
         return get_multi_round_agent_base_prompt(self.language)
@@ -143,6 +145,8 @@ class MultiRoundAgent:
 
     async def _run_workflow_with_search_analysis(self, user_input: str):
         async for message in self.team.run_stream(task=user_input):
+            self._capture_tool_source(message)
+            self._mark_tool_message(message)
             is_search_result = self._is_web_search_result(message)
 
             if is_search_result:
@@ -173,6 +177,54 @@ class MultiRoundAgent:
                         yield error_message
             else:
                 yield message
+
+    def _capture_tool_source(self, message):
+        if not isinstance(message, ToolCallExecutionEvent):
+            return
+
+        execution_results = getattr(message, "content", None)
+        if not isinstance(execution_results, list):
+            return
+
+        tool_names: List[str] = []
+        for result in execution_results:
+            name = getattr(result, "name", None)
+            if name:
+                stripped = str(name).strip().lower()
+                if stripped:
+                    tool_names.append(stripped)
+
+        if tool_names:
+            self._pending_tool_source = tool_names[0]
+
+    def _mark_tool_message(self, message):
+        summary = None
+        if isinstance(message, ToolCallSummaryMessage):
+            summary = message
+        elif hasattr(message, "chat_message") and isinstance(
+            message.chat_message, ToolCallSummaryMessage
+        ):
+            summary = message.chat_message
+        if summary is None:
+            return
+
+        current_source = (getattr(summary, "source", "") or "").lower()
+        if current_source and current_source != "multi_round_agent":
+            self._pending_tool_source = None
+            return
+
+        if self._pending_tool_source:
+            summary.source = self._pending_tool_source
+            self._pending_tool_source = None
+            return
+
+        metadata = getattr(summary, "metadata", {}) or {}
+        if isinstance(metadata, dict):
+            raw_tool = metadata.get("tool_names", "")
+            if isinstance(raw_tool, str):
+                stripped = raw_tool.strip().lower()
+                if stripped:
+                    summary.source = stripped
 
     def _is_web_search_result(self, message) -> bool:
         if isinstance(message, ToolCallSummaryMessage):
