@@ -4,6 +4,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.conditions import TextMessageTermination
 from autogen_agentchat.messages import (
+    ModelClientStreamingChunkEvent,
     TextMessage,
     ToolCallExecutionEvent,
     ToolCallSummaryMessage,
@@ -150,11 +151,20 @@ class MultiRoundAgent:
             is_search_result = self._is_web_search_result(message)
 
             if is_search_result:
-                yield message
-
                 search_results = self._extract_search_results(message)
 
                 if search_results:
+                    formatted_results = self._format_search_results_output(search_results)
+                    if formatted_results:
+                        source = getattr(message, "source", "") or getattr(
+                            getattr(message, "chat_message", None), "source", ""
+                        )
+                        source = source or "web_search_results"
+                        yield ModelClientStreamingChunkEvent(
+                            source=source,
+                            content=formatted_results,
+                        )
+
                     try:
                         analysis_result = await self._analyze_search_results(
                             search_results
@@ -164,15 +174,16 @@ class MultiRoundAgent:
                             analysis_result
                         )
 
-                        analysis_message = TextMessage(
-                            content=formatted_content, source="search_result_analyzer"
+                        analysis_message = ModelClientStreamingChunkEvent(
+                            source="search_result_analyzer",
+                            content=formatted_content,
                         )
                         yield analysis_message
 
                     except Exception as e:
-                        error_message = TextMessage(
-                            content=f"Search result analysis failed: {str(e)}. Original results are preserved above.",
+                        error_message = ModelClientStreamingChunkEvent(
                             source="search_result_analyzer",
+                            content=f"Search result analysis failed: {str(e)}. Original results are preserved above.",
                         )
                         yield error_message
             else:
@@ -277,6 +288,19 @@ class MultiRoundAgent:
             return chat_message.content
 
         return None
+
+    def _format_search_results_output(self, search_results: str) -> str:
+        cleaned = search_results.strip()
+        cleaned = cleaned.strip("[]")
+        cleaned = cleaned.replace("TextContent(type='text', text='", "")
+        cleaned = cleaned.replace("', annotations=None, meta=None)", "")
+        lines = [line.strip() for line in cleaned.split("\n") if line.strip()]
+        if not lines:
+            return ""
+        header = "🌐 Web Search Results"
+        separator = "\n" + "-" * 60 + "\n"
+        formatted = "\n".join(lines)
+        return f"{header}{separator}{formatted}"
 
     async def _analyze_search_results(self, search_results: str) -> str:
         if self.search_analyzer is None:
