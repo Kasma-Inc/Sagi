@@ -7,10 +7,7 @@ import uuid
 from typing import Optional
 
 from autogen_agentchat.base import TaskResult
-from autogen_agentchat.messages import (
-    BaseChatMessage,
-    BaseMessage,
-)
+from autogen_agentchat.messages import BaseChatMessage, BaseMessage
 from autogen_agentchat.ui import Console
 from autogen_core.memory import MemoryContent
 from dotenv import load_dotenv

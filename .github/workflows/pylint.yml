@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11"]
+        python-version: ["3.12"]
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
@@ -20,8 +20,8 @@ jobs:
     - name: Install Python dependencies
       run: |
         pip install --upgrade pip
-        pip install black
-        pip install blackdoc
+        pip install black==25.1.0
+        pip install blackdoc==0.4.0
         pip install isort
         pip install autoflake
 

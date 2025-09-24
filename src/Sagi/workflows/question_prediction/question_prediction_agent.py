@@ -9,11 +9,7 @@ from autogen_agentchat.messages import (
     TextMessage,
 )
 from autogen_core import CancellationToken, Component, ComponentModel
-from autogen_core.models import (
-    ChatCompletionClient,
-    CreateResult,
-    UserMessage,
-)
+from autogen_core.models import ChatCompletionClient, CreateResult, UserMessage
 from pydantic import BaseModel
 from typing_extensions import Self
 
