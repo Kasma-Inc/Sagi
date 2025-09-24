@@ -3,11 +3,9 @@ from typing import Any, Dict, List, Optional
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ChatCompletionClient
-from hirag_prod.parser import DictParser
 from hirag_prod.prompt import PROMPTS
 from resources.functions import get_hi_rag_client, get_settings
 
-from Sagi.utils.prompt import get_multi_round_agent_system_prompt
 from Sagi.vercel import (
     RagSearchToolCallInput,
     RagSearchToolCallOutput,
@@ -81,28 +79,21 @@ class RagSummaryAgent:
         )
 
     def set_system_prompt(self, user_query: str, chunks: List[Dict[str, Any]]):
-        raw_prompt = PROMPTS["summary_all_" + self.language]
-        placeholder = PROMPTS["REFERENCE_PLACEHOLDER"]
-        parser = DictParser()
-        clean_chunks = [
-            {"id": i, "chunk": " ".join((c.get("text", "") or "").split())}
+        raw_prompt = PROMPTS["summary_plus_" + self.language]
+        data = "- Retrieved Chunks:\n" + "\n".join(
+            f"    <ref>{i}</ref>: {' '.join((c.get('text', '') or '').split())}"
             for i, c in enumerate(chunks, start=1)
-        ]
-        data = "Chunks\n" + parser.parse_list_of_dicts(clean_chunks, "table") + "\n\n"
+        )
         system_prompt = raw_prompt.format(
             user_query=user_query,
             data=data,
-            max_report_length=5000,
-            reference_placeholder=placeholder,
         )
         if self.markdown_output:
-            markdown_prompt = self._get_markdown_system_prompt()
-            system_prompt = system_prompt + "\n" + markdown_prompt
+            system_prompt = PROMPTS["summary_plus_markdown_" + self.language].format(
+                user_query=user_query,
+                data=data,
+            )
         self.system_prompt = system_prompt
-
-    def _get_markdown_system_prompt(self):
-        markdown_prompt = get_multi_round_agent_system_prompt()
-        return markdown_prompt.get(self.language, markdown_prompt["en"])
 
     async def run_query(
         self,
