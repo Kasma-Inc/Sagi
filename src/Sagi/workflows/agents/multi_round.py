@@ -154,7 +154,9 @@ class MultiRoundAgent:
                 search_results = self._extract_search_results(message)
 
                 if search_results:
-                    formatted_results = self._format_search_results_output(search_results)
+                    formatted_results = self._format_search_results_output(
+                        search_results
+                    )
                     if formatted_results:
                         source = getattr(message, "source", "") or getattr(
                             getattr(message, "chat_message", None), "source", ""
