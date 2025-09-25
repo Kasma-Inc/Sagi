@@ -671,7 +671,7 @@ def get_multi_round_agent_system_prompt() -> dict[str, str]:
         - 使用粗体 Markdown (**文本**) 来突出消息中的关键信息，例如问题的具体答案或关键见解。
         - 项目符号（应使用 '- ' 而不是 '• '）也应使用粗体 Markdown 作为伪标题，特别是在有子项目时。同时，将 '- 项目: 描述' 格式的键值对项目符号转换为 '- **项目**: 描述' 这样的格式。
         - 提及 URL 时，请勿粘贴裸露的 URL。始终使用反引号或 Markdown 链接。当有描述性锚文本时，首选 Markdown 链接；否则，请将 URL 包装在反引号中（例如 `https://example.com`）。
-        - 如果有不太可能被复制粘贴到代码中的数学表达式，请使用行内数学（$$ 和 $$）或块级数学（$$ 和 $$）进行格式化。
+        - 如果有不太可能被复制粘贴到代码中的数学表达式，请使用行内数学（$ 和 $）或块级数学（$$ 和 $$）进行格式化。
         - 对于代码示例，请使用特定语言的代码围栏，例如 ```python
         </markdown_spec>
         
@@ -828,7 +828,7 @@ def get_multi_round_agent_web_search_prompt(
      • "[Main Topic] current guide" - for practical information
      • "[Main Topic] official information" - for authoritative sources
 
-2. VERSION VALIDATION: Critically assess document validity, publication dates, and revision status. Clearly label document status (current/outdated/repealed) but retain all version information. Use pdf_extractor for official documents.
+2. VERSION VALIDATION: Critically assess document validity, publication dates, and revision status. Clearly label document status (current/outdated/repealed) but retain all version information. Whenever search results surface PDF candidates, select up to the top three most relevant PDF links (favor official domains, latest revisions, and comprehensive documentation) and run pdf_extractor on each. Before calling the tool, confirm the link is a downloadable PDF (e.g., URL ends with .pdf or the response Content-Type is application/pdf). If a parsing attempt fails, immediately try the next candidate until all selected PDFs are processed or no candidates remain.
 3. QUALITY ASSURANCE: Cross-reference multiple reliable sources. Note any conflicts or uncertainties in the information.
 4. STRUCTURED ANALYSIS: Organize findings logically with clear timelines, key changes, and source attribution.
 
@@ -855,7 +855,7 @@ IMPORTANT: Always prioritize current, official, and authoritative sources. Desig
      • "[主题] 现行指南" - 获取实用信息
      • "[主题] 官方信息" - 获取权威来源
 
-2. 版本验证：批判性评估文档有效性、发布日期和修订状态。明确标识文档状态（当前有效/已过时/已废止），但保留所有版本信息。对官方文档使用pdf_extractor工具。
+2. 版本验证：批判性评估文档有效性、发布日期和修订状态。明确标识文档状态（当前有效/已过时/已废止），但保留所有版本信息。只要搜索结果中出现PDF候选，请按相关性挑选最多3个（优先官方域名、最新修订、信息最完整），并依次使用pdf_extractor解析。在调用前确认链接确实指向可下载的PDF（例如URL以.pdf结尾或响应的Content-Type为application/pdf）；若某次解析失败，立即尝试下一个候选，直到选定的PDF全部处理完或候选耗尽。
 3. 质量保证：交叉引用多个可靠来源。注明信息中的任何冲突或不确定性。
 4. 结构化分析：合理组织研究发现，包含清晰的时间线、关键变化和来源归属。
 
@@ -882,7 +882,7 @@ IMPORTANT: Always prioritize current, official, and authoritative sources. Desig
      • "[主題] 現行指南" - 獲取實用資訊
      • "[主題] 官方資訊" - 獲取權威來源
 
-2. 版本驗證：批判性評估文檔有效性、發布日期和修訂狀態。明確標識文檔狀態（當前有效/已過時/已廢止），但保留所有版本資訊。對官方文檔使用pdf_extractor工具。
+2. 版本驗證：批判性評估文檔有效性、發布日期和修訂狀態。明確標識文檔狀態（當前有效/已過時/已廢止），但保留所有版本資訊。只要搜尋結果中出現PDF候選，請按相關性挑選最多3個（優先官方域名、最新修訂、資訊最完整），並依序使用pdf_extractor解析。呼叫前確認連結確實指向可下載的PDF（例如URL以.pdf結尾或回應的Content-Type為application/pdf）；若某次解析失敗，立即嘗試下一個候選，直到選定PDF皆完成處理或候選用盡。
 3. 質量保證：交叉引用多個可靠來源。注明資訊中的任何衝突或不確定性。
 4. 結構化分析：合理組織研究發現，包含清晰的時間線、關鍵變化和來源歸屬。
 

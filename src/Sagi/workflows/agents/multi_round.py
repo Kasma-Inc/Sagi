@@ -4,7 +4,9 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.conditions import TextMessageTermination
 from autogen_agentchat.messages import (
+    ModelClientStreamingChunkEvent,
     TextMessage,
+    ToolCallExecutionEvent,
     ToolCallSummaryMessage,
 )
 from autogen_agentchat.teams import RoundRobinGroupChat
@@ -84,6 +86,7 @@ class MultiRoundAgent:
             participants=[self.agent],
             termination_condition=TextMessageTermination("multi_round_agent"),
         )
+        self._pending_tool_source: Optional[str] = None
 
     def _get_system_prompt(self):
         return get_multi_round_agent_base_prompt(self.language)
@@ -143,14 +146,27 @@ class MultiRoundAgent:
 
     async def _run_workflow_with_search_analysis(self, user_input: str):
         async for message in self.team.run_stream(task=user_input):
+            self._capture_tool_source(message)
+            self._mark_tool_message(message)
             is_search_result = self._is_web_search_result(message)
 
             if is_search_result:
-                yield message
-
                 search_results = self._extract_search_results(message)
 
                 if search_results:
+                    formatted_results = self._format_search_results_output(
+                        search_results
+                    )
+                    if formatted_results:
+                        source = getattr(message, "source", "") or getattr(
+                            getattr(message, "chat_message", None), "source", ""
+                        )
+                        source = source or "web_search_results"
+                        yield ModelClientStreamingChunkEvent(
+                            source=source,
+                            content=formatted_results,
+                        )
+
                     try:
                         analysis_result = await self._analyze_search_results(
                             search_results
@@ -160,19 +176,68 @@ class MultiRoundAgent:
                             analysis_result
                         )
 
-                        analysis_message = TextMessage(
-                            content=formatted_content, source="search_result_analyzer"
+                        analysis_message = ModelClientStreamingChunkEvent(
+                            source="search_result_analyzer",
+                            content=formatted_content,
                         )
                         yield analysis_message
 
                     except Exception as e:
-                        error_message = TextMessage(
-                            content=f"Search result analysis failed: {str(e)}. Original results are preserved above.",
+                        error_message = ModelClientStreamingChunkEvent(
                             source="search_result_analyzer",
+                            content=f"Search result analysis failed: {str(e)}. Original results are preserved above.",
                         )
                         yield error_message
             else:
                 yield message
+
+    def _capture_tool_source(self, message):
+        if not isinstance(message, ToolCallExecutionEvent):
+            return
+
+        execution_results = getattr(message, "content", None)
+        if not isinstance(execution_results, list):
+            return
+
+        tool_names: List[str] = []
+        for result in execution_results:
+            name = getattr(result, "name", None)
+            if name:
+                stripped = str(name).strip().lower()
+                if stripped:
+                    tool_names.append(stripped)
+
+        if tool_names:
+            self._pending_tool_source = tool_names[0]
+
+    def _mark_tool_message(self, message):
+        summary = None
+        if isinstance(message, ToolCallSummaryMessage):
+            summary = message
+        elif hasattr(message, "chat_message") and isinstance(
+            message.chat_message, ToolCallSummaryMessage
+        ):
+            summary = message.chat_message
+        if summary is None:
+            return
+
+        current_source = (getattr(summary, "source", "") or "").lower()
+        if current_source and current_source != "multi_round_agent":
+            self._pending_tool_source = None
+            return
+
+        if self._pending_tool_source:
+            summary.source = self._pending_tool_source
+            self._pending_tool_source = None
+            return
+
+        metadata = getattr(summary, "metadata", {}) or {}
+        if isinstance(metadata, dict):
+            raw_tool = metadata.get("tool_names", "")
+            if isinstance(raw_tool, str):
+                stripped = raw_tool.strip().lower()
+                if stripped:
+                    summary.source = stripped
 
     def _is_web_search_result(self, message) -> bool:
         if isinstance(message, ToolCallSummaryMessage):
@@ -225,6 +290,19 @@ class MultiRoundAgent:
             return chat_message.content
 
         return None
+
+    def _format_search_results_output(self, search_results: str) -> str:
+        cleaned = search_results.strip()
+        cleaned = cleaned.strip("[]")
+        cleaned = cleaned.replace("TextContent(type='text', text='", "")
+        cleaned = cleaned.replace("', annotations=None, meta=None)", "")
+        lines = [line.strip() for line in cleaned.split("\n") if line.strip()]
+        if not lines:
+            return ""
+        header = "🌐 Web Search Results"
+        separator = "\n" + "-" * 60 + "\n"
+        formatted = "\n".join(lines)
+        return f"{header}{separator}{formatted}"
 
     async def _analyze_search_results(self, search_results: str) -> str:
         if self.search_analyzer is None:
