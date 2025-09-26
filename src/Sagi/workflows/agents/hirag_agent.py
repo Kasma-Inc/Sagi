@@ -81,7 +81,7 @@ class RagSummaryAgent:
     def set_system_prompt(self, user_query: str, chunks: List[Dict[str, Any]]):
         raw_prompt = PROMPTS["summary_plus_" + self.language]
         data = "- Retrieved Chunks:\n" + "\n".join(
-            f"    <ref>{i}</ref>: {' '.join((c.get('text', '') or '').split())}"
+            f"    [{i}] {' '.join((c.get('text', '') or '').split())}"
             for i, c in enumerate(chunks, start=1)
         )
         system_prompt = raw_prompt.format(
