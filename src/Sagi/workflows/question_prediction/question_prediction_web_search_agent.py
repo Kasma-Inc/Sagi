@@ -265,9 +265,7 @@ Remember to stay in character as a user throughout your response, and follow the
             if call.name not in handoffs
         ]
         tool_call_summaries: List[str] = []
-        tool_names_used = set()
         for tool_call, tool_call_result in normal_tool_calls:
-            tool_names_used.add(tool_call.name)
             tool_call_summaries.append(
                 tool_call_summary_format.format(
                     tool_name=tool_call.name,
@@ -276,14 +274,10 @@ Remember to stay in character as a user throughout your response, and follow the
                 )
             )
         tool_call_summary = "\n".join(tool_call_summaries)
-        metadata: Dict[str, str] = {}
-        if tool_names_used:
-            metadata["tool_names"] = ",".join(sorted(tool_names_used))
         return Response(
             chat_message=ToolCallSummaryMessage(
                 content=tool_call_summary,
                 source=agent_name,
-                metadata=metadata,
             ),
             inner_messages=inner_messages,
         )
