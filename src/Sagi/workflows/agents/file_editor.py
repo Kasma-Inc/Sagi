@@ -1,7 +1,8 @@
 from typing import Dict, List, Optional
 
 from autogen_agentchat.agents import AssistantAgent
-from autogen_core.models import ChatCompletionClient
+from autogen_core.models import ChatCompletionClient, UserMessage
+from resources.functions import get_hi_rag_client
 
 from Sagi.workflows.sagi_memory import SagiMemory
 
@@ -47,11 +48,13 @@ class FileEditAgent:
         }
         return task_template.get(self.language, task_template["en"])
 
-    def run_workflow(
+    async def run_workflow(
         self,
         file_input: str,
         highlight_text: str,
         user_instruction: str,
+        workspace_id: Optional[str] = None,
+        knowledge_base_id: Optional[str] = None,
         experimental_attachments: Optional[List[Dict[str, str]]] = None,
     ):
 
@@ -62,8 +65,40 @@ class FileEditAgent:
             user_instruction=user_instruction,
         )
 
+        # Check if RAG retrieval is needed using LLM
+        check_prompt = f"Based on this user instruction, does it require searching a knowledge base for additional context? Answer only YES or NO.\n\nUser instruction: {user_instruction}"
+        check_message = UserMessage(content=check_prompt, source="system")
+
+        result = await self.agent._model_client.create([check_message])
+        is_need_rag_retrieval = "YES" in result.content.upper()
+
+        final_task_description = task_description
+
+        if is_need_rag_retrieval and workspace_id and knowledge_base_id:
+            rag_instance = get_hi_rag_client()
+            await rag_instance.set_language(self.language)
+
+            ret = await rag_instance.query(
+                user_instruction,
+                workspace_id=workspace_id,
+                knowledge_base_id=knowledge_base_id,
+                summary=False,
+                translation=["en", "zh-TW", "zh"],
+            )
+
+            chunks = ret.get("chunks", [])
+            if chunks:
+                rag_context = (
+                    "\n\nRetrieved Context from Knowledge Base:\n"
+                    + "\n".join(
+                        f"[{i}] {chunk.get('text', '')}"
+                        for i, chunk in enumerate(chunks, start=1)
+                    )
+                )
+                final_task_description = task_description + rag_context
+
         return self.agent.run_stream(
-            task=task_description,
+            task=final_task_description,
         )
 
     async def cleanup(self):
