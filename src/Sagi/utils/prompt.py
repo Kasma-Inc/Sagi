@@ -770,3 +770,244 @@ def get_multi_round_agent_system_prompt() -> dict[str, str]:
         </workflow>
     """
     return system_prompt_dict
+
+
+def get_file_edit_system_prompt(language: str = "en") -> str:
+    return {
+        "en": """You are a professional content editor assistant. Your task is to modify highlighted text in files according to user instructions while maintaining quality and style consistency.
+
+## Your Capabilities:
+- Analyze file content and understand context (code, documentation, articles, etc.)
+- Identify and apply appropriate writing or coding styles
+- Distinguish between style references and knowledge/principles
+- Make precise, targeted modifications
+- Maintain content quality and consistency
+
+## Key Principles:
+- Output ONLY the revised content without any explanations
+- Maintain or improve content quality (clarity, accuracy, effectiveness)
+- Match the document's existing style, tone, and conventions
+- Make minimal, targeted changes focused on the user's instruction""",
+        "cn-s": """你是一个专业的内容编辑助手。你的任务是根据用户指令修改文件中的高亮文本，同时保持内容质量和风格一致性。
+
+## 你的能力：
+- 分析文件内容并理解上下文（代码、文档、文章等）
+- 识别并应用适当的写作或编码风格
+- 区分风格参考和知识/原则
+- 进行精确、有针对性的修改
+- 保持内容质量和一致性
+
+## 关键原则：
+- 只输出修改后的内容，不要任何解释
+- 保持或提高内容质量（清晰度、准确性、有效性）
+- 匹配文档现有的风格、语气和约定
+- 进行最小化的、针对性的修改，专注于用户的指令""",
+        "cn-t": """你是一個專業的內容編輯助手。你的任務是根據用戶指令修改文件中的高亮文本，同時保持內容質量和風格一致性。
+
+## 你的能力：
+- 分析文件內容並理解上下文（代碼、文檔、文章等）
+- 識別並應用適當的寫作或編碼風格
+- 區分風格參考和知識/原則
+- 進行精確、有針對性的修改
+- 保持內容質量和一致性
+
+## 關鍵原則：
+- 只輸出修改後的內容，不要任何解釋
+- 保持或提高內容質量（清晰度、準確性、有效性）
+- 匹配文檔現有的風格、語氣和約定
+- 進行最小化的、針對性的修改，專注於用戶的指令""",
+    }[language]
+
+
+def get_file_edit_task_prompt(
+    *,
+    file_input: str,
+    highlight_text: str,
+    user_instruction: str,
+    rag_context: str = "",
+    language: str = "en",
+) -> str:
+
+    base_template = {
+        "en": """## Input Information:
+You will be provided with:
+- File Content: The complete content of the file being edited
+- Highlighted Text: The specific section that needs to be modified
+- User Instruction: What changes the user wants to make
+{rag_header}
+
+Inputs:
+<|The Start of File Content|>
+{file_input}
+<|The End of File Content|>
+
+<|The Start of Highlighted Text|>
+{highlight_text}
+<|The End of Highlighted Text|>
+
+<|The Start of User Instruction|>
+{user_instruction}
+<|The End of User Instruction|>
+{rag_content}
+
+{rag_guidelines}
+
+## Output Requirements:
+- Provide ONLY the revised content for the highlighted text section
+- Do NOT include any explanations, preamble, or additional commentary
+- Ensure the modified content maintains or improves:
+  * Clarity and accuracy
+  * Readability and effectiveness
+  * Style consistency with the file
+  * Quality appropriate to the content type (code correctness, writing quality, etc.)
+{rag_application_notes}
+
+## Important Notes:
+- Focus specifically on the highlighted text section
+- Keep changes minimal and targeted to the user's instruction
+- Maintain proper formatting (indentation for code, paragraph structure for text, etc.)
+- Preserve the original intent and context of the surrounding content""",
+        "cn-s": """## 输入信息：
+你将获得：
+- 文件内容：正在编辑的文件的完整内容
+- 高亮文本：需要修改的具体部分
+- 用户指令：用户想要进行的更改
+{rag_header}
+
+输入：
+<|开始文件内容|>
+{file_input}
+<|结束文件内容|>
+
+<|开始高亮文本|>
+{highlight_text}
+<|结束高亮文本|>
+
+<|开始用户指令|>
+{user_instruction}
+<|结束用户指令|>
+{rag_content}
+
+{rag_guidelines}
+
+## 输出要求：
+- 只提供高亮文本部分修改后的内容
+- 不要包含任何解释、前言或额外评论
+- 确保修改后的内容保持或改进：
+  * 清晰度和准确性
+  * 可读性和有效性
+  * 与文件的风格一致性
+  * 适合内容类型的质量（代码正确性、写作质量等）
+{rag_application_notes}
+
+## 重要提示：
+- 专注于高亮文本部分
+- 保持更改最小化并针对用户的指令
+- 保持适当的格式（代码的缩进、文本的段落结构等）
+- 保留周围内容的原始意图和上下文""",
+        "cn-t": """## 輸入信息：
+你將獲得：
+- 文件內容：正在編輯的文件的完整內容
+- 高亮文本：需要修改的具體部分
+- 用戶指令：用戶想要進行的更改
+{rag_header}
+
+輸入：
+<|開始文件內容|>
+{file_input}
+<|結束文件內容|>
+
+<|開始高亮文本|>
+{highlight_text}
+<|結束高亮文本|>
+
+<|開始用戶指令|>
+{user_instruction}
+<|結束用戶指令|>
+{rag_content}
+
+{rag_guidelines}
+
+## 輸出要求：
+- 只提供高亮文本部分修改後的內容
+- 不要包含任何解釋、前言或額外評論
+- 確保修改後的內容保持或改進：
+  * 清晰度和準確性
+  * 可讀性和有效性
+  * 與文件的風格一致性
+  * 適合內容類型的質量（代碼正確性、寫作質量等）
+{rag_application_notes}
+
+## 重要提示：
+- 專注於高亮文本部分
+- 保持更改最小化並針對用戶的指令
+- 保持適當的格式（代碼的縮進、文本的段落結構等）
+- 保留周圍內容的原始意圖和上下文""",
+    }
+
+    rag_guidelines_text = {
+        "en": """## Guidelines for Using Retrieved Context:
+The retrieved context may contain TWO types of information:
+- **Style References** (Examples): Use these to match the writing style, tone, formatting, and structural conventions. Pay attention to vocabulary choices, sentence patterns, organizational structure, and stylistic elements.
+- **Knowledge/Principles** (Guidelines/Best Practices): Use these to understand concepts, methodologies, best practices, and principles that should guide your modifications.
+
+IMPORTANT: You should intelligently identify which context chunks are style references and which are knowledge/principles, then apply them appropriately:
+- Apply style references to maintain consistency with existing content (tone, structure, formatting)
+- Apply knowledge/principles to ensure quality and follow best practices (accuracy, effectiveness, appropriateness)""",
+        "cn-s": """## 使用检索上下文的指南：
+检索到的上下文可能包含两种类型的信息：
+- **风格参考**（示例）：用于匹配写作风格、语气、格式和结构约定。注意词汇选择、句式模式、组织结构和风格元素。
+- **知识/原则**（指南/最佳实践）：用于理解概念、方法论、最佳实践和应该指导你修改的原则。
+
+重要：你应该智能地识别哪些上下文块是风格参考，哪些是知识/原则，然后适当地应用它们：
+- 应用风格参考以保持与现有内容的一致性（语气、结构、格式）
+- 应用知识/原则以确保质量并遵循最佳实践（准确性、有效性、适当性）""",
+        "cn-t": """## 使用檢索上下文的指南：
+檢索到的上下文可能包含兩種類型的信息：
+- **風格參考**（示例）：用於匹配寫作風格、語氣、格式和結構約定。注意詞彙選擇、句式模式、組織結構和風格元素。
+- **知識/原則**（指南/最佳實踐）：用於理解概念、方法論、最佳實踐和應該指導你修改的原則。
+
+重要：你應該智能地識別哪些上下文塊是風格參考，哪些是知識/原則，然後適當地應用它們：
+- 應用風格參考以保持與現有內容的一致性（語氣、結構、格式）
+- 應用知識/原則以確保質量並遵循最佳實踐（準確性、有效性、適當性）""",
+    }
+
+    rag_application_notes_text = {
+        "en": """- If style references are present, match their tone, structure, and formatting patterns
+- If knowledge/principles are present, incorporate them into your modifications""",
+        "cn-s": """- 如果存在风格参考，匹配它们的语气、结构和格式模式
+- 如果存在知识/原则，将它们融入你的修改中""",
+        "cn-t": """- 如果存在風格參考，匹配它們的語氣、結構和格式模式
+- 如果存在知識/原則，將它們融入你的修改中""",
+    }
+
+    # Prepare RAG content if available
+    if rag_context:
+        rag_header = {
+            "en": "- Retrieved Context: Relevant information from the knowledge base",
+            "cn-s": "- 检索上下文：来自知识库的相关信息",
+            "cn-t": "- 檢索上下文：來自知識庫的相關信息",
+        }[language]
+
+        rag_content_section = f"""
+<|The Start of Retrieved Context from Knowledge Base|>
+{rag_context}
+<|The End of Retrieved Context from Knowledge Base|>"""
+
+        rag_guidelines = rag_guidelines_text[language]
+        rag_application_notes = rag_application_notes_text[language]
+    else:
+        rag_header = ""
+        rag_content_section = ""
+        rag_guidelines = ""
+        rag_application_notes = ""
+
+    return base_template[language].format(
+        file_input=file_input,
+        highlight_text=highlight_text,
+        user_instruction=user_instruction,
+        rag_header=rag_header,
+        rag_content=rag_content_section,
+        rag_guidelines=rag_guidelines,
+        rag_application_notes=rag_application_notes,
+    )
