@@ -61,7 +61,7 @@ class FileEditAgent:
             await rag_instance.set_language(self.language)
 
             ret = await rag_instance.query(
-                user_instruction,
+                highlight_text,
                 workspace_id=workspace_id,
                 knowledge_base_id=knowledge_base_id,
                 summary=False,
