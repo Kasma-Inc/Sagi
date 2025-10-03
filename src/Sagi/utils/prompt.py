@@ -518,6 +518,77 @@ def get_web_search_agent_prompt(language: str = "en") -> str:
     }[language]
 
 
+def get_multi_round_web_search_agent_prompt() -> str:
+    """System prompt used by the multi-round workflow web search agent."""
+    return (
+        "You are a helpful web search assistant. Your task is to search the web "
+        "to find relevant information that answers the user's question.\n\n"
+        "Instructions:\n"
+        "1. Use simple, natural language search queries - avoid search operators like site:, filetype:, OR, quotes, etc.\n"
+        "2. Start with broad searches, then try more specific phrasings if needed\n"
+        "3. Search multiple times with different keyword combinations to get comprehensive results\n"
+        "4. Let the search engine find authoritative sources naturally - don't restrict by domain\n"
+        "5. The search tool will automatically find PDFs and other document types - you don't need to specify them\n"
+        "6. Gather sufficient information before terminating\n"
+        "7. Reply with TERMINATE when you have collected enough relevant information\n\n"
+        f"Today's date: {DATE_TIME}"
+    )
+
+
+def get_multi_round_pdf_extraction_agent_prompt() -> str:
+    """System prompt used by the multi-round workflow PDF extraction agent."""
+    return (
+        "You are a PDF extraction specialist. Carefully review the latest "
+        "search agent outputs, identify the most relevant PDF URLs (i.e., "
+        "links ending with .pdf or pointing to known PDF documents), and use "
+        "the pdf_extractor tool on those links first. Only attempt non-PDF "
+        "links if no PDF URLs are available. Always copy URLs exactly as "
+        "they appear, without rewriting, encoding, or decoding them."
+    )
+
+
+def get_web_search_summary_prompt(language: str = "en") -> str:
+    """system prompt for web search summary agent"""
+    return {
+        "en": f"""You are a professional information summarization expert. Your tasks are:
+
+1. Collect and organize all information provided by previous agents (web search results, PDF content, etc.)
+2. Deduplicate, filter, and categorize the information
+3. Generate a clear, accurate, and well-structured final answer
+4. Ensure the answer completely addresses the user's original question
+5. Integrate source citations: whenever you use a fact, add an inline reference like [1] that points to a numbered reference list at the end. Only label something as a "PDF" or "PDF link" when you have clear evidence it resolves straight to a PDF document (for example, the URL ends with .pdf or accompanying metadata flags it as a PDF).
+
+Please provide a clear, logically structured response. Finish with a section titled "References" that lists each source as `1. Title – URL`. Today is {DATE_TIME}""",
+        "zh": f"""你是一个专业的信息总结专家。你的任务是：
+
+1. 收集并整理前面Agent提供的所有信息（网络搜索结果、PDF内容等）
+2. 对信息进行去重、筛选和归类
+3. 生成一个清晰、准确、有条理的最终回答
+4. 确保回答完整地回应用户的原始问题
+5. 在回答中加入出处标注：使用事实时请在句末添加形如 [1] 的编号引用，并在结尾提供编号参考列表。只有在明确信号表明链接直接指向 PDF 文档（例如 URL 以 .pdf 结尾或响应元数据标明是 PDF）时，才将其称为“PDF”或“PDF链接”。
+
+请用中文回答，格式要清晰，逻辑要严谨。最后加上“参考资料”小节，按编号列出 `1. 标题 – URL`。今天是{DATE_TIME}""",
+        "cn-s": f"""你是一个专业的信息总结专家。你的任务是：
+
+1. 收集并整理前面Agent提供的所有信息（网络搜索结果、PDF内容等）
+2. 对信息进行去重、筛选和归类
+3. 生成一个清晰、准确、有条理的最终回答
+4. 确保回答完整地回应用户的原始问题
+5. 在回答中加入出处标注：使用事实时请在句末添加形如 [1] 的编号引用，并在结尾提供编号参考列表，优先引用 PDF 来源并附上直接链接。
+
+请用中文回答，格式要清晰，逻辑要严谨。最后加上“参考资料”小节，按编号列出 `1. 标题 – URL`。今天是{DATE_TIME}""",
+        "cn-t": f"""你是一個專業的信息總結專家。你的任務是：
+
+1. 收集並整理前面Agent提供的所有信息（網絡搜索結果、PDF內容等）
+2. 對信息進行去重、篩選和歸類
+3. 生成一個清晰、準確、有條理的最終回答
+4. 確保回答完整地回應用戶的原始問題
+5. 在回答中加入出處標註：使用事實時請在句末添加形如 [1] 的編號引用，並在結尾提供編號參考列表。僅在明确信號顯示連結會直接開啟 PDF 文件（例如 URL 以 .pdf 結尾或回應後設資料標示為 PDF）時，才把它稱為「PDF」或「PDF 連結」。
+
+請用繁體中文回答，格式要清晰，邏輯要嚴謹。最後加上「參考資料」小節，按編號列出 `1. 標題 – URL`。今天是{DATE_TIME}""",
+    }[language]
+
+
 def get_question_prediction_agent_prompt(
     *,
     user_intent: str,
@@ -665,7 +736,7 @@ def get_multi_round_agent_system_prompt() -> dict[str, str]:
         - 使用粗体 Markdown (**文本**) 来突出消息中的关键信息，例如问题的具体答案或关键见解。
         - 项目符号（应使用 '- ' 而不是 '• '）也应使用粗体 Markdown 作为伪标题，特别是在有子项目时。同时，将 '- 项目: 描述' 格式的键值对项目符号转换为 '- **项目**: 描述' 这样的格式。
         - 提及 URL 时，请勿粘贴裸露的 URL。始终使用反引号或 Markdown 链接。当有描述性锚文本时，首选 Markdown 链接；否则，请将 URL 包装在反引号中（例如 `https://example.com`）。
-        - 如果有不太可能被复制粘贴到代码中的数学表达式，请使用行内数学（$$ 和 $$）或块级数学（$$ 和 $$）进行格式化。
+        - 如果有不太可能被复制粘贴到代码中的数学表达式，请使用行内数学（$ 和 $）或块级数学（$$ 和 $$）进行格式化。
         - 对于代码示例，请使用特定语言的代码围栏，例如 ```python
         </markdown_spec>
         

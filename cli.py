@@ -25,7 +25,7 @@ from Sagi.utils.model_client import ModelClientFactory
 from Sagi.utils.model_info import get_model_name_by_api_provider
 from Sagi.utils.queries import create_db_engine, saveChats
 from Sagi.workflows.agents.hirag_agent import RagSummaryAgent
-from Sagi.workflows.agents.multi_round import MultiRoundAgent
+from Sagi.workflows.agents.multi_round import MultiRoundAgentWorkflow
 from Sagi.workflows.general.general_chat import GeneralChatWorkflow
 from Sagi.workflows.planning.planning import PlanningWorkflow
 from Sagi.workflows.planning_html.planning_html import PlanningHtmlWorkflow
@@ -290,10 +290,16 @@ async def main_cmd(args: argparse.Namespace):
                 )
                 memory.set_session_maker(session_maker)
 
-                workflow = MultiRoundAgent(
-                    model_client=model_client,
+                workflow = MultiRoundAgentWorkflow.create(
+                    model_name=model_name,
                     memory=memory,
                     language=args.language,
+                    mcp_tools={},
+                    markdown_output=False,
+                    is_search=False,
+                    pdf_extraction=False,
+                    workspace_id=None,
+                    knowledge_base_id=None,
                 )
 
                 chat_history = await Console(workflow.run_workflow(user_input))

@@ -1,6 +1,9 @@
+import base64
+import json
 from logging import getLogger
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Tuple, Union
 
+from autogen_agentchat.messages import BaseAgentEvent, BaseChatMessage
 from autogen_core import CancellationToken, Component, Image
 from autogen_core.memory import (
     Memory,
@@ -17,6 +20,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from typing_extensions import Self
 
 from Sagi.utils.chat_template import format_memory_to_string
+from Sagi.utils.message_to_memory import get_memory_type_for_message
 from Sagi.utils.queries import (
     MultiRoundMemory,
     getMultiRoundMemory,
@@ -28,6 +32,46 @@ logger = getLogger("Sagi.workflows.multi_rounds.SagiMemory")
 
 DB_CONNECTION_MAX_RETRIES = 3
 CONTEXT_WINDOW_BUFFER = 100
+
+
+def prepare_memory_content(
+    message: BaseAgentEvent | BaseChatMessage,
+) -> Tuple[str, str]:
+    mime_type_value = get_memory_type_for_message(message)
+    content = getattr(message, "content", None)
+
+    if isinstance(content, str):
+        if mime_type_value == MemoryMimeType.JSON.value:
+            return content, MemoryMimeType.TEXT.value
+        return content, mime_type_value
+
+    if isinstance(content, bytes):
+        encoded = base64.b64encode(content).decode("utf-8")
+        return encoded, MemoryMimeType.TEXT.value
+
+    if isinstance(content, Image):
+        return content.to_base64(), MemoryMimeType.TEXT.value
+
+    if isinstance(content, dict):
+        serialized = json.dumps(content, ensure_ascii=False)
+        return serialized, MemoryMimeType.TEXT.value
+
+    if isinstance(content, list):
+        serialized_items = []
+        for item in content:
+            if isinstance(item, Image):
+                serialized_items.append({"image": item.to_base64()})
+            elif hasattr(item, "model_dump"):
+                serialized_items.append(item.model_dump(mode="python"))
+            else:
+                serialized_items.append(str(item))
+        serialized = json.dumps(serialized_items, ensure_ascii=False)
+        return serialized, MemoryMimeType.TEXT.value
+
+    text_content = message.to_text()
+    if not isinstance(text_content, str):
+        text_content = str(text_content)
+    return text_content, MemoryMimeType.TEXT.value
 
 
 class SagiMemoryConfig(BaseModel):
