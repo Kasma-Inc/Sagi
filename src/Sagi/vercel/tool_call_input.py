@@ -5,6 +5,10 @@ class RagSearchToolCallInput(CamelModel):
     query: str
 
 
+class RagFilterToolCallInput(CamelModel):
+    num_chunks: int
+
+
 class LoadFileToolCallInput(CamelModel):
     file_name: str
     file_url: str

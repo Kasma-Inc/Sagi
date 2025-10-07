@@ -5,9 +5,15 @@ from .tool_call import (
     ToolInputStart,
     ToolOutputAvailable,
 )
-from .tool_call_input import LoadFileToolCallInput, RagSearchToolCallInput
+from .tool_call_input import (
+    LoadFileToolCallInput,
+    RagFilterToolCallInput,
+    RagSearchToolCallInput,
+)
 from .tool_call_output import (
+    FilterChunkData,
     LoadFileToolCallOutput,
+    RagFilterToolCallOutput,
     RagSearchToolCallOutput,
     RagSearchToolCallOutputItem,
 )
@@ -16,6 +22,9 @@ __all__ = [
     "RagSearchToolCallInput",
     "RagSearchToolCallOutput",
     "RagSearchToolCallOutputItem",
+    "RagFilterToolCallInput",
+    "RagFilterToolCallOutput",
+    "FilterChunkData",
     "LoadFileToolCallOutput",
     "LoadFileToolCallInput",
     "ToolCall",

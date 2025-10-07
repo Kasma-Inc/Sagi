@@ -1,12 +1,16 @@
-import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
+from api.ui.utils import chunks_to_reference_chunks
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core.models import ChatCompletionClient
+from hirag_prod import HiRAG
 from hirag_prod.prompt import PROMPTS
 from resources.functions import get_hi_rag_client, get_settings
 
 from Sagi.vercel import (
+    FilterChunkData,
+    RagFilterToolCallInput,
+    RagFilterToolCallOutput,
     RagSearchToolCallInput,
     RagSearchToolCallOutput,
     RagSearchToolCallOutputItem,
@@ -23,6 +27,9 @@ class RagSummaryAgent:
     memory: SagiMemory
     gdb_path: str
     model_client_stream: bool
+    rag_instance: HiRAG
+    search_tool_name: str = "ragSearch"
+    filter_tool_name: str = "ragFilter"
 
     def __init__(
         self,
@@ -44,7 +51,8 @@ class RagSummaryAgent:
         self.vdb_path = get_settings().postgres_url_async
         self.gdb_path = gdb_path
         self.ret: Optional[Dict[str, Any]] = None
-        self.tool_name = "ragSearch"
+        self.search_tool_name = "ragSearch"
+        self.filter_tool_name = "ragFilter"
         self.markdown_output = markdown_output
 
     @classmethod
@@ -100,7 +108,7 @@ class RagSummaryAgent:
         user_input: str,
         workspace_id: str,
         knowledge_base_id: str,
-    ) -> None:
+    ) -> AsyncGenerator[Any, None]:
         """Run a query through the RAG system and prepare the summary agent.
 
         Args:
@@ -111,42 +119,93 @@ class RagSummaryAgent:
         Yields:
             Tool input and output events for the query process.
         """
-        tool_id = str(uuid.uuid4())
         try:
-            yield ToolInputStart(toolName=self.tool_name)
+            yield ToolInputStart(toolName=self.search_tool_name)
             yield ToolInputAvailable(
                 input=RagSearchToolCallInput(query=user_input).to_dict(),
             )
 
-            ret = await self.rag_instance.query(
+            # Get raw chunks from HiRAG
+            ret_raw = await self.rag_instance.query(
                 user_input,
                 workspace_id=workspace_id,
                 knowledge_base_id=knowledge_base_id,
-                summary=False,
+                strategy="raw",
                 translation=["en", "zh-TW", "zh"],
+                translator_type="qwen",
+                summary=False,
+                filter_by_clustering=False,
+                threshold=0.0,
             )
+
+            tool_call_output = set(
+                (chunk["fileName"], chunk["uri"]) for chunk in ret_raw["chunks"]
+            )
+
             yield ToolOutputAvailable(
                 output=RagSearchToolCallOutput(
                     data=[
                         RagSearchToolCallOutputItem(
-                            fileName=chunk["fileName"],
-                            fileUrl=chunk["uri"],
-                            type=chunk["uri"].split(".")[-1],
+                            fileName=chunk_tuple[0],
+                            fileUrl=chunk_tuple[1],
+                            type=chunk_tuple[1].split(".")[-1],
                         )
-                        for chunk in ret["chunks"]
+                        for chunk_tuple in tool_call_output
                     ]
+                ).to_dict(),
+            )
+
+            self.raw_chunks = ret_raw
+
+        except Exception as e:
+            raise RuntimeError(f"Query failed: {str(e)}")
+
+    async def run_filter(
+        self,
+        user_input: str,
+        workspace_id: str,
+        knowledge_base_id: str,
+    ) -> AsyncGenerator[Any, None]:
+        """Run the filtering step on raw chunks."""
+        try:
+            yield ToolInputStart(toolName=self.filter_tool_name)
+            yield ToolInputAvailable(
+                input=RagFilterToolCallInput(
+                    num_chunks=len(self.raw_chunks["chunks"])
+                ).to_dict(),
+            )
+
+            # Apply hybrid strategy to get final chunks
+            ret = await self.rag_instance.apply_strategy_to_chunks(
+                chunks_dict=self.raw_chunks,
+                strategy="hybrid",
+                workspace_id=workspace_id,
+                knowledge_base_id=knowledge_base_id,
+                filter_by_clustering=True,
+            )
+
+            included_chunks, _ = chunks_to_reference_chunks(
+                ret["chunks"], from_ofnil=False
+            )
+            excluded_chunks, _ = chunks_to_reference_chunks(
+                self.raw_chunks["chunks"], from_ofnil=False
+            )
+
+            yield ToolOutputAvailable(
+                output=RagFilterToolCallOutput(
+                    data=FilterChunkData(
+                        included=included_chunks,
+                        excluded=excluded_chunks,
+                    )
                 ).to_dict(),
             )
 
             self.set_system_prompt(user_input, ret["chunks"])
             self._init_rag_summary_agent()
             self.ret = ret
+
         except Exception as e:
-            yield ToolOutputAvailable(
-                toolName=self.tool_name,
-                toolCallId=tool_id,
-                output={"error": f"Query failed: {str(e)}"},
-            )
+            raise RuntimeError(f"Filtering failed: {str(e)}")
 
     def run_workflow(self, user_input: str) -> tuple[Optional[Dict[str, Any]], Any]:
         """Run the full workflow for processing a user query.
