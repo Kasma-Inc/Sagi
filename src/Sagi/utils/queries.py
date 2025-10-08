@@ -3,10 +3,14 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
+from api.schema import Base
+
 # Embedding service from HiRAG for generating embeddings
 from hirag_prod._llm import EmbeddingService, LocalEmbeddingService
-from pgvector.sqlalchemy import Vector
-from sqlmodel import Field, SQLModel, select
+from pgvector import HalfVector, Vector
+from pgvector.sqlalchemy import HALFVEC, VECTOR
+from resources.functions import get_envs
+from sqlalchemy import TIMESTAMP, Column, String, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from Sagi.utils.token_usage import count_tokens_messages
@@ -24,20 +28,21 @@ def get_memory_embedding_service():
     return EMBEDDING_SERVICE
 
 
-class MultiRoundMemory(SQLModel, table=True):
+mmr_dim, mmr_use_halfvec = get_envs().EMBEDDING_DIMENSION, get_envs().USE_HALF_VEC
+mmr_vec = Union[HalfVector, Vector, List[float]]
+MMR_VEC = HALFVEC(mmr_dim) if mmr_use_halfvec else VECTOR(mmr_dim)
+
+
+class MultiRoundMemory(Base):
     __tablename__ = "MultiRoundMemory"
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    chatId: str
-    messageId: str = Field(default=None, nullable=True)
-    content: str
-    source: str
-    mimeType: str
-    embedding: Optional[List[float]] = Field(
-        default=None,
-        sa_type=Vector(int(os.getenv("EMBEDDING_DIM", "4096"))),
-        nullable=True,
-    )
-    createdAt: str = Field(default=datetime.now().isoformat())
+    id: str = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    chatId: str = Column(String, nullable=False)
+    messageId: str = Column(String, nullable=True)
+    content: str = Column(String, nullable=False)
+    source: str = Column(String, nullable=False)
+    mimeType: str = Column(String, nullable=False)
+    embedding: Optional[mmr_vec] = Column(MMR_VEC, nullable=True)
+    createdAt: datetime = Column(TIMESTAMP(timezone=True), default=datetime.now)
 
 
 async def saveMultiRoundMemory(
@@ -61,12 +66,13 @@ async def saveMultiRoundMemory(
         embedding = None
 
     memory = MultiRoundMemory(
+        id=str(uuid.uuid4()),
         chatId=chat_id,
         content=content,
         source=source,
         mimeType=mime_type,
         embedding=embedding,
-        createdAt=timestamp,
+        createdAt=datetime.fromisoformat(timestamp),
     )
     session.add(memory)
     await session.commit()
@@ -94,12 +100,13 @@ async def saveMultiRoundMemories(
         embedding = embeddings[i] if i < len(embeddings) else None
 
         memory = MultiRoundMemory(
+            id=str(uuid.uuid4()),
             chatId=chat_id,
             content=content_data["content"],
             source=content_data["source"],
             mimeType=content_data["mime_type"],
             embedding=embedding,
-            createdAt=timestamp,
+            createdAt=datetime.fromisoformat(timestamp),
         )
         session.add(memory)
         await session.commit()
