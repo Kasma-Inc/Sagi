@@ -557,8 +557,8 @@ Inputs:
 - Goal-Oriented: Keep the chat focused on your intent. Avoid small talk or digressions. Redirect the chat back to the main objective if it starts to stray.
 
 ## Output Format:
-You should output an array of questions:
-- "questions" (list of str): Based on your thought process, respond to the AI as the user you are role-playing. Please provide 3 possible responses and output them as a JSON list. Stop immediately when the 3 responses are completed.
+You should output an JSON object with the following fields:
+- "questions" (array of strings): Based on your thought process, respond to the AI as the user you are role-playing. Please provide 3 possible responses and output them as a JSON list. Stop immediately when the 3 responses are completed.
 
 ## Important Notes:
 - Respond Based on Previous Messages: Your responses should be based on the context of the current chat history. Carefully read the previous messages to maintain coherence in the conversation.
@@ -596,7 +596,7 @@ Remember to stay in character as a user throughout your response, and follow the
 - 目标导向：保持对话专注于你的意图。避免闲聊或离题。如果对话开始偏离主题，请将其拉回主要目标。
 
 ## 输出格式：
-你应该输出一个数组，包含多个问题：
+你应该输出一个包含以下字段的JSON对象：
 - "questions" (list of str): 基于你的思考过程，以用户身份对AI做出回应。请提供3种可能的回答，并以JSON列表的形式输出。在完成3种回答后立即停止。
 
 ## 重要提示：
@@ -636,7 +636,7 @@ Remember to stay in character as a user throughout your response, and follow the
 - 目標導向：保持對話專注於你的意圖。避免閒聊或離題。如果對話開始偏離主題，請將其拉回主要目標。
 
 ## 輸出格式：
-你應該輸出一個數組，包含多個問題：
+你應該輸出一個包含以下欄位的JSON對象：
 - "questions" (list of str): 基於你的思考過程，以用戶身份對AI做出回應。請提供3種可能的回答，並以JSON列表的形式輸出。在完成3種回答後立即停止。
 
 ## 重要提示：
