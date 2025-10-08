@@ -187,8 +187,9 @@ class RagSummaryAgent:
             included_chunks, _ = chunks_to_reference_chunks(
                 ret["chunks"], from_ofnil=False
             )
+
             excluded_chunks, _ = chunks_to_reference_chunks(
-                self.raw_chunks["chunks"], from_ofnil=False
+                ret["outliers"], from_ofnil=False
             )
 
             yield ToolOutputAvailable(
