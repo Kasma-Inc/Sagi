@@ -100,3 +100,6 @@ pymupdf==1.26.3
 # for translation
 hanlp==2.1.2
 opencc==1.1.9
+
+# for sentry analytics
+sentry-sdk==2.40.0
