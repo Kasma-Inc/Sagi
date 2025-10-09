@@ -95,6 +95,7 @@ certifi==2024.7.4
     #   httpcore
     #   httpx
     #   requests
+    #   sentry-sdk
 cffi==2.0.0
     # via cryptography
 charset-normalizer==3.4.0
@@ -204,7 +205,7 @@ hanlp-trie==0.0.5
     # via hanlp
 hf-xet==1.1.10
     # via huggingface-hub
-hirag-prod @ git+https://github.com/Kasma-Inc/hirag-prod.git@4be667047b1003e6204a91d8a2c4ef770ceca086
+hirag-prod @ git+https://github.com/Kasma-Inc/hirag-prod.git@2816a90ff5d9134f78fc63f24681b7ca995ca53f
     # via sagi (pyproject.toml)
 hkdf==0.0.3
     # via sagi (pyproject.toml)
@@ -731,6 +732,8 @@ semchunk==2.2.2
     # via docling-core
 sentencepiece==0.2.1
     # via hanlp
+sentry-sdk==2.40.0
+    # via sagi (pyproject.toml)
 setuptools==73.0.1
     # via
     #   hirag-prod
@@ -893,6 +896,7 @@ urllib3==2.2.3
     #   botocore
     #   docker
     #   requests
+    #   sentry-sdk
 uvicorn==0.30.3
     # via mcp
 voyageai==0.3.2
@@ -909,16 +913,6 @@ xhtml2pdf==0.2.17
 xlsxwriter==3.2.9
     # via python-pptx
 xxhash==3.5.0
-
-# for pdf-extraction
-pymupdf==1.26.3
-
-# for translation
-hanlp==2.1.2
-opencc==1.1.9
-
-# for sentry analytics
-sentry-sdk==2.40.0
     # via
     #   sagi (pyproject.toml)
     #   hirag-prod
