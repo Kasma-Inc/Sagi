@@ -1,3 +1,4 @@
+import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from api.ui.utils import chunks_to_reference_chunks
@@ -168,12 +169,29 @@ class RagSummaryAgent:
     ) -> AsyncGenerator[Any, None]:
         """Run the filtering step on raw chunks."""
         try:
+            num_chunks = 0
+            if self.raw_chunks and "chunks" in self.raw_chunks:
+                num_chunks = len(self.raw_chunks["chunks"])
+
             yield ToolInputStart(toolName=self.filter_tool_name)
             yield ToolInputAvailable(
-                input=RagFilterToolCallInput(
-                    num_chunks=len(self.raw_chunks["chunks"])
-                ).to_dict(),
+                input=RagFilterToolCallInput(num_chunks=num_chunks).to_dict(),
             )
+
+            if num_chunks == 0:
+                logging.warning("No chunks available for filtering.")
+                yield ToolOutputAvailable(
+                    output=RagFilterToolCallOutput(
+                        data=FilterChunkData(
+                            included=[],
+                            excluded=[],
+                        )
+                    ).to_dict(),
+                )
+                self.set_system_prompt(user_input, [])
+                self._init_rag_summary_agent()
+                self.ret = {"chunks": []}
+                return
 
             # Apply hybrid strategy to get final chunks
             ret = await self.rag_instance.apply_strategy_to_chunks(
