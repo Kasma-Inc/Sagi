@@ -1,8 +1,10 @@
+import asyncio
 import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from api.ui.utils import chunks_to_reference_chunks
 from autogen_agentchat.agents import AssistantAgent
+from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient
 from hirag_prod import HiRAG
 from hirag_prod.prompt import PROMPTS
@@ -52,6 +54,7 @@ class RagSummaryAgent:
         self.vdb_path = get_settings().postgres_url_async
         self.gdb_path = gdb_path
         self.ret: Optional[Dict[str, Any]] = None
+        self.raw_chunks = None
         self.search_tool_name = "ragSearch"
         self.filter_tool_name = "ragFilter"
         self.markdown_output = markdown_output
@@ -109,6 +112,7 @@ class RagSummaryAgent:
         user_input: str,
         workspace_id: str,
         knowledge_base_id: str,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncGenerator[Any, None]:
         """Run a query through the RAG system and prepare the summary agent.
 
@@ -116,27 +120,46 @@ class RagSummaryAgent:
             user_input (str): The user's input query.
             workspace_id (str): The ID of the workspace.
             knowledge_base_id (str): The ID of the knowledge base.
+            cancellation_token (Optional[CancellationToken]): Token for cancellation support.
 
         Yields:
             Tool input and output events for the query process.
         """
+        if cancellation_token and cancellation_token.is_cancelled():
+            raise asyncio.CancelledError()
+
         try:
             yield ToolInputStart(toolName=self.search_tool_name)
+            if cancellation_token and cancellation_token.is_cancelled():
+                raise asyncio.CancelledError()
+
             yield ToolInputAvailable(
                 input=RagSearchToolCallInput(query=user_input).to_dict(),
             )
+            if cancellation_token and cancellation_token.is_cancelled():
+                raise asyncio.CancelledError()
 
-            # Get raw chunks from HiRAG
-            ret_raw = await self.rag_instance.query(
-                user_input,
-                workspace_id=workspace_id,
-                knowledge_base_id=knowledge_base_id,
-                strategy="raw",
-                translation=["en", "zh-TW", "zh"],
-                summary=False,
-                filter_by_clustering=False,
-                threshold=0.0,
+            rag_task = asyncio.create_task(
+                self.rag_instance.query(
+                    user_input,
+                    workspace_id=workspace_id,
+                    knowledge_base_id=knowledge_base_id,
+                    strategy="raw",
+                    translation=["en", "zh-TW", "zh"],
+                    summary=False,
+                    filter_by_clustering=False,
+                    threshold=0.0,
+                )
             )
+            if cancellation_token is not None:
+                cancellation_token.link_future(rag_task)
+            try:
+                ret_raw = await rag_task
+            except asyncio.CancelledError:
+                rag_task.cancel()
+                raise
+            if cancellation_token and cancellation_token.is_cancelled():
+                raise asyncio.CancelledError()
 
             tool_call_output = set(
                 (chunk["fileName"], chunk["uri"]) for chunk in ret_raw["chunks"]
@@ -157,6 +180,8 @@ class RagSummaryAgent:
 
             self.raw_chunks = ret_raw
 
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             raise RuntimeError(f"Query failed: {str(e)}")
 
@@ -221,15 +246,21 @@ class RagSummaryAgent:
             self.set_system_prompt(user_input, ret["chunks"])
             self._init_rag_summary_agent()
             self.ret = ret
-
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             raise RuntimeError(f"Filtering failed: {str(e)}")
 
-    def run_workflow(self, user_input: str) -> tuple[Optional[Dict[str, Any]], Any]:
+    def run_workflow(
+        self,
+        user_input: str,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> tuple[Optional[Dict[str, Any]], Any]:
         """Run the full workflow for processing a user query.
 
         Args:
             user_input (str): The user's input query.
+            cancellation_token (Optional[CancellationToken]): Token for cancellation support.
 
         Returns:
             tuple: The query results and the summary agent's streaming output.
@@ -238,7 +269,11 @@ class RagSummaryAgent:
             raise RuntimeError("RAG summary agent not initialized.")
         if not self.ret:
             raise RuntimeError("Query results are not available.")
-        return self.ret, self.rag_summary_agent.run_stream(task=user_input)
+
+        kwargs = {}
+        if cancellation_token is not None:
+            kwargs["cancellation_token"] = cancellation_token
+        return self.ret, self.rag_summary_agent.run_stream(task=user_input, **kwargs)
 
     async def cleanup(self):
         pass

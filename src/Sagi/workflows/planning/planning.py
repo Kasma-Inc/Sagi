@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Type, TypeVar
 
 from autogen_agentchat.agents import AssistantAgent
+from autogen_core import CancellationToken
 from autogen_core.models import ModelFamily, ModelInfo
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import (
@@ -469,8 +470,13 @@ class PlanningWorkflow:
         if hasattr(self.team, "set_language"):
             self.team.set_language(language)
 
-    def run_workflow(self, user_input: str):
-        return self.team.run_stream(task=user_input)
+    def run_workflow(
+        self, user_input: str, cancellation_token: Optional[CancellationToken] = None
+    ):
+        kwargs = {}
+        if cancellation_token is not None:
+            kwargs["cancellation_token"] = cancellation_token
+        return self.team.run_stream(task=user_input, **kwargs)
 
     async def cleanup(self):
         """close activated MCP servers"""

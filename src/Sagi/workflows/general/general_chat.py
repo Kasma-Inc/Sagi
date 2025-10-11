@@ -1,9 +1,11 @@
 import os
 from contextlib import AsyncExitStack
+from typing import Optional
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.conditions import TextMessageTermination
 from autogen_agentchat.teams import RoundRobinGroupChat
+from autogen_core import CancellationToken
 from autogen_ext.tools.mcp import (
     StdioServerParams,
     create_mcp_server_session,
@@ -96,8 +98,13 @@ class GeneralChatWorkflow:
             )
         return self
 
-    def run_workflow(self, user_input: str):
-        return self.team.run_stream(task=user_input)
+    def run_workflow(
+        self, user_input: str, cancellation_token: Optional[CancellationToken] = None
+    ):
+        kwargs = {}
+        if cancellation_token is not None:
+            kwargs["cancellation_token"] = cancellation_token
+        return self.team.run_stream(task=user_input, **kwargs)
 
     async def cleanup(self):
         """close activated MCP servers"""

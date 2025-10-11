@@ -1,6 +1,7 @@
 from typing import Dict, List, Optional
 
 from autogen_agentchat.agents import AssistantAgent
+from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient
 
 from Sagi.utils.prompt import get_multi_round_agent_system_prompt
@@ -48,10 +49,15 @@ class MultiRoundAgent:
         self,
         user_input: str,
         experimental_attachments: Optional[List[Dict[str, str]]] = None,
+        cancellation_token: Optional[CancellationToken] = None,
     ):
         # TODO(klma): handle the case of experimental_attachments
+        kwargs = {}
+        if cancellation_token is not None:
+            kwargs["cancellation_token"] = cancellation_token
         return self.agent.run_stream(
             task=user_input,
+            **kwargs,
         )
 
     async def cleanup(self):

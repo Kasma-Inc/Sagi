@@ -1,6 +1,8 @@
+import asyncio
 from typing import Dict, List, Optional
 
 from autogen_agentchat.agents import AssistantAgent
+from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient, UserMessage
 from resources.functions import get_hi_rag_client
 
@@ -45,28 +47,61 @@ class FileEditAgent:
         workspace_id: Optional[str] = None,
         knowledge_base_id: Optional[str] = None,
         experimental_attachments: Optional[List[Dict[str, str]]] = None,
+        cancellation_token: Optional[CancellationToken] = None,
     ):
+
+        if cancellation_token and cancellation_token.is_cancelled():
+            raise asyncio.CancelledError()
 
         # Check if RAG retrieval is needed using LLM
         check_prompt = f"Based on this user instruction, does it require searching a knowledge base for additional context? Answer only YES or NO.\n\nUser instruction: {user_instruction}"
         check_message = UserMessage(content=check_prompt, source="system")
 
-        result = await self.agent._model_client.create([check_message])
+        result = await self.agent._model_client.create(
+            [check_message], cancellation_token=cancellation_token
+        )
+        if cancellation_token and cancellation_token.is_cancelled():
+            raise asyncio.CancelledError()
         is_need_rag_retrieval = "YES" in result.content.upper()
 
         rag_context = ""
 
         if is_need_rag_retrieval and workspace_id and knowledge_base_id:
             rag_instance = get_hi_rag_client()
-            await rag_instance.set_language(self.language)
+            if cancellation_token and cancellation_token.is_cancelled():
+                raise asyncio.CancelledError()
 
-            ret = await rag_instance.query(
-                highlight_text,
-                workspace_id=workspace_id,
-                knowledge_base_id=knowledge_base_id,
-                summary=False,
-                translation=["en", "zh-TW", "zh"],
+            set_language_task = asyncio.create_task(
+                rag_instance.set_language(self.language)
             )
+            if cancellation_token is not None:
+                cancellation_token.link_future(set_language_task)
+            try:
+                await set_language_task
+            except asyncio.CancelledError:
+                set_language_task.cancel()
+                raise
+            if cancellation_token and cancellation_token.is_cancelled():
+                raise asyncio.CancelledError()
+
+            rag_task = asyncio.create_task(
+                rag_instance.query(
+                    highlight_text,
+                    workspace_id=workspace_id,
+                    knowledge_base_id=knowledge_base_id,
+                    summary=False,
+                    translation=["en", "zh-TW", "zh"],
+                )
+            )
+            if cancellation_token is not None:
+                cancellation_token.link_future(rag_task)
+            try:
+                ret = await rag_task
+            except asyncio.CancelledError:
+                rag_task.cancel()
+                raise
+            if cancellation_token and cancellation_token.is_cancelled():
+                raise asyncio.CancelledError()
 
             chunks = ret.get("chunks", [])
             if chunks:
@@ -83,8 +118,12 @@ class FileEditAgent:
             language=self.language,
         )
 
+        kwargs = {}
+        if cancellation_token is not None:
+            kwargs["cancellation_token"] = cancellation_token
         return self.agent.run_stream(
             task=final_task_description,
+            **kwargs,
         )
 
     async def cleanup(self):
