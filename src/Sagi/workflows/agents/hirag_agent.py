@@ -50,7 +50,6 @@ class RagSummaryAgent:
         self.rag_summary_agent = None
         self.model_client = model_client
         self.model_client_stream = model_client_stream
-        self.memory = memory
         self.vdb_path = get_settings().postgres_url_async
         self.gdb_path = gdb_path
         self.ret: Optional[Dict[str, Any]] = None
@@ -191,17 +190,26 @@ class RagSummaryAgent:
         user_input: str,
         workspace_id: str,
         knowledge_base_id: str,
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncGenerator[Any, None]:
         """Run the filtering step on raw chunks."""
+        if cancellation_token and cancellation_token.is_cancelled():
+            raise asyncio.CancelledError()
+
         try:
             num_chunks = 0
             if self.raw_chunks and "chunks" in self.raw_chunks:
                 num_chunks = len(self.raw_chunks["chunks"])
 
             yield ToolInputStart(toolName=self.filter_tool_name)
+            if cancellation_token and cancellation_token.is_cancelled():
+                raise asyncio.CancelledError()
+
             yield ToolInputAvailable(
                 input=RagFilterToolCallInput(num_chunks=num_chunks).to_dict(),
             )
+            if cancellation_token and cancellation_token.is_cancelled():
+                raise asyncio.CancelledError()
 
             if num_chunks == 0:
                 logging.warning("No chunks available for filtering.")
@@ -219,13 +227,24 @@ class RagSummaryAgent:
                 return
 
             # Apply hybrid strategy to get final chunks
-            ret = await self.rag_instance.apply_strategy_to_chunks(
-                chunks_dict=self.raw_chunks,
-                strategy="hybrid",
-                workspace_id=workspace_id,
-                knowledge_base_id=knowledge_base_id,
-                filter_by_clustering=True,
+            rag_task = asyncio.create_task(
+                self.rag_instance.apply_strategy_to_chunks(
+                    chunks_dict=self.raw_chunks,
+                    strategy="hybrid",
+                    workspace_id=workspace_id,
+                    knowledge_base_id=knowledge_base_id,
+                    filter_by_clustering=True,
+                )
             )
+            if cancellation_token is not None:
+                cancellation_token.link_future(rag_task)
+            try:
+                ret = await rag_task
+            except asyncio.CancelledError:
+                rag_task.cancel()
+                raise
+            if cancellation_token and cancellation_token.is_cancelled():
+                raise asyncio.CancelledError()
 
             included_chunks, _ = chunks_to_reference_chunks(
                 ret["chunks"], from_ofnil=False
