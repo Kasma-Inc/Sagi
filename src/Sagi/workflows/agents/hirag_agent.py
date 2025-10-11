@@ -144,7 +144,7 @@ class RagSummaryAgent:
                     workspace_id=workspace_id,
                     knowledge_base_id=knowledge_base_id,
                     strategy="raw",
-                    translation=["en", "zh-TW", "zh"],
+                    translation=["en", "zh-t-hk", "zh"],
                     summary=False,
                     filter_by_clustering=False,
                     threshold=0.0,
