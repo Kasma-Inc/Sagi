@@ -133,7 +133,6 @@ class RagSummaryAgent:
                 knowledge_base_id=knowledge_base_id,
                 strategy="raw",
                 translation=["en", "zh-TW", "zh"],
-                translator_type="qwen",
                 summary=False,
                 filter_by_clustering=False,
                 threshold=0.0,
