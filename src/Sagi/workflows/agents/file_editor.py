@@ -60,29 +60,14 @@ class FileEditAgent:
         result = await self.agent._model_client.create(
             [check_message], cancellation_token=cancellation_token
         )
-        if cancellation_token and cancellation_token.is_cancelled():
-            raise asyncio.CancelledError()
         is_need_rag_retrieval = "YES" in result.content.upper()
 
         rag_context = ""
 
         if is_need_rag_retrieval and workspace_id and knowledge_base_id:
             rag_instance = get_hi_rag_client()
-            if cancellation_token and cancellation_token.is_cancelled():
-                raise asyncio.CancelledError()
 
-            set_language_task = asyncio.create_task(
-                rag_instance.set_language(self.language)
-            )
-            if cancellation_token is not None:
-                cancellation_token.link_future(set_language_task)
-            try:
-                await set_language_task
-            except asyncio.CancelledError:
-                set_language_task.cancel()
-                raise
-            if cancellation_token and cancellation_token.is_cancelled():
-                raise asyncio.CancelledError()
+            await rag_instance.set_language(self.language)
 
             rag_task = asyncio.create_task(
                 rag_instance.query(

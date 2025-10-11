@@ -129,14 +129,10 @@ class RagSummaryAgent:
 
         try:
             yield ToolInputStart(toolName=self.search_tool_name)
-            if cancellation_token and cancellation_token.is_cancelled():
-                raise asyncio.CancelledError()
 
             yield ToolInputAvailable(
                 input=RagSearchToolCallInput(query=user_input).to_dict(),
             )
-            if cancellation_token and cancellation_token.is_cancelled():
-                raise asyncio.CancelledError()
 
             rag_task = asyncio.create_task(
                 self.rag_instance.query(
@@ -201,14 +197,10 @@ class RagSummaryAgent:
                 num_chunks = len(self.raw_chunks["chunks"])
 
             yield ToolInputStart(toolName=self.filter_tool_name)
-            if cancellation_token and cancellation_token.is_cancelled():
-                raise asyncio.CancelledError()
 
             yield ToolInputAvailable(
                 input=RagFilterToolCallInput(num_chunks=num_chunks).to_dict(),
             )
-            if cancellation_token and cancellation_token.is_cancelled():
-                raise asyncio.CancelledError()
 
             if num_chunks == 0:
                 logging.warning("No chunks available for filtering.")
