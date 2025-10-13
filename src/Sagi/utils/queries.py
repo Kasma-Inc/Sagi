@@ -10,7 +10,7 @@ from hirag_prod._llm import EmbeddingService, LocalEmbeddingService
 from pgvector import HalfVector, Vector
 from pgvector.sqlalchemy import HALFVEC, VECTOR
 from resources.functions import get_envs
-from sqlalchemy import TIMESTAMP, Column, String, select
+from sqlalchemy import TIMESTAMP, Column, String, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from Sagi.utils.token_usage import count_tokens_messages
@@ -205,3 +205,13 @@ async def getMultiRoundMemory(
             return []
 
     return all_memories
+
+
+async def dropMultiRoundMemory(
+    session: AsyncSession,
+    message_ids: List[str],
+):
+    await session.execute(
+        delete(MultiRoundMemory).where(MultiRoundMemory.messageId.in_(message_ids))
+    )
+    await session.commit()

@@ -19,6 +19,7 @@ from typing_extensions import Self
 from Sagi.utils.chat_template import format_memory_to_string
 from Sagi.utils.queries import (
     MultiRoundMemory,
+    dropMultiRoundMemory,
     getMultiRoundMemory,
     saveMultiRoundMemories,
 )
@@ -224,3 +225,7 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
 
     async def close(self) -> None:
         pass
+
+    async def drop_messages(self, message_ids: List[str]) -> None:
+        async with self.session_maker() as session:
+            await dropMultiRoundMemory(session, message_ids)
