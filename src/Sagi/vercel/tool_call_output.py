@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Literal
 
 from api.schema.chats.request import ReferenceChunkType
 from utils.camel_model import CamelModel
@@ -11,6 +11,7 @@ class RagSearchToolCallOutputItem(CamelModel):
 
 
 class RagSearchToolCallOutput(CamelModel):
+    type: Literal["ragSearch-output"] = "ragSearch-output"
     data: List[RagSearchToolCallOutputItem]
 
 
@@ -20,9 +21,10 @@ class FilterChunkData(CamelModel):
 
 
 class RagFilterToolCallOutput(CamelModel):
-    type: str = "RagFilterToolCallOutput"
+    type: Literal["ragFilter-output"] = "ragFilter-output"
     data: FilterChunkData
 
 
 class LoadFileToolCallOutput(CamelModel):
+    type: Literal["loadFile-output"] = "loadFile-output"
     success: bool
