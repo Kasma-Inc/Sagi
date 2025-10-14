@@ -51,6 +51,7 @@ async def saveMultiRoundMemory(
     content: str,
     source: str,
     mime_type: str,
+    message_id: Optional[str] = None,
 ):
     timestamp = datetime.now().isoformat()
 
@@ -72,6 +73,7 @@ async def saveMultiRoundMemory(
         source=source,
         mimeType=mime_type,
         embedding=embedding,
+        messageId=message_id,
         createdAt=datetime.fromisoformat(timestamp),
     )
     session.add(memory)
@@ -105,6 +107,7 @@ async def saveMultiRoundMemories(
             content=content_data["content"],
             source=content_data["source"],
             mimeType=content_data["mime_type"],
+            messageId=content_data["message_id"],
             embedding=embedding,
             createdAt=datetime.fromisoformat(timestamp),
         )

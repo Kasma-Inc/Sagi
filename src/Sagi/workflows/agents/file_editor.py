@@ -75,7 +75,7 @@ class FileEditAgent:
                     workspace_id=workspace_id,
                     knowledge_base_id=knowledge_base_id,
                     summary=False,
-                    translation=["en", "zh-TW", "zh"],
+                    translation=["en", "zh"],
                 )
             )
             if cancellation_token is not None:

@@ -143,16 +143,16 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
 
             memory_list = []
             for content in contents:
-                source = (
-                    content.metadata.get("source", "unknown")
-                    if content.metadata
-                    else "unknown"
-                )
+                metadata = content.metadata or {}
+                source = metadata.get("source", "unknown")
+                message_id = metadata.get("message_id", None)
+
                 memory_list.append(
                     {
                         "content": content.content,
                         "mime_type": content.mime_type,
                         "source": source,
+                        "message_id": message_id,
                     }
                 )
             await saveMultiRoundMemories(session, self.chat_id, memory_list)
