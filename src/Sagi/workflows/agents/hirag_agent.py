@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional, Set
 
 from api.ui.utils import chunks_to_reference_chunks
 from autogen_agentchat.agents import AssistantAgent
@@ -111,6 +111,7 @@ class RagSummaryAgent:
         user_input: str,
         workspace_id: str,
         knowledge_base_id: str,
+        file_ids: Optional[Set[str]] = None,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncGenerator[Any, None]:
         """Run a query through the RAG system and prepare the summary agent.
@@ -119,6 +120,7 @@ class RagSummaryAgent:
             user_input (str): The user's input query.
             workspace_id (str): The ID of the workspace.
             knowledge_base_id (str): The ID of the knowledge base.
+            file_ids (Optional[Set[str]]): Set of file/folder IDs to filter the search.
             cancellation_token (Optional[CancellationToken]): Token for cancellation support.
 
         Yields:
@@ -134,17 +136,23 @@ class RagSummaryAgent:
                 input=RagSearchToolCallInput(query=user_input).to_dict(),
             )
 
+            # Build query parameters
+            query_params = {
+                "workspace_id": workspace_id,
+                "knowledge_base_id": knowledge_base_id,
+                "strategy": "raw",
+                "translation": ["en", "zh-t-hk", "zh"],
+                "summary": False,
+                "filter_by_clustering": False,
+                "threshold": 0.0,
+            }
+
+            # Add file_ids if provided
+            if file_ids:
+                query_params["file_list"] = list(file_ids)
+
             rag_task = asyncio.create_task(
-                self.rag_instance.query(
-                    user_input,
-                    workspace_id=workspace_id,
-                    knowledge_base_id=knowledge_base_id,
-                    strategy="raw",
-                    translation=["en", "zh-t-hk", "zh"],
-                    summary=False,
-                    filter_by_clustering=False,
-                    threshold=0.0,
-                )
+                self.rag_instance.query(user_input, **query_params)
             )
             if cancellation_token is not None:
                 cancellation_token.link_future(rag_task)
