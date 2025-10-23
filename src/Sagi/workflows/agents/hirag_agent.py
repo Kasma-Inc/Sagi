@@ -2,14 +2,15 @@ import asyncio
 import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional, Set
 
-from api.ui.utils import chunks_to_reference_chunks
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient
 from hirag_prod import HiRAG
 from hirag_prod.prompt import PROMPTS
-from resources.functions import get_hi_rag_client, get_settings
+from hirag_prod.tracing import traced, traced_async_gen
 
+from api.ui.utils import chunks_to_reference_chunks
+from resources.functions import get_hi_rag_client, get_settings
 from Sagi.vercel import (
     FilterChunkData,
     RagFilterToolCallInput,
@@ -59,6 +60,7 @@ class RagSummaryAgent:
         self.markdown_output = markdown_output
 
     @classmethod
+    @traced(record_args=[])
     async def create(
         cls,
         model_client: ChatCompletionClient,
@@ -106,6 +108,7 @@ class RagSummaryAgent:
             )
         self.system_prompt = system_prompt
 
+    @traced_async_gen(record_return=True)
     async def run_query(
         self,
         user_input: str,
@@ -188,6 +191,7 @@ class RagSummaryAgent:
         except Exception as e:
             raise RuntimeError(f"Query failed: {str(e)}")
 
+    @traced_async_gen(record_return=True)
     async def run_filter(
         self,
         user_input: str,
@@ -270,6 +274,7 @@ class RagSummaryAgent:
         except Exception as e:
             raise RuntimeError(f"Filtering failed: {str(e)}")
 
+    @traced(record_return=True)
     def run_workflow(
         self,
         user_input: str,

@@ -6,9 +6,10 @@ from autogen_agentchat.messages import BaseChatMessage
 from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_core import CancellationToken
 from autogen_core.tools import BaseTool
+from hirag_prod.tracing import traced
 from pydantic import BaseModel
-from resources.model_client_wrapper import ModelClientWrapper
 
+from resources.model_client_wrapper import ModelClientWrapper
 from Sagi.utils.prompt import (
     get_rag_agent_prompt,
     get_user_intent_recognition_agent_prompt,
@@ -97,6 +98,7 @@ class QuestionPredictionWorkflow:
         )
         return self
 
+    @traced()
     def run_workflow(
         self,
         user_input: Sequence[BaseChatMessage],

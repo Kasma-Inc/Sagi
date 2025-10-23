@@ -3,16 +3,16 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from api.schema import Base
-
 # Embedding service from HiRAG for generating embeddings
 from hirag_prod._llm import EmbeddingService, LocalEmbeddingService
+from hirag_prod.tracing import traced
 from pgvector import HalfVector, Vector
 from pgvector.sqlalchemy import HALFVEC, VECTOR
-from resources.functions import get_envs
 from sqlalchemy import TIMESTAMP, Column, String, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from api.schema import Base
+from resources.functions import get_envs
 from Sagi.utils.token_usage import count_tokens_messages
 
 EMBEDDING_SERVICE: Optional[Union[LocalEmbeddingService, EmbeddingService]] = None
@@ -80,6 +80,7 @@ async def saveMultiRoundMemory(
     await session.commit()
 
 
+@traced(record_args=[])
 async def saveMultiRoundMemories(
     session: AsyncSession,
     chat_id: str,
