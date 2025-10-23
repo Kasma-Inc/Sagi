@@ -13,10 +13,10 @@ from autogen_core.model_context import ChatCompletionContext
 from autogen_core.models import SystemMessage
 from hirag_prod.tracing import traced
 from pydantic import BaseModel
+from resources.functions import get_llm_context_window
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from typing_extensions import Self
 
-from resources.functions import get_llm_context_window
 from Sagi.utils.chat_template import format_memory_to_string
 from Sagi.utils.queries import (
     MultiRoundMemory,

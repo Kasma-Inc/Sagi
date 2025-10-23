@@ -8,8 +8,8 @@ from autogen_core import CancellationToken
 from autogen_core.tools import BaseTool
 from hirag_prod.tracing import traced
 from pydantic import BaseModel
-
 from resources.model_client_wrapper import ModelClientWrapper
+
 from Sagi.utils.prompt import (
     get_rag_agent_prompt,
     get_user_intent_recognition_agent_prompt,

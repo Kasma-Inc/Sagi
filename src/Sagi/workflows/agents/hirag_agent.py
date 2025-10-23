@@ -2,15 +2,15 @@ import asyncio
 import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional, Set
 
+from api.ui.utils import chunks_to_reference_chunks
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient
 from hirag_prod import HiRAG
 from hirag_prod.prompt import PROMPTS
 from hirag_prod.tracing import traced, traced_async_gen
-
-from api.ui.utils import chunks_to_reference_chunks
 from resources.functions import get_hi_rag_client, get_settings
+
 from Sagi.vercel import (
     FilterChunkData,
     RagFilterToolCallInput,
