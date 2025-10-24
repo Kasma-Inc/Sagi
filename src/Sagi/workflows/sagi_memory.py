@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Any, List, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 from autogen_core import CancellationToken, Component, Image
 from autogen_core.memory import (
@@ -103,7 +103,7 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
 
         # Reverse the order to get the original order (since we reversed when iterating)
         memory_to_add.reverse()
-        memory_context = format_memory_to_string(memory_to_add, self.model_name)
+        memory_context = format_memory_to_string(memory_to_add)
         return memory_context
 
     async def update_context(
@@ -161,6 +161,7 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
         self,
         query: str | MemoryContent,
         cancellation_token: CancellationToken | None = None,
+        type: Optional[Literal["rag", "general"]] = None,
         **kwargs: Any,
     ) -> MemoryQueryResult:
         # TODO(kaili): We support to extract all the messages with the same chat_id for now.

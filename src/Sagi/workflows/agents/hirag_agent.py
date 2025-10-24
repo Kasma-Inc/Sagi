@@ -1,15 +1,24 @@
 import asyncio
 import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional, Set
+import time
+from typing import Any, AsyncGenerator, Dict, Optional, Set
 
 from api.ui.utils import chunks_to_reference_chunks
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient
 from hirag_prod import HiRAG
-from hirag_prod.prompt import PROMPTS
+from hirag_prod.configs.functions import get_llm_config
+from hirag_prod.resources.functions import get_chat_service
 from resources.functions import get_hi_rag_client, get_settings
 
+from Sagi.utils.chat_template import format_memory_to_string
+from Sagi.utils.prompt import (
+    get_judge_whether_need_memory_prompt,
+    get_memory_augmented_user_query_prompt,
+    get_rag_summary_plus_markdown_prompt,
+    get_rag_summary_plus_prompt,
+)
 from Sagi.vercel import (
     FilterChunkData,
     RagFilterToolCallInput,
@@ -57,6 +66,8 @@ class RagSummaryAgent:
         self.search_tool_name = "ragSearch"
         self.filter_tool_name = "ragFilter"
         self.markdown_output = markdown_output
+        self.augmented_user_input = None
+        self.memory_context = None
 
     @classmethod
     async def create(
@@ -85,24 +96,20 @@ class RagSummaryAgent:
             name="rag_summary_agent",
             model_client=self.model_client,
             model_client_stream=self.model_client_stream,
-            memory=[self.memory],
+            memory=None,  # Disable default memory injection for this agent
             system_message=self.system_prompt,
         )
 
-    def set_system_prompt(self, user_query: str, chunks: List[Dict[str, Any]]):
-        raw_prompt = PROMPTS["summary_plus_" + self.language]
-        data = "- Retrieved Chunks:\n" + "\n".join(
-            f"    [{i}] {' '.join((c.get('text', '') or '').split())}"
-            for i, c in enumerate(chunks, start=1)
-        )
-        system_prompt = raw_prompt.format(
-            user_query=user_query,
-            data=data,
+    def set_system_prompt(self, chunks: str, memory_context: Optional[str] = None):
+
+        system_prompt = get_rag_summary_plus_prompt(
+            chunks_data=chunks, memory_context=memory_context, language=self.language
         )
         if self.markdown_output:
-            system_prompt = PROMPTS["summary_plus_markdown_" + self.language].format(
-                user_query=user_query,
-                data=data,
+            system_prompt = get_rag_summary_plus_markdown_prompt(
+                chunks_data=chunks,
+                memory_context=memory_context,
+                language=self.language,
             )
         self.system_prompt = system_prompt
 
@@ -129,7 +136,33 @@ class RagSummaryAgent:
         if cancellation_token and cancellation_token.is_cancelled():
             raise asyncio.CancelledError()
 
+        self.memory_context = None
+        self.augmented_user_input = None
         try:
+            start_time = time.time()
+            memory_query_result = await self.memory.query(query=user_input, type="rag")
+            memory_results = memory_query_result.results
+            if len(memory_results) == 0:
+                self.augmented_user_input = user_input
+            else:
+                self.memory_context = format_memory_to_string(memory_results)
+                memory_augmented_user_input_prompt = (
+                    get_memory_augmented_user_query_prompt(
+                        user_input=user_input,
+                        memory=self.memory_context,
+                        language=self.language,
+                    )
+                )
+                self.augmented_user_input = await get_chat_service().complete(
+                    prompt=memory_augmented_user_input_prompt,
+                    model=get_llm_config().model_name,
+                )
+                duration_seconds = time.time() - start_time
+                changed = self.augmented_user_input.strip() != user_input.strip()
+                logging.info(
+                    f"RAG memory augmented used={changed} duration_seconds={duration_seconds:.2f}"
+                )
+
             yield ToolInputStart(toolName=self.search_tool_name)
 
             yield ToolInputAvailable(
@@ -152,7 +185,7 @@ class RagSummaryAgent:
                 query_params["file_list"] = list(file_ids)
 
             rag_task = asyncio.create_task(
-                self.rag_instance.query(user_input, **query_params)
+                self.rag_instance.query(self.augmented_user_input, **query_params)
             )
             if cancellation_token is not None:
                 cancellation_token.link_future(rag_task)
@@ -220,7 +253,7 @@ class RagSummaryAgent:
                         )
                     ).to_dict(),
                 )
-                self.set_system_prompt(user_input, [])
+                self.set_system_prompt(chunks=[])
                 self._init_rag_summary_agent()
                 self.ret = {"chunks": []}
                 return
@@ -261,10 +294,34 @@ class RagSummaryAgent:
                     )
                 ).to_dict(),
             )
+            chunks_string = "\n" + "\n".join(
+                f"    [{i}] {' '.join((c.get('text', '') or '').split())}"
+                for i, c in enumerate(ret["chunks"], start=1)
+            )
 
-            self.set_system_prompt(user_input, ret["chunks"])
+            need_memory = False
+            if self.memory_context:
+                try:
+                    judge_prompt = get_judge_whether_need_memory_prompt(
+                        user_query=self.augmented_user_input or "",
+                        chunks_data=chunks_string,
+                    )
+                    judge_res = await get_chat_service().complete(
+                        prompt=judge_prompt,
+                        model=get_llm_config().model_name,
+                    )
+                    need_memory = (judge_res or "").strip().lower().startswith("y")
+                except Exception as e:
+                    logging.warning(f"Memory need judge failed: {e}")
+                    need_memory = False
+
+            self.set_system_prompt(
+                chunks=chunks_string,
+                memory_context=self.memory_context if need_memory else None,
+            )
             self._init_rag_summary_agent()
             self.ret = ret
+
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -292,7 +349,9 @@ class RagSummaryAgent:
         kwargs = {}
         if cancellation_token is not None:
             kwargs["cancellation_token"] = cancellation_token
-        return self.ret, self.rag_summary_agent.run_stream(task=user_input, **kwargs)
+        return self.ret, self.rag_summary_agent.run_stream(
+            task=self.augmented_user_input, **kwargs
+        )
 
     async def cleanup(self):
         pass
