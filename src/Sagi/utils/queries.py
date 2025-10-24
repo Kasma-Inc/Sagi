@@ -7,6 +7,7 @@ from api.schema import Base
 
 # Embedding service from HiRAG for generating embeddings
 from hirag_prod._llm import EmbeddingService, LocalEmbeddingService
+from hirag_prod.tracing import traced
 from pgvector import HalfVector, Vector
 from pgvector.sqlalchemy import HALFVEC, VECTOR
 from resources.functions import get_envs
@@ -80,6 +81,7 @@ async def saveMultiRoundMemory(
     await session.commit()
 
 
+@traced(record_args=[])
 async def saveMultiRoundMemories(
     session: AsyncSession,
     chat_id: str,

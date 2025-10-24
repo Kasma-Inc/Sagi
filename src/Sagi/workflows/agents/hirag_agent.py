@@ -10,6 +10,7 @@ from autogen_core.models import ChatCompletionClient
 from hirag_prod import HiRAG
 from hirag_prod.configs.functions import get_llm_config
 from hirag_prod.resources.functions import get_chat_service
+from hirag_prod.tracing import traced, traced_async_gen
 from resources.functions import get_hi_rag_client, get_settings
 
 from Sagi.utils.chat_template import format_memory_to_string
@@ -70,6 +71,7 @@ class RagSummaryAgent:
         self.memory_context = None
 
     @classmethod
+    @traced(record_args=[])
     async def create(
         cls,
         model_client: ChatCompletionClient,
@@ -113,6 +115,7 @@ class RagSummaryAgent:
             )
         self.system_prompt = system_prompt
 
+    @traced_async_gen(record_return=True)
     async def run_query(
         self,
         user_input: str,
@@ -221,6 +224,7 @@ class RagSummaryAgent:
         except Exception as e:
             raise RuntimeError(f"Query failed: {str(e)}")
 
+    @traced_async_gen(record_return=True)
     async def run_filter(
         self,
         user_input: str,
@@ -327,6 +331,7 @@ class RagSummaryAgent:
         except Exception as e:
             raise RuntimeError(f"Filtering failed: {str(e)}")
 
+    @traced(record_return=True)
     def run_workflow(
         self,
         user_input: str,
