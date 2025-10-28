@@ -4,7 +4,7 @@ from typing import Optional
 from redis.asyncio import ConnectionPool, Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
-from Sagi.utils.settings import settings
+from resources.functions import get_envs
 
 
 class SimpleSingleton:
@@ -38,7 +38,7 @@ class PGSQLClient(SimpleSingleton):
         return self._pgsql_session_maker
 
     async def connect(self):
-        pgsql_url = settings.POSTGRESQL_URL_NO_SSL
+        pgsql_url = get_envs().POSTGRES_URL
         if not pgsql_url:
             raise ValueError("POSTGRESQL_URL is required but not provided")
 
@@ -100,7 +100,7 @@ class RedisClient(SimpleSingleton):
         return self._redis_pool
 
     async def connect(self):
-        redis_url = settings.REDIS_URL
+        redis_url = get_envs().REDIS_URL
         if not redis_url:
             raise ValueError("REDIS_URL is required but not provided")
 
