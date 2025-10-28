@@ -13,6 +13,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from Sagi.utils.token_usage import count_tokens_messages
 
+from hirag_prod.tracing import traced
+
 EMBEDDING_SERVICE: Optional[Union[LocalEmbeddingService, EmbeddingService]] = None
 
 
@@ -81,6 +83,7 @@ async def saveMultiRoundMemory(
     await session.commit()
 
 
+@traced(record_args=[])
 async def saveMultiRoundMemories(
     session: AsyncSession,
     chat_id: str,

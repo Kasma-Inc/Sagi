@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Any, List, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 from autogen_core import CancellationToken, Component, Image
 from autogen_core.memory import (
@@ -12,6 +12,7 @@ from autogen_core.memory import (
 from autogen_core.model_context import ChatCompletionContext
 from autogen_core.models import SystemMessage
 from configs.functions import get_llm_context_window
+from hirag_prod.tracing import traced
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from typing_extensions import Self
@@ -103,7 +104,7 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
 
         # Reverse the order to get the original order (since we reversed when iterating)
         memory_to_add.reverse()
-        memory_context = format_memory_to_string(memory_to_add, self.model_name)
+        memory_context = format_memory_to_string(memory_to_add)
         return memory_context
 
     async def update_context(
@@ -130,6 +131,7 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
 
         return UpdateContextResult(memories=MemoryQueryResult(results=[]))
 
+    @traced(record_args=[])
     async def add(self, contents: Union[MemoryContent, List[MemoryContent]]):
         assert (
             self.session_maker is not None
@@ -161,6 +163,7 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
         self,
         query: str | MemoryContent,
         cancellation_token: CancellationToken | None = None,
+        type: Optional[Literal["rag", "general"]] = None,
         **kwargs: Any,
     ) -> MemoryQueryResult:
         # TODO(kaili): We support to extract all the messages with the same chat_id for now.

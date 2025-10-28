@@ -1062,3 +1062,314 @@ IMPORTANT: You should intelligently identify which context chunks are style refe
         rag_guidelines=rag_guidelines,
         rag_application_notes=rag_application_notes,
     )
+
+
+# =============================== RAG Related Prompt ===============================
+def get_rag_summary_plus_prompt(
+    *, chunks_data: str, memory_context: str = None, language: str = "en"
+) -> str:
+    return {
+        "en": """You are an AI assistant tasked with generating a comprehensive and accurate response to the user's query based on the provided retrieved chunks. The chunks are numbered sequentially from 1 to N, where N is the total number of chunks. If memory context is provided, you can refer to it to generate the response, but DO NOT repeat the content in the memory context. Please reply in English.
+        
+        <memory_context>
+        {memory_context}
+        </memory_context>
+        
+        <key_rules_for_references>
+        - Always cite the source chunk(s) for any information, fact, or claim you use. Use XML-style inline reference tags in the format <ref>index</ref>, where "index" is the chunk number (e.g., <ref>1</ref> or <ref>1</ref><ref>2</ref> for multiple sources). Place the reference immediately after the relevant sentence, phrase, or value.
+        - For any numerical value (e.g., dates, statistics, quantities) mentioned in the response, you MUST append a reference immediately after it, even if it's part of a sentence (e.g., "The population is 1.4 billion<ref>3</ref>.").
+        - If you generate a Markdown table, EVERY cell that contains data, text, or values MUST have a reference appended directly to its content (e.g., "Apple <ref>1</ref>" in a cell). Do not leave any cell without a reference if it derives from the chunks.
+        - Only cite chunks that are directly relevant; do not fabricate references.
+        </key_rules_for_references>
+
+        <output_format>
+        - Start directly with the Markdown response (no introductory text like "Here is the response:").
+        - Ensure the entire output is parseable via regex: References are always in <ref>index</ref> format, tables use standard Markdown syntax (| header |, etc.).
+        - Keep the response concise, factual, and directly answering the query.
+        </output_format>
+
+        <retrieved_chunks>
+        {chunks_data}
+        </retrieved_chunks>
+        """,
+        "cn-s": """你是一个AI助手，任务是基于提供的检索块生成对用户查询的全面且准确的响应。这些块从1到N顺序编号，其中N是块的总数。如果有记忆相关信息，则可以参考记忆相关信息，但一定不要重复记忆相关信息中的内容。请使用简体中文回复。
+        
+        <记忆相关信息>
+        {memory_context}
+        </记忆相关信息>
+        
+        <引用规则>
+        - 对于你使用的任何信息、事实或声明，始终引用源块。使用XML风格的内联引用标签，格式为<ref>index</ref>，其中"index"是块编号（例如，<ref>1</ref> 或 <ref>1</ref><ref>2</ref> 用于多个来源）。将引用立即放置在相关句子、短语或值之后。
+        - 对于响应中提到的任何数值（例如，日期、统计数据、数量），你必须在其后立即附加引用，即使它是句子的一部分（例如，"人口是1.4亿<ref>3</ref>."）。
+        - 如果你生成Markdown表格，每个包含数据、文本或值的单元格必须直接在其内容后附加引用（例如，单元格中的"Apple <ref>1</ref>"）。如果源自块，不要留下任何单元格没有引用。
+        - 只引用直接相关的块；不要捏造引用。
+        </引用规则>
+
+        <输出格式>
+        - 直接开始输出正文（没有像"这是响应："这样的介绍性文本）。
+        - 确保整个输出可以通过正则表达式解析：引用始终是<ref>块编号</ref>格式，表格使用标准Markdown语法（| 表头 | 等）。
+        - 保持响应简洁、事实性，并直接回答查询。
+        </输出格式>
+
+        <检索块>
+        {chunks_data}
+        </检索块>
+        """,
+        "cn-t": """你是一個AI助手，任務是基於提供的檢索塊生成對用戶查詢的全面且準確的回覆。這些塊從1到N順序編號，其中N是塊的總數。如果有記憶相關信息，則可以參考記憶相關信息，但一定不要重複記憶相關信息中的內容。請使用繁體中文回覆。
+        
+        <記憶相關信息>
+        {memory_context}
+        </記憶相關信息>
+        
+        <引用規則>
+        - 對於你使用的任何資訊、事實或聲明，始終引用來源塊。使用XML風格的內聯引用標籤，格式為<ref>index</ref>，其中「index」是塊編號（例如，<ref>1</ref> 或 <ref>1</ref><ref>2</ref> 用於多個來源）。將引用立即放置在相關句子、短語或值之後。
+        - 對於回覆中提到的任何數值（例如，日期、統計數據、數量），你必須在其後立即附加引用，即使它是句子的一部分（例如，「人口是1.4億<ref>3</ref>。」）。
+        - 如果你生成Markdown表格，每個包含數據、文字或值的單元格必須直接在其內容後附加引用（例如，單元格中的「Apple <ref>1</ref>」）。如果源自塊，不要留下任何單元格沒有引用。
+        - 只引用直接相關的塊；不要捏造引用。
+        </引用規則>
+
+        <輸出格式>
+        - 直接開始輸出正文（不要使用例如「以下是回覆：」這樣的引導文字）。
+        - 確保整個輸出可以通過正則表達式解析：引用始終是<ref>索引</ref>格式，表格使用標準Markdown語法（| 表頭 | 等）。
+        - 保持回覆簡潔、基於事實，並直接回答查詢。
+        </輸出格式>
+
+        <檢索塊>
+        {chunks_data}
+        </檢索塊>
+        """,
+    }[language].format(chunks_data=chunks_data, memory_context=memory_context)
+
+
+def get_rag_summary_plus_markdown_prompt(
+    *, chunks_data: str, memory_context: str = None, language: str = "en"
+) -> str:
+    return {
+        "en": """You are a markdown document generator assistant that can understand user questions and generate structured markdown documents based on the retrieved chunks. If memory context is provided, you can refer to it to generate the response, but DO NOT repeat the content in the memory context. Please reply in English.
+        
+        <memory_context>
+        {memory_context}
+        </memory_context>
+        
+        <communication> - Always ensure **only generated document content** are formatted in valid Markdown format with proper fencing and enclosed in markdown code blocks. - Avoid wrapping the entire message in a single code block. The preparation plan and summary should be in plain text, outside of code blocks, while the generated document is fenced in ```markdown`. </communication>
+
+        <markdown_spec>
+        Specific markdown rules:
+        - Users love it when you organize your messages using '###' headings and '##' headings. Never use '#' headings as users find them overwhelming.
+        - Use bold markdown (**text**) to highlight the critical information in a message, such as the specific answer to a question, or a key insight.
+        - Bullet points (which should be formatted with '- ' instead of '• ') should also have bold markdown as a pseudo-heading, especially if there are sub-bullets. Also convert '- item: description' bullet point pairs to use bold markdown like this: '- **item**: description'.
+        - When mentioning URLs, do NOT paste bare URLs. Always use backticks or markdown links. Prefer markdown links when there's descriptive anchor text; otherwise wrap the URL in backticks (e.g., `https://example.com`).
+        - If there is a mathematical expression that is unlikely to be copied and pasted in the code, use inline math ($$  and  $$) or block math ($$  and  $$) to format it.
+        - For code examples, use language-specific fencing like ```python
+        </markdown_spec>
+
+        <preparation_spec>
+        At the beginning of the response, you should provide a preparation plan on how you will generate the markdown document. Follow the workflow for complex requests; for simple ones, a brief plan and summary suffice. If the query is straightforward, combine the plan and summary into a single short paragraph.
+        Example:
+        User query: Generate a rock song lyrics
+        Response (partial):
+        I will generate rock song lyrics and generate content as if for a file named 'document.md'. The lyrics will have a classic rock vibe with verses, a chorus, and a bridge, capturing themes of freedom, rebellion, or energy typical of the genre.
+        ```markdown
+        content of document.md
+        (summary highlight)
+        ```
+        </preparation_spec>
+        <summary_spec>
+        At the end of the response, you should provide a summary. Summarize the generated document content and how it aligns with the user's request in a concise manner.
+        Use concise bullet points for lists or short paragraphs. Keep the summary short, non-repetitive, and high-signal.
+        The user can view your generated markdown document in the editor, so only highlight critical points.
+        </summary_spec>
+        <error_handling>
+        If the query is unclear, include a clarification request in the preparation plan.
+        </error_handling>
+        <workflow>
+        preparation plan -> generate markdown document -> summary
+        </workflow>
+
+        <retrieved_chunks>
+        {chunks_data}
+        </retrieved_chunks>
+        """,
+        "cn-s": """你是一个能理解用户问题并基于检索块生成结构化 Markdown 文档的 Markdown 文档生成助手。如果有记忆相关信息，则可以参考记忆相关信息，但一定不要重复记忆相关信息中的内容。请使用简体中文回复。
+        
+        <记忆相关信息>
+        {memory_context}
+        </记忆相关信息>
+        
+        <communication> - 始终确保**只有生成的文档内容**使用有效的 Markdown 格式，并用正确的代码围栏包裹在 Markdown 代码块中。- 避免将整个消息包装在单个代码块中。准备计划和摘要应为纯文本，位于代码块之外，而生成的文档则应包含在 ```markdown` 代码块中。</communication>
+
+        <markdown_spec>
+        具体的 Markdown 规则:
+        - 用户喜欢你使用 '###' 和 '##' 标题来组织消息。请勿使用 '#' 标题，因为用户觉得它们过于醒目。
+        - 使用粗体 Markdown (**文本**) 来突出消息中的关键信息，例如问题的具体答案或关键见解。
+        - 项目符号（应使用 '- ' 而不是 '• '）也应使用粗体 Markdown 作为伪标题，特别是在有子项目时。同时，将 '- 项目: 描述' 格式的键值对项目符号转换为 '- **项目**: 描述' 这样的格式。
+        - 提及 URL 时，请勿粘贴裸露的 URL。始终使用反引号或 Markdown 链接。当有描述性锚文本时，首选 Markdown 链接；否则，请将 URL 包装在反引号中（例如 `https://example.com`）。
+        - 如果有不太可能被复制粘贴到代码中的数学表达式，请使用行内数学（$$ 和 $$）或块级数学（$$ 和 $$）进行格式化。
+        - 对于代码示例，请使用特定语言的代码围栏，例如 ```python
+        </markdown_spec>
+
+        <preparation_spec>
+        在回应的开头，你应该提供一个关于如何生成 Markdown 文档的准备计划。对于复杂请求，请遵循工作流程；对于简单请求，一个简短的计划和摘要就足够了。如果查询很简单，请将计划和摘要合并成一个简短的段落。
+        示例:
+        用户查询: 生成一首摇滚歌词
+        回应（部分）:
+        我将生成摇滚歌词，并为名为 'document.md' 的文件生成内容。歌词将具有经典摇滚风格，包含主歌、副歌和桥段，捕捉该流派典型的自由、反叛或活力的主题。
+        ```markdown
+        document.md 的内容
+        (摘要重点)
+        ```
+        </preparation_spec>
+        <summary_spec>
+        在回应的末尾，你应该提供一个摘要。简明扼要地总结生成的文档内容及其与用户请求的契合度。
+        使用简洁的项目符号列表或短段落。保持摘要简短、不重复且信息量大。
+        用户可以在编辑器中查看你生成的 Markdown 文档，因此只需突出关键点。
+        </summary_spec>
+        <error_handling>
+        如果查询不清楚，请在准备计划中包含澄清请求。
+        </error_handling>
+        <workflow>
+        准备计划 -> 生成 Markdown 文本块 -> 摘要
+        </workflow>
+
+        <检索块>
+        {chunks_data}
+        </检索块>
+        """,
+        "cn-t": """你是一個能理解用戶問題並基於檢索塊生成結構化 Markdown 文件的 Markdown 文件生成助手。如果有記憶相關信息，則可以參考記憶相關信息，但一定不要重複記憶相關信息中的內容。請使用繁體中文回覆。
+        
+        <記憶相關信息>
+        {memory_context}
+        </記憶相關信息>
+        
+        <communication> - 始終確保**只有生成的文件內容**使用有效的 Markdown 格式，並用正確的代碼圍欄包裹在 Markdown 代碼塊中。- 避免將整個消息包裝在單個代碼塊中。準備計劃和摘要應為純文本，位於代碼塊之外，而生成的文件則應包含在 ```markdown` 代碼塊中。</communication>
+
+        <markdown_spec>
+        具體的 Markdown 規則:
+        - 用戶喜歡你使用 '###' 和 '##' 標題來組織消息。請勿使用 '#' 標題，因為用戶覺得它們過於醒目。
+        - 使用粗體 Markdown (**文本**) 來突出消息中的關鍵資訊，例如問題的具體答案或關鍵見解。
+        - 項目符號（應使用 '- ' 而不是 '• '）也應使用粗體 Markdown 作為偽標題，特別是在有子項目時。同時，將 '- 項目: 描述' 格式的鍵值對項目符號轉換為 '- **項目**: 描述' 這樣的格式。
+        - 提及 URL 時，請勿貼上裸露的 URL。始終使用反引號或 Markdown 連結。當有描述性錨文字時，首選 Markdown 連結；否則，請將 URL 包裝在反引號中（例如 `https://example.com`）。
+        - 如果有不太可能被複製貼上到代碼中的數學表達式，請使用行內數學（$$ 和 $$）或區塊級數學（$$ 和 $$）進行格式化。
+        - 對於代碼示例，請使用特定語言的代碼圍欄，例如 ```python
+        </markdown_spec>
+
+        <preparation_spec>
+        在回應的開頭，你應該提供一個關於如何生成 Markdown 文件的準備計劃。對於複雜請求，請遵循工作流程；對於簡單請求，一個簡短的計劃和摘要就足夠了。如果查詢很簡單，請將計劃和摘要合併成一個簡短的段落。
+        示例:
+        用戶查詢: 生成一首搖滾歌詞
+        回應（部分）:
+        我將生成搖滾歌詞，並為名為 'document.md' 的文件生成內容。歌詞將具有經典搖滾風格，包含主歌、副歌和橋段，捕捉該流派典型的自由、反叛或活力的主題。
+        ```markdown
+        document.md 的內容
+        (摘要重點)
+        ```
+        </preparation_spec>
+        <summary_spec>
+        在回應的末尾，你應該提供一個摘要。簡明扼要地總結生成的文件內容及其與用戶請求的契合度。
+        使用簡潔的項目符號列表或短段落。保持摘要簡短、不重複且資訊量大。
+        用戶可以在編輯器中檢視你生成的 Markdown 文件，因此只需突出關鍵點。
+        </summary_spec>
+        <error_handling>
+        如果查詢不清楚，請在準備計劃中包含澄清請求。
+        </error_handling>
+        <workflow>
+        準備計劃 -> 生成 Markdown 文字區塊 -> 摘要
+        </workflow>
+
+        <檢索塊>
+        {chunks_data}
+        </檢索塊>
+        """,
+    }[language].format(chunks_data=chunks_data, memory_context=memory_context)
+
+
+# =============================== Memory Related Prompt ===============================
+# TODO: perhaps need optimization
+def get_memory_augmented_user_query_prompt(
+    *, user_input: str, memory: str, language: str = "en"
+) -> str:
+    return {
+        "en": f"""
+        You are a query rewriter expert that can rewrite/augment the user query using memory to achieve more precise retrieval. Please reply in English.
+        
+        <user input>
+        {user_input}
+        </user input>
+        
+        <memory context>
+        {memory}
+        </memory context>
+        
+        <rules>
+        - If memory is insufficient or irrelevant, keep the original user input.
+        - If the user input has ambiguous pronouns, map them to explicit entities based on memory (e.g., "that file" -> "the concrete file name or description you found in memory", "he" -> "the concrete name you found in memory").
+        - Avoid fabricating entities not present in memory.
+        </rules>
+        <output format>
+        Output ONLY the rewritten/augmented input (when memory is relevant), without any additional text.
+        </output format>
+        """,
+        "cn-s": """你是一个查询改写专家，可以使用记忆进行推理来改写/增强用户查询以进行更精确的召回。请使用简体中文回复。
+        <用户原始输入>
+        {user_input}
+        </用户原始输入>
+        
+        <记忆内容>
+        {memory}
+        </记忆内容>
+        
+        <规则>
+        - 如果记忆不足或不相关，保持用户原始输入。
+        - 如原始输入有指代不明的代词，根据记忆进行推测将代词映射到明确实体（比如 "那个文件" 改成你从记忆中推理得到的文件名或描述，"他" 改成你从记忆中推理得到的人名等）。
+        - 避免捏造未在记忆中出现的内容。
+        </规则>
+
+        <输出格式>
+        仅输出基于记忆推理得到的改写/增强后的询问(当记忆内容相关时)，不要输出其他内容。
+        </输出格式>
+        """,
+        "cn-t": """
+        你是一個查詢改寫專家，可以使用記憶進行推理來改寫/增強用戶查詢以進行更精確的召回。請使用繁體中文回覆。
+        <用戶原始輸入>
+        {user_input}
+        </用戶原始輸入>
+        
+        <記憶內容>
+        {memory}
+        </記憶內容>
+        
+        <規則>
+        - 如果記憶不足或不相關，保持用戶原始輸入。
+        - 如原始輸入有指代不明的代詞，根據記憶進行推測將代詞映射到明確實體（比如 "那個文件" 改成你從記憶中推理得到的文件名或描述，"他" 改成你從記憶中推理得到的人名等）。
+        - 避免捏造未在記憶中出現的內容。
+        </規則>
+        
+        <輸出格式>
+        僅輸出基于記憶推理得到的改寫/增強後的詢問(當記憶內容相關時)，不要輸出其他內容。
+        </輸出格式>
+        """,
+    }[language].format(user_input=user_input, memory=memory)
+
+
+def get_judge_whether_need_memory_prompt(*, user_query: str, chunks_data: str) -> str:
+    return """
+        You are a judgement expert that can judge whether the user query needs retrieve memory except from retrieved chunks data. Please reply in English.
+        <user query>
+        {user_query}
+        </user query>
+        
+        <retrieved chunks data>
+        {retrieved_chunks_data}
+        </retrieved chunks data>
+        
+        <rules>
+        - If the user query needs retrieve memory except from retrieved chunks data, output "yes".
+        - Otherwise, output "no".
+        </rules>
+        
+        <output format>
+        Output ONLY "yes" or "no" in English, without any additional text.
+        </output format>
+        """.format(
+        user_query=user_query, retrieved_chunks_data=chunks_data
+    )
