@@ -4,12 +4,10 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 from api.schema import Base
-
-# Embedding service from HiRAG for generating embeddings
-from hirag_prod._llm import EmbeddingService, LocalEmbeddingService
+from configs.functions import get_embedding_config
 from pgvector import HalfVector, Vector
 from pgvector.sqlalchemy import HALFVEC, VECTOR
-from resources.functions import get_envs
+from resources.embedding_client import EmbeddingService, LocalEmbeddingService
 from sqlalchemy import TIMESTAMP, Column, String, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -28,7 +26,10 @@ def get_memory_embedding_service():
     return EMBEDDING_SERVICE
 
 
-mmr_dim, mmr_use_halfvec = get_envs().EMBEDDING_DIMENSION, get_envs().USE_HALF_VEC
+mmr_dim, mmr_use_halfvec = (
+    get_embedding_config().dimension,
+    get_embedding_config().use_half_vec,
+)
 mmr_vec = Union[HalfVector, Vector, List[float]]
 MMR_VEC = HALFVEC(mmr_dim) if mmr_use_halfvec else VECTOR(mmr_dim)
 

@@ -3,8 +3,8 @@ from typing import Any, Dict, List, Union
 import tiktoken
 from autogen_core.memory import MemoryContent
 from autogen_core.models import LLMMessage
+from configs.functions import get_llm_provider
 from pydantic import BaseModel
-from resources.functions import get_llm_provider
 from transformers import AutoTokenizer
 
 

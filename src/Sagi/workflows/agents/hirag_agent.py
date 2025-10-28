@@ -6,9 +6,9 @@ from api.ui.utils import chunks_to_reference_chunks
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient
-from hirag_prod import HiRAG
+from configs.functions import get_config_manager
 from hirag_prod.prompt import PROMPTS
-from resources.functions import get_hi_rag_client, get_settings
+from resources.remote_function_executor import execute_remote_function
 
 from Sagi.vercel import (
     FilterChunkData,
@@ -30,7 +30,6 @@ class RagSummaryAgent:
     memory: SagiMemory
     gdb_path: str
     model_client_stream: bool
-    rag_instance: HiRAG
     search_tool_name: str = "ragSearch"
     filter_tool_name: str = "ragFilter"
 
@@ -45,12 +44,11 @@ class RagSummaryAgent:
     ):
         self.memory = memory
         self.language = language
-        self.rag_instance = None
         self.system_prompt = None
         self.rag_summary_agent = None
         self.model_client = model_client
         self.model_client_stream = model_client_stream
-        self.vdb_path = get_settings().postgres_url_async
+        self.vdb_path = get_config_manager().postgres_url_async
         self.gdb_path = gdb_path
         self.ret: Optional[Dict[str, Any]] = None
         self.raw_chunks = None
@@ -76,8 +74,6 @@ class RagSummaryAgent:
             model_client_stream=model_client_stream,
             markdown_output=markdown_output,
         )
-        self.rag_instance = get_hi_rag_client()
-        await self.rag_instance.set_language(language)
         return self
 
     def _init_rag_summary_agent(self):
@@ -151,8 +147,14 @@ class RagSummaryAgent:
             if file_ids:
                 query_params["file_list"] = list(file_ids)
 
+            function_call_info: Dict[str, Any] = {
+                "function_id": "hi_rag_query",
+                "language": self.language,
+                "query": user_input,
+            }
+            function_call_info.update(query_params)
             rag_task = asyncio.create_task(
-                self.rag_instance.query(user_input, **query_params)
+                execute_remote_function("HI_RAG", function_call_info)
             )
             if cancellation_token is not None:
                 cancellation_token.link_future(rag_task)
@@ -227,12 +229,17 @@ class RagSummaryAgent:
 
             # Apply hybrid strategy to get final chunks
             rag_task = asyncio.create_task(
-                self.rag_instance.apply_strategy_to_chunks(
-                    chunks_dict=self.raw_chunks,
-                    strategy="hybrid",
-                    workspace_id=workspace_id,
-                    knowledge_base_id=knowledge_base_id,
-                    filter_by_clustering=True,
+                execute_remote_function(
+                    "HI_RAG",
+                    {
+                        "function_id": "hi_rag_apply_strategy_to_chunks",
+                        "language": self.language,
+                        "chunks_dict": self.raw_chunks,
+                        "strategy": "hybrid",
+                        "workspace_id": workspace_id,
+                        "knowledge_base_id": knowledge_base_id,
+                        "filter_by_clustering": True,
+                    },
                 )
             )
             if cancellation_token is not None:

@@ -11,8 +11,8 @@ from autogen_core.memory import (
 )
 from autogen_core.model_context import ChatCompletionContext
 from autogen_core.models import SystemMessage
+from configs.functions import get_llm_context_window
 from pydantic import BaseModel
-from resources.functions import get_llm_context_window
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from typing_extensions import Self
 
