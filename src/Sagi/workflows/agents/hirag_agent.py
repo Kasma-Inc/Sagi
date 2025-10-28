@@ -7,10 +7,9 @@ from api.ui.utils import chunks_to_reference_chunks
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient
-from configs.functions import get_config_manager
-from hirag_prod.configs.functions import get_llm_config
-from hirag_prod.resources.functions import get_chat_service
+from configs.functions import get_config_manager, get_llm_config
 from hirag_prod.tracing import traced, traced_async_gen
+from resources.functions import get_chat_service
 from resources.remote_function_executor import execute_remote_function
 
 from Sagi.utils.chat_template import format_memory_to_string
