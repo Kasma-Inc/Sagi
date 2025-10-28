@@ -5,12 +5,10 @@ from typing import Any, Dict, List, Optional, Union
 # Embedding service from HiRAG for generating embeddings
 from hirag_prod._llm import EmbeddingService, LocalEmbeddingService
 from hirag_prod.tracing import traced
-from pgvector import HalfVector, Vector
-from pgvector.sqlalchemy import HALFVEC, VECTOR
-from sqlalchemy import TIMESTAMP, Column, String, delete, select
+from sqlalchemy import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from api.schema import Base
+from api.schema import MultiRoundMemory
 from resources.functions import get_envs
 from Sagi.utils.token_usage import count_tokens_messages
 
@@ -25,23 +23,6 @@ def get_memory_embedding_service():
         else:
             EMBEDDING_SERVICE = EmbeddingService()
     return EMBEDDING_SERVICE
-
-
-mmr_dim, mmr_use_halfvec = get_envs().EMBEDDING_DIMENSION, get_envs().USE_HALF_VEC
-mmr_vec = Union[HalfVector, Vector, List[float]]
-MMR_VEC = HALFVEC(mmr_dim) if mmr_use_halfvec else VECTOR(mmr_dim)
-
-
-class MultiRoundMemory(Base):
-    __tablename__ = "MultiRoundMemory"
-    id: str = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    chatId: str = Column(String, nullable=False)
-    messageId: str = Column(String, nullable=True)
-    content: str = Column(String, nullable=False)
-    source: str = Column(String, nullable=False)
-    mimeType: str = Column(String, nullable=False)
-    embedding: Optional[mmr_vec] = Column(MMR_VEC, nullable=True)
-    createdAt: datetime = Column(TIMESTAMP(timezone=True), default=datetime.now)
 
 
 async def saveMultiRoundMemory(
