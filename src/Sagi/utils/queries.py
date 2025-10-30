@@ -2,21 +2,16 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-# Embedding service from HiRAG for generating embeddings
-from hirag_prod._llm import EmbeddingService, LocalEmbeddingService
-from api.schema import Base
+from api.schema import MultiRoundMemory
 from configs.functions import get_embedding_config
 from hirag_prod.tracing import traced
-from sqlalchemy import delete, select
 from pgvector import HalfVector, Vector
 from pgvector.sqlalchemy import HALFVEC, VECTOR
 from resources.embedding_client import LocalEmbeddingService
 from resources.functions import get_embedding_service
-from sqlalchemy import TIMESTAMP, Column, String, delete, select
+from sqlalchemy import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from api.schema import MultiRoundMemory
-from resources.functions import get_envs
 from Sagi.utils.token_usage import count_tokens_messages
 
 mmr_dim, mmr_use_halfvec = (
