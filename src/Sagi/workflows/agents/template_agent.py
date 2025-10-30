@@ -7,7 +7,7 @@ from autogen_agentchat.messages import ModelClientStreamingChunkEvent, TextMessa
 from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient, UserMessage
 from hirag_prod.entity.vanilla import json_repair
-from resources.functions import get_hi_rag_client
+from resources.remote_function_executor import execute_remote_function
 
 from Sagi.utils.prompt import (
     get_template_based_generation_prompt,
@@ -56,8 +56,6 @@ class TemplateAgent:
         self.plan: Optional[Plan] = None
         self.step_chunks: Dict[str, List[Dict[str, Any]]] = {}
         self.step_queries: Dict[str, str] = {}
-
-        self._rag = get_hi_rag_client()
 
     # ------------------------- helpers -------------------------
     @staticmethod
@@ -206,7 +204,6 @@ class TemplateAgent:
         if not self.plan:
             return
 
-        await self._rag.set_language(self.language)
         self.step_chunks = {}
         self.step_queries = {}
 
@@ -230,13 +227,18 @@ class TemplateAgent:
             query_text = step.description or step.module
             self.step_queries[step.module] = query_text
             rag_task = asyncio.create_task(
-                self._rag.query(
-                    query_text,
-                    workspace_id=workspace_id,
-                    knowledge_base_id=knowledge_base_id,
-                    translation=["en", "zh", "zh-t-hk"],
-                    summary=False,
-                    filter_by_clustering=False,
+                execute_remote_function(
+                    "HI_RAG",
+                    {
+                        "function_id": "hi_rag_query",
+                        "language": self.language,
+                        "query": query_text,
+                        "workspace_id": workspace_id,
+                        "knowledge_base_id": knowledge_base_id,
+                        "translation": ["en", "zh", "zh-t-hk"],
+                        "summary": False,
+                        "filter_by_clustering": False,
+                    },
                 )
             )
             if cancellation_token is not None:
