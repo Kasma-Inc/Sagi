@@ -1289,7 +1289,7 @@ def get_memory_augmented_user_query_prompt(
     *, user_input: str, memory: str, language: str = "en"
 ) -> str:
     return {
-        "en": f"""
+        "en": """
         You are a query rewriter expert that can rewrite/augment the user query using memory to achieve more precise retrieval. Please reply in English.
         
         <user input>
@@ -1372,4 +1372,237 @@ def get_judge_whether_need_memory_prompt(*, user_query: str, chunks_data: str) -
         </output format>
         """.format(
         user_query=user_query, retrieved_chunks_data=chunks_data
+    )
+
+
+# =============================== Template-based Related Prompt ===============================
+# TODO: perhaps need optimization
+def get_template_based_planning_prompt(
+    *, user_input: str, template: str, language: str = "en"
+) -> str:
+    return {
+        "en": """You are a template-based planning assistant. Your role is to analyze a given template and user input, then create a structured to-do list that adapts the template's structure to fulfill the user's request. Assume the user input is highly relevant to the template, such as adapting it for a similar but customized scenario (e.g., if the template is a teaser for Alibaba, the user might request one for Tencent).
+
+        <rules>
+        - Identify the main sections or structural elements in the template. These could be headings, paragraphs, or key components.
+        - For each identified section, create a corresponding step in the to-do list.
+        - In each step, set "module" to the section's title or a concise label representing it.
+        - In "description", provide a clear, actionable explanation of what content needs to be filled or adapted in that section, tailored to the user input.
+        - Ensure the to-do list mirrors the template's logical flow and hierarchy.
+        - Keep descriptions concise yet detailed enough to guide the adaptation process.
+        - Output only the specified JSON format; do not add extra text, explanations, or wrappers.
+        </rules>
+
+        <output format>
+        Output a JSON object with a single key "steps", which is an array of objects. Each object has:
+        - "module": A string representing the section title or label from the template.
+        - "description": A string describing what to fill or adapt in that section based on the user input.
+        Example:
+        {{
+        "steps": [
+            {{"module": "Introduction", "description": "Introduce the company and its core mission, customized for the target entity."}},
+            {{"module": "Key Features", "description": "List and describe adapted features relevant to the user's request."}}
+            ...
+        ]
+        }}
+        </output format>
+
+        <template>
+        {template}
+        </template>
+
+        <user input>
+        {user_input}
+        </user input>
+        """,
+        "cn-s": """你是一个基于模板的规划助手。你的职责是分析给定的模板和用户输入，然后创建一个结构化的待办事项列表，将模板的结构适配到用户的请求中。假设用户输入与模板高度相关，例如用于类似但定制化的场景（例如，如果模板是为阿里巴巴设计的预告文案，用户可能会要求为腾讯制作一个）。
+
+        <规则>
+        - 识别模板中的主要部分或结构元素。这些可以是标题、段落或关键组成部分。
+        - 为每个识别出的部分，在待办事项列表中创建对应的步骤。
+        - 在每个步骤中，将 "module" 设置为该部分的标题或一个简洁的标签。
+        - 在 "description" 中，提供清晰、可操作的说明，指出该部分需要填写或适配哪些内容，并根据用户输入进行定制。
+        - 确保待办事项列表反映模板的逻辑流程和层级结构。
+        - 描述应简洁，但又足够详细，以指导适配过程。
+        - 仅输出指定的 JSON 格式；不要添加额外文本、解释或包装内容。
+        </规则>
+
+        <输出格式>
+        输出一个 JSON 对象，包含一个键 "steps"，其值是一个对象数组。每个对象包含：
+        - "module": 一个字符串，表示模板中该部分的标题或标签。
+        - "description": 一个字符串，描述根据用户输入在该部分需要填写或适配的内容。
+        示例：
+        {{
+        "steps": [
+            {{"module": "引言", "description": "介绍公司及其核心使命，并针对目标实体进行定制。"}},
+            {{"module": "核心功能", "description": "列出并描述与用户请求相关的适配功能。"}},
+            ...
+        ]
+        }}
+        </输出格式>
+
+        <template>
+        {template}
+        </template>
+
+        <用户输入>
+        {user_input}
+        </用户输入>
+    """,
+        "cn-t": """你是一個基於模板的規劃助手。你的職責是分析給定的模板和用戶輸入，然後創建一個結構化的待辦事項清單，將模板的結構適配到用戶的請求中。假設用戶輸入與模板高度相關，例如用於類似但客製化的場景（例如，如果模板是為阿里巴巴設計的預告文案，用戶可能會要求為騰訊製作一個）。
+
+        <規則>
+        - 識別模板中的主要部分或結構元素。這些可以是標題、段落或關鍵組成部分。
+        - 為每個識別出的部分，在待辦事項清單中創建對應的步驟。
+        - 在每個步驟中，將 "module" 設置為該部分的標題或一個簡潔的標籤。
+        - 在 "description" 中，提供清晰、可操作的說明，指出該部分需要填寫或適配哪些內容，並根據用戶輸入進行客製化。
+        - 確保待辦事項清單反映模板的邏輯流程和層級結構。
+        - 描述應簡潔，但又足夠詳細，以指導適配過程。
+        - 僅輸出指定的 JSON 格式；不要添加額外文字、解釋或包裝內容。
+        </規則>
+
+        <輸出格式>
+        輸出一個 JSON 物件，包含一個鍵 "steps"，其值是一個物件陣列。每個物件包含：
+        - "module": 一個字串，表示模板中該部分的標題或標籤。
+        - "description": 一個字串，描述根據用戶輸入在該部分需要填寫或適配的內容。
+        範例：
+        {{
+        "steps": [
+            {{"module": "引言", "description": "介紹公司及其核心使命，並針對目標實體進行客製化。"}},
+            {{"module": "核心功能", "description": "列出並描述與用戶請求相關的適配功能。"}},
+            ...
+        ]
+        }}
+        </輸出格式>
+
+        <模板>
+        {template}
+        </模板>
+
+        <用戶輸入>
+        {user_input}
+        </用戶輸入>
+    """,
+    }[language].format(template=template, user_input=user_input)
+
+
+def get_template_based_generation_prompt(
+    *,
+    template: str,
+    plan_json_block: str,
+    module_queries_block: str,
+    plan_block: str,
+    per_module_context: str,
+    language: str = "en",
+) -> str:
+    return {
+        "en": """You are a document generation assistant. Please produce the final Markdown document based on the provided template structure, planned steps, retrieved context for each module, and the user's instructions.
+
+        <rules>
+            - Begin the output with `filename: filename.md`.
+            - Immediately follow with a complete document enclosed in a ```markdown code block.
+            - Strictly adhere to the module sequence and hierarchical structure defined in the template.
+            - Precisely align with the plan: for each item in MODULE-SPEC, generate exactly one corresponding module; do not add or omit any modules, and preserve the specified order.
+            - Each module must contain exactly one level-2 heading (`## …`), rewritten from the "required_h2_from" name in the plan; no two modules may share the same heading.
+            - Deduplicate, consolidate, and rephrase retrieved content—avoid verbatim copying of paragraphs or headings from the retrieval context.
+            - Each module should include one level-2 heading followed by 2–5 concise, coherent sentences; use bullet points if helpful. If no context is retrieved, reasonably infer content based on the user’s instruction.
+            - Ensure the output is clear, fluent, and free of redundancy or unnecessary elaboration.
+        </rules>
+        
+        <TEMPLATE>
+        {template}
+        </TEMPLATE>
+
+        <MODULE-SPEC>
+        ```json
+        {plan_json_block}
+        ```
+        </MODULE-SPEC>
+
+        <MODULE-QUERIES>
+        {module_queries_block}
+        </MODULE-QUERIES>
+
+        <PLAN>
+        {plan_block}
+        </PLAN>
+        
+        <PER-MODULE CONTEXT>
+        {per_module_context}
+        </PER-MODULE CONTEXT>
+        """,
+        "cn-s": """你是一个文档生成助手。请基于模板结构、计划步骤，每个模块的检索上下文以及用户指令，生成最终 Markdown 文档。
+        <规则>
+            - 开头输出 `filename: 文件名.md`
+            - 紧接着用一个 ```markdown 代码块输出完整文档
+            - 严格遵循模板的模块顺序与层级结构
+            - 严格对齐计划：对 MODULE-SPEC 中的每一项，输出对应模块的内容；不得增删模块；模块顺序必须一致
+            - 每个模块下只允许 1 个二级标题（## …），且该标题必须根据计划中的 "required_h2_from" 名改写生成；不同模块不得出现相同的二级标题
+            - 对检索内容进行去重、合并与改写，避免重复段落与重复句式；不要逐字拷贝检索中的段落标题
+            - 每个模块建议 1 个二级标题 + 若干要点句（2-5 句），必要时可用列表；如检索为空，则依据指令进行合理补全
+            - 内容应简洁、通顺，避免堆砌与冗余
+        </规则>
+
+        <TEMPLATE>
+        {template}
+        </TEMPLATE>
+
+        <MODULE-SPEC>
+        ```json
+        {plan_json_block}
+        ```
+        </MODULE-SPEC>
+
+        <MODULE-QUERIES>
+        {module_queries_block}
+        </MODULE-QUERIES>
+
+        <PLAN>
+        {plan_block}
+        </PLAN>
+
+        <PER-MODULE CONTEXT>
+        {per_module_context}
+        </PER-MODULE CONTEXT>
+        """,
+        "cn-t": """你是一個文件生成助手。請基於模板結構、計畫步驟，每個模組的檢索上下文以及使用者指令，生成最終 Markdown 文件。
+        <規則>
+            - 開頭輸出 filename: 文件名.md
+            - 緊接著用一個 ```markdown 程式碼區塊輸出完整文件
+            - 嚴格遵循模板的模組順序與層級結構
+            - 嚴格對齊計畫：對 MODULE-SPEC 中的每一項，輸出對應模組的內容；不得增刪模組；模組順序必須一致
+            - 每個模組下只允許 1 個二級標題（## …），且該標題必須根據計畫中的 "required_h2_from" 名改寫生成；不同模組不得出現相同的二級標題
+            - 對檢索內容進行去重、合併與改寫，避免重複段落與重複句式；不要逐字拷貝檢索中的段落標題
+            - 每個模組建議 1 個二級標題 + 若干要點句（2-5 句），必要時可用清單；如檢索為空，則依據指令進行合理補全
+            - 內容應簡潔、通順，避免堆疊與冗餘
+        </規則>
+        
+        <TEMPLATE>
+        {template}
+        </TEMPLATE>
+
+        <MODULE-SPEC>
+        ```json
+        {plan_json_block}
+        ```
+        </MODULE-SPEC>
+
+        <MODULE-QUERIES>
+        {module_queries_block}
+        </MODULE-QUERIES>
+
+        <PLAN>
+        {plan_block}
+        </PLAN>
+
+        <PER-MODULE CONTEXT>
+        {per_module_context}
+        </PER-MODULE CONTEXT>
+        """,
+    }[language].format(
+        template=template,
+        plan_json_block=plan_json_block,
+        module_queries_block=module_queries_block,
+        plan_block=plan_block,
+        per_module_context=per_module_context,
     )
