@@ -1,25 +1,15 @@
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-from api.schema import MultiRoundMemory
-from configs.functions import get_embedding_config
 from hirag_prod.tracing import traced
-from pgvector import HalfVector, Vector
-from pgvector.sqlalchemy import HALFVEC, VECTOR
-from resources.embedding_client import LocalEmbeddingService
-from resources.functions import get_embedding_service
 from sqlalchemy import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from api.schema import MultiRoundMemory
+from resources.embedding_client import LocalEmbeddingService
+from resources.functions import get_embedding_service
 from Sagi.utils.token_usage import count_tokens_messages
-
-mmr_dim, mmr_use_halfvec = (
-    get_embedding_config().dimension,
-    get_embedding_config().use_half_vec,
-)
-mmr_vec = Union[HalfVector, Vector, List[float]]
-MMR_VEC = HALFVEC(mmr_dim) if mmr_use_halfvec else VECTOR(mmr_dim)
 
 
 async def saveMultiRoundMemory(
