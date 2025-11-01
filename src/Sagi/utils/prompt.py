@@ -1606,3 +1606,73 @@ def get_template_based_generation_prompt(
         plan_block=plan_block,
         per_module_context=per_module_context,
     )
+
+
+# =============================== Web Search Prompt ===============================
+def get_web_search_query_rewrite_prompt(
+    *,
+    user_query: str,
+    language: str = "en",
+) -> str:
+    templates = {
+        "en": """
+        You are a web search query rewrite expert. Rewrite the user's question into a single, precise query string for search.
+
+        <today>{date}</today>
+        <user_query>
+        {user_query}
+        </user_query>
+
+        <rules>
+        - Preserve intent; emphasize key entities/phrases, using quotes for exact matches (e.g., "OpenAI GPT-4").
+        - Add time qualifiers when relevant (e.g., 2024, recent, last 12 months) for time-sensitive/news topics.
+        - Remove filler, deduplicate terms; keep the query <= 400 characters.
+        - Do not invent facts or add constraints not implied by the question; keep the original language.
+        </rules>
+
+        <output>
+        Output ONLY the final optimized query string, with no explanations or wrappers.
+        </output>
+        """,
+        "cn-s": """
+        你是一名 Web 搜索查询改写专家。请将用户问题改写为一个更精准、可直接用于搜索的单条查询语句。
+
+        <today>{date}</today>
+        <user_query>
+        {user_query}
+        </user_query>
+
+        <rules>
+        - 保留意图；突出关键实体与核心短语，必要时用双引号精确匹配（例如 "OpenAI GPT-4"）。
+        - 如主题具时效性/新闻属性，适度加入时间限定（如 2024、recent、last 12 months）。
+        - 删除冗余词与口语，去重关键词；将查询控制在 ≤ 400 字符。
+        - 不臆造事实或附加未被问题暗示的限定；保持原语言。
+        </rules>
+
+        <output>
+        仅输出最终的优化查询语句，不要任何解释、前后缀或代码块。
+        </output>
+        """,
+        "cn-t": """
+        你是一名 Web 搜尋查詢改寫專家。請將使用者問題改寫為一條更精確、可直接用於搜尋的單條查詢語句。
+
+        <today>{date}</today>
+        <user_query>
+        {user_query}
+        </user_query>
+
+        <rules>
+        - 保留意圖；凸顯關鍵實體與核心片語，必要時以雙引號精確匹配（例如 "OpenAI GPT-4"）。
+        - 若主題具時效性/新聞屬性，適度加入時間限定（如 2024、recent、last 12 months）。
+        - 刪除冗詞與口語，去重關鍵詞；將查詢控制在 ≤ 400 字元。
+        - 不臆造事實或加入未由問題暗示的限制；保持原語言。
+        </rules>
+
+        <output>
+        僅輸出最終優化後的查詢語句本身，不要任何解釋、前後綴或程式碼區塊。
+        </output>
+        """,
+    }
+    return (templates.get(language, templates["en"])).format(
+        user_query=user_query, date=DATE_TIME
+    )
