@@ -7,32 +7,25 @@ requires-python = ">=3.12"
 dependencies = [
     "aio-pika==9.5.5",
     "asyncpg==0.30.0",
-    "autoflake>=2.3.1",
     "autogen-agentchat==0.5.7",
     "autogen-core==0.5.7",
     "autogen-ext[anthropic,docker]==0.5.7",
-    "black>=25.1.0",
-    "blackdoc>=0.3.9",
     "docker==7.1.0",
     "grpcio>=1.71.0",
     "hkdf==0.0.3",
-    "isort>=6.0.1",
     "json-schema-to-pydantic==0.2.4",
     "mcp>=1.6.0",
     "mypy-extensions>=1.1.0",
     "openai==1.61.0",
-    "pytest==8.3.5",
     "python-jose==3.4.0",
     "redis==6.2.0",
-    "sqlalchemy[asyncpg]==2.0.40",
+    "sqlalchemy[postgresql-asyncpg]>=2.0.40",
     "sqlmodel==0.0.24",
     "alembic==1.16.5",
     "tiktoken>=0.9.0",
     "tomli>=2.2.1",
-    "pytest-asyncio==0.26.0",
     "hirag-prod",
     "fastapi>=0.115.12",
-    "pyflakes>=3.3.2",
     "pydantic-settings>=2.9.1",
     "pillow==11.0.0",
     "pdfkit>=1.0.0",
@@ -53,3 +46,14 @@ dependencies = [
 
 [tool.uv.sources]
 hirag-prod = { git = "https://github.com/Kasma-Inc/hirag-prod.git" }
+
+[dependency-groups]
+dev = [{ include-group = "lint" }, { include-group = "test" }]
+lint = [
+    "black>=25.1.0",
+    "blackdoc>=0.3.9",
+    "isort>=6.0.1",
+    "pyflakes>=3.3.2",
+    "autoflake>=2.3.1",
+]
+test = ["pytest>=8.3.5", "pytest-asyncio>=0.26.0"]
