@@ -1,12 +1,9 @@
 import asyncio
-import re
-from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
 from autogen_agentchat.messages import ModelClientStreamingChunkEvent, TextMessage
 from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient, UserMessage
-from hirag_prod.entity.vanilla import json_repair
 from resources.remote_function_executor import execute_remote_function
 
 from Sagi.utils.prompt import (
@@ -15,17 +12,16 @@ from Sagi.utils.prompt import (
 )
 from Sagi.vercel import ToolInputAvailable, ToolInputStart, ToolOutputAvailable
 from Sagi.workflows.sagi_memory import SagiMemory
-
-
-@dataclass
-class PlanStep:
-    module: str
-    description: str
-
-
-@dataclass
-class Plan:
-    steps: List[PlanStep]
+from Sagi.workflows.utils import (
+    Plan,
+    PlanStep,
+    build_module_queries_block,
+    build_plan_overview,
+    decode_plan_from_json_like,
+    dump_generation_messages,
+    extract_template_and_instruction,
+    join_text_messages,
+)
 
 
 class TemplateAgent:
@@ -58,25 +54,6 @@ class TemplateAgent:
         self.step_queries: Dict[str, str] = {}
 
     # ------------------------- helpers -------------------------
-    @staticmethod
-    def _extract_template_and_instruction(text: str) -> Tuple[str, str]:
-        """
-        Prefer extracting <template>...</template> and <user_input>...</user_input>.
-        Fallback to fenced code block for template and use remaining text as instruction.
-        """
-        tag = lambda name: re.search(
-            rf"<\s*{name}\s*>([\s\S]*?)<\s*/\s*{name}\s*>", text, flags=re.IGNORECASE
-        )
-        mt = tag("template")
-        mi = tag("user_input")
-        template = (mt.group(1) or "").strip()
-        instruction = (mi.group(1) or "").strip()
-        return template, instruction
-
-    @staticmethod
-    def _join_messages(messages: List[TextMessage]) -> str:
-        return "\n\n".join(m.content for m in messages if getattr(m, "content", ""))
-
     def _build_generation_messages(self) -> List[UserMessage]:
         per_module_ctx: List[str] = []
         for module, chunks in self.step_chunks.items():
@@ -94,27 +71,8 @@ class TemplateAgent:
         ctx = "\n\n".join(per_module_ctx)
 
         # Build plan overview to guide headings and structure
-        plan_lines: List[str] = []
-        plan_json_lines: List[str] = []
-        if self.plan and self.plan.steps:
-            for step in self.plan.steps:
-                plan_lines.append(f"- {step.module}: {step.description}")
-                # lightweight JSON-ish to guide model alignment
-                plan_json_lines.append(
-                    '  {"module": "'
-                    + step.module.replace('"', "'")
-                    + '", "required_h2_from": "'
-                    + step.description.replace('"', "'")
-                    + '"}'
-                )
-        plan_block = "\n".join(plan_lines) if plan_lines else "(none)"
-        plan_json_block = (
-            "[\n" + ",\n".join(plan_json_lines) + "\n]" if plan_json_lines else "[]"
-        )
-        module_queries_lines: List[str] = []
-        for m, q in self.step_queries.items():
-            module_queries_lines.append(f"- {m}: {q}")
-        module_queries_block = "\n".join(module_queries_lines)
+        plan_block, plan_json_block = build_plan_overview(self.plan)
+        module_queries_block = build_module_queries_block(self.step_queries)
 
         lang = (self.language or "en").lower()
         sys = UserMessage(
@@ -142,8 +100,8 @@ class TemplateAgent:
     async def _prepare_inputs_from_messages(
         self, messages: List[TextMessage]
     ) -> Tuple[str, str]:
-        full_text = self._join_messages(messages)
-        template, instruction = self._extract_template_and_instruction(full_text)
+        full_text = join_text_messages(messages)
+        template, instruction = extract_template_and_instruction(full_text)
         self.template_text = template
         self.user_instruction = instruction
         return template, instruction
@@ -175,22 +133,16 @@ class TemplateAgent:
             cancellation_token=cancellation_token,
         )
         content = (res.content or "").strip()
-
-        plan_decoded_obj = json_repair.repair_json(content, return_objects=True) or {
-            "steps": []
-        }
-        steps: List[PlanStep] = []
-        for s in plan_decoded_obj.get("steps", []) or []:
-            module = (s.get("module") or "").strip()
-            desc = (s.get("description") or "").strip()
-            if module:
-                steps.append(PlanStep(module=module, description=desc))
-        self.plan = Plan(steps=steps)
+        self.plan = decode_plan_from_json_like(content)
 
         yield ToolOutputAvailable(
             output={
                 "type": "templatePlan-output",
-                "data": {"steps": [s.__dict__ for s in steps]},
+                "data": {
+                    "steps": [
+                        s.__dict__ for s in (self.plan.steps if self.plan else [])
+                    ]
+                },
             }
         )
 
@@ -292,6 +244,16 @@ class TemplateAgent:
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncGenerator[Any, None]:
         messages = self._build_generation_messages()
+
+        # Optional debug dump (see Sagi/workflows/utils.py)
+        try:
+            dump_generation_messages(
+                messages,
+                chat_id=getattr(self.memory, "chat_id", None),
+                agent=self.__class__.__name__,
+            )
+        except Exception:
+            pass
 
         async def _stream():
             async for chunk in self.model_client.create_stream(

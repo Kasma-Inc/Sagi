@@ -2,13 +2,13 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from api.schema import MultiRoundMemory
 from hirag_prod.tracing import traced
+from resources.embedding_client import LocalEmbeddingService
+from resources.functions import get_embedding_service
 from sqlalchemy import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from api.schema import MultiRoundMemory
-from resources.embedding_client import LocalEmbeddingService
-from resources.functions import get_embedding_service
 from Sagi.utils.token_usage import count_tokens_messages
 
 
