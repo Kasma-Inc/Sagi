@@ -5,6 +5,8 @@ description = "Sagi: a personalised, production-ready LLM agent"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "torch==2.9.0+cpu", # avoid installing the enormous gpu packages
+    "torchvision==0.24.0+cpu",
     "aio-pika==9.5.5",
     "asyncpg==0.30.0",
     "autogen-agentchat==0.5.7",
@@ -46,6 +48,13 @@ dependencies = [
 
 [tool.uv.sources]
 hirag-prod = { git = "https://github.com/Kasma-Inc/hirag-prod.git" }
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [dependency-groups]
 dev = [{ include-group = "lint" }, { include-group = "test" }]
