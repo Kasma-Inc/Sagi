@@ -140,7 +140,9 @@ class RagSummaryAgent:
             # Skip memory augmentation if memory is None (e.g., in batch jobs)
             if self.memory is not None:
                 start_time = time.time()
-                memory_query_result = await self.memory.query(query=user_input, type="rag")
+                memory_query_result = await self.memory.query(
+                    query=user_input, type="rag"
+                )
                 memory_results = memory_query_result.results
                 if len(memory_results) == 0:
                     self.augmented_user_input = user_input
