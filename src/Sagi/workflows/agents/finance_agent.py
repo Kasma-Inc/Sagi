@@ -42,6 +42,8 @@ class FinanceAgent:
         language: str,
         model_client_stream: bool = True,
         markdown_output: bool = True,
+        enable_rag_retrieval: bool = True,
+        enable_web_search: bool = True,
     ):
         self.model_client = model_client
         self.memory = memory
@@ -56,6 +58,8 @@ class FinanceAgent:
         self.step_web_search_snippets: Dict[str, List[str]] = {}
         self.step_queries: Dict[str, str] = {}
         self.step_web_search_queries: Dict[str, str] = {}
+        self.enable_rag_retrieval = enable_rag_retrieval
+        self.enable_web_search = enable_web_search
 
     # ------------------------- helpers -------------------------
     def _build_generation_messages(self) -> List[UserMessage]:
@@ -215,76 +219,124 @@ class FinanceAgent:
             query_text = step.description or step.module
             self.step_queries[step.module] = query_text
 
-            await queue.put(ToolInputStart(toolName="ragSearch"))
-            await queue.put(
-                ToolInputAvailable(
-                    input={
-                        "type": "ragSearch-input",
-                        "module": step.module,
-                        "query": query_text,
-                    }
-                )
-            )
+            rag_task = None
+            web_search_task = None
+            web_search_query_rewrite_task = None
+            rag_done = False
+            web_done = False
 
-            rag_task = asyncio.create_task(
-                execute_remote_function(
-                    "HI_RAG",
-                    {
-                        "function_id": "hi_rag_query",
-                        "language": self.language,
-                        "query": query_text,
-                        "workspace_id": workspace_id,
-                        "knowledge_base_id": knowledge_base_id,
-                        "translation": ["en", "zh", "zh-t-hk"],
-                        "summary": False,
-                        "filter_by_clustering": False,
-                    },
-                )
-            )
-            if cancellation_token is not None:
-                cancellation_token.link_future(rag_task)
+            if self.enable_rag_retrieval:
 
-            web_search_query_rewrite_task = asyncio.create_task(
-                self._rewrite_query_for_web_search(
-                    query_text, cancellation_token=cancellation_token
-                )
-            )
-            if cancellation_token is not None:
-                cancellation_token.link_future(web_search_query_rewrite_task)
-
-            try:
-                rewritten_query = await web_search_query_rewrite_task
-
-                await queue.put(ToolInputStart(toolName="webSearch"))
+                await queue.put(ToolInputStart(toolName="ragSearch"))
                 await queue.put(
                     ToolInputAvailable(
                         input={
-                            "type": "webSearch-input",
+                            "type": "ragSearch-input",
                             "module": step.module,
-                            "query": rewritten_query,
+                            "query": query_text,
                         }
                     )
                 )
 
-                tavily_client = get_web_search_service()
-                web_search_task = asyncio.create_task(
-                    tavily_client.search(
-                        query=rewritten_query,
-                        search_depth="basic",
-                        topic="general",
-                        include_answer=True,
-                        include_raw_content=False,
-                        max_results=5,
+                rag_task = asyncio.create_task(
+                    execute_remote_function(
+                        "HI_RAG",
+                        {
+                            "function_id": "hi_rag_query",
+                            "language": self.language,
+                            "query": query_text,
+                            "workspace_id": workspace_id,
+                            "knowledge_base_id": knowledge_base_id,
+                            "translation": ["en", "zh", "zh-t-hk"],
+                            "summary": False,
+                            "filter_by_clustering": False,
+                        },
                     )
                 )
                 if cancellation_token is not None:
-                    cancellation_token.link_future(web_search_task)
+                    cancellation_token.link_future(rag_task)
+            else:
+                rag_done = True
+                self.step_chunks[step.module] = []
+                await queue.put(
+                    ToolOutputAvailable(
+                        output={
+                            "type": "ragSearch-output",
+                            "module": step.module,
+                            "data": [],
+                        }
+                    )
+                )
 
-                rag_done = False
-                web_done = False
-                while not (rag_done and web_done):
-                    done, _ = await asyncio.wait(
-                        {rag_task, web_search_task}, return_when=asyncio.FIRST_COMPLETED
+            if self.enable_web_search:
+                web_search_query_rewrite_task = asyncio.create_task(
+                    self._rewrite_query_for_web_search(
+                        query_text, cancellation_token=cancellation_token
+                    )
+                )
+                if cancellation_token is not None:
+                    cancellation_token.link_future(web_search_query_rewrite_task)
+
+                try:
+                    rewritten_query = await web_search_query_rewrite_task
+
+                    await queue.put(ToolInputStart(toolName="webSearch"))
+                    await queue.put(
+                        ToolInputAvailable(
+                            input={
+                                "type": "webSearch-input",
+                                "module": step.module,
+                                "query": rewritten_query,
+                            }
+                        )
+                    )
+
+                    tavily_client = get_web_search_service()
+                    web_search_task = asyncio.create_task(
+                        tavily_client.search(
+                            query=rewritten_query,
+                            search_depth="advanced",
+                            topic="finance",
+                            include_answer=False,
+                            include_domains=[
+                                "https://www.hkex.com.hk/",
+                                "https://www.aastocks.com/",
+                                "https://finance.yahoo.com/",
+                                "https://www.bloomberg.com/",
+                                "https://www.investing.com/",
+                            ],
+                            include_raw_content=False,
+                            max_results=5,
+                        )
+                    )
+                    if cancellation_token is not None:
+                        cancellation_token.link_future(web_search_task)
+                except Exception:
+                    web_done = True
+                    self.step_web_search_queries[step.module] = query_text
+                    self.step_web_search_snippets[step.module] = []
+            else:
+                web_done = True
+                self.step_web_search_queries[step.module] = query_text
+                self.step_web_search_snippets[step.module] = []
+                await queue.put(
+                    ToolOutputAvailable(
+                        output={
+                            "type": "webSearch-output",
+                            "module": step.module,
+                            "data": {
+                                "query": query_text,
+                                "answer": "",
+                                "error": "Web search is disabled",
+                            },
+                        }
+                    )
+                )
+            try:
+                active_tasks = {t for t in (rag_task, web_search_task) if t is not None}
+                while active_tasks and not (rag_done and web_done):
+                    done, active_tasks = await asyncio.wait(
+                        active_tasks, return_when=asyncio.FIRST_COMPLETED
                     )
                     if rag_task in done and not rag_done:
                         ret = await rag_task
@@ -316,12 +368,34 @@ class FinanceAgent:
                             web_search_response = await web_search_task
 
                             web_search_answer = ""
-                            if hasattr(web_search_response, "answer"):
-                                web_search_answer = web_search_response.answer or ""
-                            elif isinstance(web_search_response, dict):
-                                web_search_answer = (
-                                    web_search_response.get("answer", "") or ""
-                                )
+                            # Build answer from all results' title and content
+                            results = []
+                            if isinstance(web_search_response, dict):
+                                results = web_search_response.get("results") or []
+                            elif hasattr(web_search_response, "results"):
+                                try:
+                                    results = (
+                                        getattr(web_search_response, "results") or []
+                                    )
+                                except Exception:
+                                    results = []
+
+                            if results:
+                                parts: List[str] = []
+                                for idx, item in enumerate(results, 1):
+                                    try:
+                                        if isinstance(item, dict):
+                                            title = item.get("title") or ""
+                                            content = item.get("content") or ""
+                                        else:
+                                            title = getattr(item, "title", "") or ""
+                                            content = getattr(item, "content", "") or ""
+                                        if title or content:
+                                            entry = f"{idx}. {title}\n{content}".strip()
+                                            parts.append(entry)
+                                    except Exception:
+                                        continue
+                                web_search_answer = "\n\n".join(parts)
 
                             self.step_web_search_queries[step.module] = rewritten_query
                             if web_search_answer:
@@ -360,10 +434,13 @@ class FinanceAgent:
                         web_done = True
 
             except asyncio.CancelledError:
-                rag_task.cancel()
-                web_search_query_rewrite_task.cancel()
+                if rag_task:
+                    rag_task.cancel()
+                if web_search_query_rewrite_task:
+                    web_search_query_rewrite_task.cancel()
                 try:
-                    web_search_task.cancel()
+                    if web_search_task:
+                        web_search_task.cancel()
                 except Exception:
                     pass
                 raise
