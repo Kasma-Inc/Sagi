@@ -1606,3 +1606,205 @@ def get_template_based_generation_prompt(
         plan_block=plan_block,
         per_module_context=per_module_context,
     )
+
+
+# =============================== Finance Agent Prompt ===============================
+# TODO: need optimization
+def get_finance_data_collection_planning_prompt(
+    *, data_collection: str, user_input: str, language: str = "en"
+) -> str:
+    return {
+        "en": """You are a planning assistant for finance research. Use the data collection brief and the user input to propose a concise list of modules to research and collect evidence for.
+
+        <rules>
+        - Focus strictly on actionable research topics implied by the data collection brief (e.g., company overview, business segments, financials, valuation, risks, catalysts, peers, regulatory updates).
+        - For each topic, create one step with:
+          - "module": a concise topic/section name to organize retrieval
+          - "description": a clear, specific query description describing what to search for
+        - Keep modules 4–8 items unless the brief is extremely narrow.
+        - Output only JSON in the specified format.
+        </rules>
+
+        <output format>
+        {{"steps": [
+          {{"module": "Company Overview", "description": "Latest business description, core products, markets, management summary"}},
+          {{"module": "Financials", "description": "Recent revenue, margins, cash flow, balance sheet trends with sources"}},
+          ]
+        }}
+        </output format>
+
+        <DATA-COLLECTION>
+        {data_collection}
+        </DATA-COLLECTION>
+
+        <USER-INPUT>
+        {user_input}
+        </USER-INPUT>
+        """,
+        "cn-s": """你是一名金融研究规划助手。根据数据收集概要与用户输入，给出需要检索与收集证据的模块清单。
+
+        <规则>
+        - 只聚焦数据收集概要隐含的可检索主题（如：公司概览、业务结构、财务、估值、风险、催化剂、同业、监管动态）。
+        - 每个主题输出一个步骤：
+          - "module": 简洁的主题/章节名，用于组织检索
+          - "description": 清晰具体的检索说明（查什么）
+        - 模块数量建议 4–8 个，除非任务非常窄。
+        - 仅输出指定 JSON 格式。
+        </规则>
+
+        <输出示例>
+        {"steps": [
+          {"module": "公司概览", "description": "最新业务描述、核心产品、市场、管理层概述"},
+          {"module": "财务", "description": "最近收入、利润率、现金流、资产负债表趋势及来源"}
+        ]}
+        </输出示例>
+
+        <数据收集>
+        {data_collection}
+        </数据收集>
+
+        <用户输入>
+        {user_input}
+        </用户输入>
+        """,
+    }[language].format(data_collection=data_collection, user_input=user_input)
+
+
+# TODO: need optimization
+def get_finance_generation_prompt(
+    *,
+    template: str,
+    per_module_context: str,
+    language: str = "en",
+) -> str:
+    return {
+        "en": """You are a document generation assistant. Please produce the final Markdown document based on the provided template structure, data collection context, and the user's instructions.
+
+        <rules>
+            - Begin the output with `filename: filename.md`.
+            - Immediately follow with a complete document enclosed in a ```markdown code block.
+            - Deduplicate, consolidate, and rephrase retrieved content—avoid verbatim copying of paragraphs or headings from the retrieval context.
+            - If no context is retrieved, reasonably infer content based on the user’s instruction.
+            - Ensure the output is clear, fluent, and free of redundancy or unnecessary elaboration.
+            - Follow the suggested template structure.
+        </rules>
+
+        <DATA-COLLECTION>
+        {per_module_context}
+        </DATA-COLLECTION>
+        
+        <TEMPLATE>
+        {template}
+        </TEMPLATE>
+        """,
+        "cn-s": """你是一个文档生成助手。请基于模板结构、计划步骤，每个模块的检索上下文以及用户指令，生成最终 Markdown 文档。
+        <规则>
+            - 开头输出 `filename: 文件名.md`
+            - 紧接着用一个 ```markdown 代码块输出完整文档
+            - 对检索内容进行去重、合并与改写，避免重复段落与重复句式；不要逐字拷贝检索中的段落标题
+            - 每个模块建议 1 个二级标题 + 若干要点句（2-5 句），必要时可用列表；如检索为空，则依据指令进行合理补全
+            - 内容应简洁、通顺，避免堆砌与冗余
+        </规则>
+
+        <TEMPLATE>
+        {template}
+        </TEMPLATE>
+
+        <PER-MODULE CONTEXT>
+        {per_module_context}
+        </PER-MODULE CONTEXT>
+        """,
+        "cn-t": """你是一個文件生成助手。請基於模板結構、計畫步驟，每個模組的檢索上下文以及使用者指令，生成最終 Markdown 文件。
+        <規則>
+            - 開頭輸出 filename: 文件名.md
+            - 緊接著用一個 ```markdown 程式碼區塊輸出完整文件
+            - 嚴格遵循模板的模組順序與層級結構
+            - 嚴格對齊計畫：對 MODULE-SPEC 中的每一項，輸出對應模組的內容；不得增刪模組；模組順序必須一致
+            - 每個模組下只允許 1 個二級標題（## …），且該標題必須根據計畫中的 "required_h2_from" 名改寫生成；不同模組不得出現相同的二級標題
+            - 對檢索內容進行去重、合併與改寫，避免重複段落與重複句式；不要逐字拷貝檢索中的段落標題
+            - 每個模組建議 1 個二級標題 + 若干要點句（2-5 句），必要時可用清單；如檢索為空，則依據指令進行合理補全
+            - 內容應簡潔、通順，避免堆疊與冗餘
+        </規則>
+        
+        <TEMPLATE>
+        {template}
+        </TEMPLATE>
+
+        <PER-MODULE CONTEXT>
+        {per_module_context}
+        </PER-MODULE CONTEXT>
+        """,
+    }[language].format(
+        template=template,
+        per_module_context=per_module_context,
+    )
+
+
+# =============================== Web Search Prompt ===============================
+def get_web_search_query_rewrite_prompt(
+    *,
+    user_query: str,
+    language: str = "en",
+) -> str:
+    templates = {
+        "en": """
+        You are a web search query rewrite expert. Rewrite the user's question into a single, precise query string for search.
+
+        <today>{date}</today>
+        <user_query>
+        {user_query}
+        </user_query>
+
+        <rules>
+        - Preserve intent; emphasize key entities/phrases, using quotes for exact matches (e.g., "OpenAI GPT-4").
+        - Add time qualifiers when relevant (e.g., 2024, recent, last 12 months) for time-sensitive/news topics.
+        - Remove filler, deduplicate terms; keep the query <= 400 characters.
+        - Do not invent facts or add constraints not implied by the question; keep the original language.
+        </rules>
+
+        <output>
+        Output ONLY the final optimized query string, with no explanations or wrappers.
+        </output>
+        """,
+        "cn-s": """
+        你是一名 Web 搜索查询改写专家。请将用户问题改写为一个更精准、可直接用于搜索的单条查询语句。
+
+        <today>{date}</today>
+        <user_query>
+        {user_query}
+        </user_query>
+
+        <rules>
+        - 保留意图；突出关键实体与核心短语，必要时用双引号精确匹配（例如 "OpenAI GPT-4"）。
+        - 如主题具时效性/新闻属性，适度加入时间限定（如 2024、recent、last 12 months）。
+        - 删除冗余词与口语，去重关键词；将查询控制在 ≤ 400 字符。
+        - 不臆造事实或附加未被问题暗示的限定；保持原语言。
+        </rules>
+
+        <output>
+        仅输出最终的优化查询语句，不要任何解释、前后缀或代码块。
+        </output>
+        """,
+        "cn-t": """
+        你是一名 Web 搜尋查詢改寫專家。請將使用者問題改寫為一條更精確、可直接用於搜尋的單條查詢語句。
+
+        <today>{date}</today>
+        <user_query>
+        {user_query}
+        </user_query>
+
+        <rules>
+        - 保留意圖；凸顯關鍵實體與核心片語，必要時以雙引號精確匹配（例如 "OpenAI GPT-4"）。
+        - 若主題具時效性/新聞屬性，適度加入時間限定（如 2024、recent、last 12 months）。
+        - 刪除冗詞與口語，去重關鍵詞；將查詢控制在 ≤ 400 字元。
+        - 不臆造事實或加入未由問題暗示的限制；保持原語言。
+        </rules>
+
+        <output>
+        僅輸出最終優化後的查詢語句本身，不要任何解釋、前後綴或程式碼區塊。
+        </output>
+        """,
+    }
+    return (templates.get(language, templates["en"])).format(
+        user_query=user_query, date=DATE_TIME
+    )
