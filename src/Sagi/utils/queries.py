@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional
 
 from api.schema import MultiRoundMemory
 from hirag_prod.tracing import traced
-from resources.embedding_client import LocalEmbeddingService
 from resources.functions import get_embedding_service
 from sqlalchemy import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -39,7 +38,7 @@ async def saveMultiRoundMemory(
         mimeType=mime_type,
         embedding=embedding,
         messageId=message_id,
-        createdAt=datetime.fromisoformat(timestamp),
+        createdAt=datetime.now(),
     )
     session.add(memory)
     await session.commit()
@@ -53,11 +52,10 @@ async def saveMultiRoundMemories(
 ):
     # Initialize embedding service once for batch processing
     try:
-        memory_embedding_service = LocalEmbeddingService()
         # Extract all content strings for batch embedding generation
         content_texts = [content_data["content"] for content_data in contents]
         # Generate embeddings in batch for efficiency
-        embeddings = await memory_embedding_service.create_embeddings(content_texts)
+        embeddings = await get_embedding_service().create_embeddings(content_texts)
     except Exception as e:
         print(f"Failed to generate embeddings: {e}")
         embeddings = [None] * len(contents)
@@ -75,7 +73,7 @@ async def saveMultiRoundMemories(
             mimeType=content_data["mime_type"],
             messageId=content_data["message_id"],
             embedding=embedding,
-            createdAt=datetime.fromisoformat(timestamp),
+            createdAt=datetime.now(),
         )
         session.add(memory)
         await session.commit()
