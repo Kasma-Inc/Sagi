@@ -8,8 +8,8 @@ from resources.functions import get_web_search_service
 from resources.remote_function_executor import execute_remote_function
 
 from Sagi.utils.prompt import (
-    get_template_based_generation_prompt,
-    get_template_based_planning_prompt,
+    get_finance_data_collection_planning_prompt,
+    get_finance_generation_prompt,
     get_web_search_query_rewrite_prompt,
 )
 from Sagi.vercel import ToolInputAvailable, ToolInputStart, ToolOutputAvailable
@@ -17,11 +17,8 @@ from Sagi.workflows.sagi_memory import SagiMemory
 from Sagi.workflows.utils import (
     Plan,
     PlanStep,
-    build_module_queries_block,
-    build_plan_overview,
     decode_plan_from_json_like,
     dump_generation_messages,
-    extract_template_and_instruction,
     join_text_messages,
 )
 
@@ -29,10 +26,10 @@ from Sagi.workflows.utils import (
 class FinanceAgent:
     """
     Lightweight pipeline for finance tasks:
-    1. Extract template and instruction from user messages;
-    2. Plan per-module TODO list (emit Tool events);
+    1. Extract data_collection, template and instruction from user messages;
+    2. Plan per-module TODO list based on data_collection (emit Tool events);
     3. Run per-module RAG retrieval and web search concurrently (emit Tool events);
-    4. Stream final markdown generation following template structure;
+    4. Stream final markdown generation, applying template at the end only;
     """
 
     def __init__(
@@ -51,6 +48,7 @@ class FinanceAgent:
         self.model_client_stream = model_client_stream
         self.markdown_output = markdown_output
 
+        self.data_collection_text: str = ""
         self.template_text: str = ""
         self.user_instruction: str = ""
         self.plan: Optional[Plan] = None
@@ -98,18 +96,11 @@ class FinanceAgent:
 
         ctx = "\n\n".join(per_module_ctx)
 
-        # Build plan overview to guide headings and structure
-        plan_block, plan_json_block = build_plan_overview(self.plan)
-        module_queries_block = build_module_queries_block(self.step_queries)
-
         lang = (self.language or "en").lower()
         sys = UserMessage(
             source="system",
-            content=get_template_based_generation_prompt(
+            content=get_finance_generation_prompt(
                 template=self.template_text,
-                plan_json_block=plan_json_block,
-                module_queries_block=module_queries_block,
-                plan_block=plan_block,
                 per_module_context=ctx,
                 language=lang,
             ),
@@ -129,7 +120,25 @@ class FinanceAgent:
         self, messages: List[TextMessage]
     ) -> Tuple[str, str]:
         full_text = join_text_messages(messages)
-        template, instruction = extract_template_and_instruction(full_text)
+        # Extract <data_collection>, <template>, <user_input>
+        import re
+
+        def _tag(name: str):
+            return re.search(
+                rf"<\s*{name}\s*>([\s\S]*?)<\s*/\s*{name}\s*>",
+                full_text,
+                flags=re.IGNORECASE,
+            )
+
+        md = _tag("data_collection")
+        mt = _tag("template")
+        mi = _tag("user_input")
+
+        data_collection = (md.group(1) if md else "") or ""
+        template = (mt.group(1) if mt else "") or ""
+        instruction = (mi.group(1) if mi else "") or ""
+
+        self.data_collection_text = data_collection.strip()
         self.template_text = template
         self.user_instruction = instruction
         return template, instruction
@@ -174,8 +183,10 @@ class FinanceAgent:
             }
         )
 
-        prompt = get_template_based_planning_prompt(
-            template=template, user_input=instruction
+        prompt = get_finance_data_collection_planning_prompt(
+            data_collection=self.data_collection_text,
+            user_input=instruction,
+            language=self.language,
         )
         res = await self.model_client.create(
             [UserMessage(content=prompt, source="user")],
