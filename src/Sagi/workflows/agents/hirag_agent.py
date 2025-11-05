@@ -137,29 +137,37 @@ class RagSummaryAgent:
         self.memory_context = None
         self.augmented_user_input = None
         try:
-            start_time = time.time()
-            memory_query_result = await self.memory.query(query=user_input, type="rag")
-            memory_results = memory_query_result.results
-            if len(memory_results) == 0:
-                self.augmented_user_input = user_input
-            else:
-                self.memory_context = format_memory_to_string(memory_results)
-                memory_augmented_user_input_prompt = (
-                    get_memory_augmented_user_query_prompt(
-                        user_input=user_input,
-                        memory=self.memory_context,
-                        language=self.language,
+            # Skip memory augmentation if memory is None (e.g., in batch jobs)
+            if self.memory is not None:
+                start_time = time.time()
+                memory_query_result = await self.memory.query(
+                    query=user_input, type="rag"
+                )
+                memory_results = memory_query_result.results
+                if len(memory_results) == 0:
+                    self.augmented_user_input = user_input
+                else:
+                    self.memory_context = format_memory_to_string(memory_results)
+                    memory_augmented_user_input_prompt = (
+                        get_memory_augmented_user_query_prompt(
+                            user_input=user_input,
+                            memory=self.memory_context,
+                            language=self.language,
+                        )
                     )
-                )
-                self.augmented_user_input = await get_chat_service().complete(
-                    prompt=memory_augmented_user_input_prompt,
-                    model=get_llm_config().model_name,
-                )
-                duration_seconds = time.time() - start_time
-                changed = self.augmented_user_input.strip() != user_input.strip()
-                logging.info(
-                    f"RAG memory augmented used={changed} duration_seconds={duration_seconds:.2f}"
-                )
+                    self.augmented_user_input = await get_chat_service().complete(
+                        prompt=memory_augmented_user_input_prompt,
+                        model=get_llm_config().model_name,
+                    )
+                    duration_seconds = time.time() - start_time
+                    changed = self.augmented_user_input.strip() != user_input.strip()
+                    logging.info(
+                        f"RAG memory augmented used={changed} duration_seconds={duration_seconds:.2f}"
+                    )
+            else:
+                # No memory available, use user input directly
+                logging.info("No memory available, skipping augmentation.")
+                self.augmented_user_input = user_input
 
             yield ToolInputStart(toolName=self.search_tool_name)
 
