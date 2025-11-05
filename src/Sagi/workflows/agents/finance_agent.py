@@ -269,6 +269,17 @@ class FinanceAgent:
             else:
                 rag_done = True
                 self.step_chunks[step.module] = []
+                # Emit input-start and input-available even when disabled, so FE has a full pair
+                await queue.put(ToolInputStart(toolName="ragSearch"))
+                await queue.put(
+                    ToolInputAvailable(
+                        input={
+                            "type": "ragSearch-input",
+                            "module": step.module,
+                            "query": query_text,
+                        }
+                    )
+                )
                 await queue.put(
                     ToolOutputAvailable(
                         output={
@@ -330,6 +341,17 @@ class FinanceAgent:
                 web_done = True
                 self.step_web_search_queries[step.module] = query_text
                 self.step_web_search_snippets[step.module] = []
+                # Emit input-start and input-available even when disabled
+                await queue.put(ToolInputStart(toolName="webSearch"))
+                await queue.put(
+                    ToolInputAvailable(
+                        input={
+                            "type": "webSearch-input",
+                            "module": step.module,
+                            "query": query_text,
+                        }
+                    )
+                )
                 await queue.put(
                     ToolOutputAvailable(
                         output={
