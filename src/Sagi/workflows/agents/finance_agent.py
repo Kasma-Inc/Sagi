@@ -329,7 +329,8 @@ class FinanceAgent:
                                 "https://www.investing.com/",
                             ],
                             include_raw_content=False,
-                            max_results=5,
+                            include_favicon=True,
+                            max_results=8,
                         )
                     )
                     if cancellation_token is not None:
