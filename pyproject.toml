@@ -45,6 +45,7 @@ dependencies = [
     "sentry-sdk==2.40.0",
     "opentelemetry-api==1.37.0",
     "tavily-python==0.7.12",
+    "apscheduler==3.11.1",
 ]
 
 [tool.uv.sources]
