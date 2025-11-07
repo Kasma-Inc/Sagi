@@ -56,6 +56,7 @@ class FinanceAgent:
         self.step_web_search_snippets: Dict[str, List[str]] = {}
         self.step_queries: Dict[str, str] = {}
         self.step_web_search_queries: Dict[str, str] = {}
+        self.step_web_search_results: Dict[str, List[Dict[str, Any]]] = {}
         self.enable_rag_retrieval = enable_rag_retrieval
         self.enable_web_search = enable_web_search
 
@@ -337,10 +338,12 @@ class FinanceAgent:
                     web_done = True
                     self.step_web_search_queries[step.module] = query_text
                     self.step_web_search_snippets[step.module] = []
+                    self.step_web_search_results[step.module] = []
             else:
                 web_done = True
                 self.step_web_search_queries[step.module] = query_text
                 self.step_web_search_snippets[step.module] = []
+                self.step_web_search_results[step.module] = []
                 # Emit input-start and input-available even when disabled
                 await queue.put(ToolInputStart(toolName="webSearch"))
                 await queue.put(
@@ -431,6 +434,13 @@ class FinanceAgent:
                                 web_search_answer = "\n\n".join(parts)
 
                             self.step_web_search_queries[step.module] = rewritten_query
+                            # Persist raw structured results for downstream reference building
+                            try:
+                                self.step_web_search_results[step.module] = list(
+                                    results
+                                )
+                            except Exception:
+                                self.step_web_search_results[step.module] = []
                             if web_search_answer:
                                 self.step_web_search_snippets[step.module] = [
                                     web_search_answer
@@ -451,6 +461,7 @@ class FinanceAgent:
                         except Exception as e:
                             self.step_web_search_queries[step.module] = rewritten_query
                             self.step_web_search_snippets[step.module] = []
+                            self.step_web_search_results[step.module] = []
                             await queue.put(
                                 ToolOutputAvailable(
                                     output={
