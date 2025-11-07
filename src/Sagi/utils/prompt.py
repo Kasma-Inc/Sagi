@@ -1808,3 +1808,165 @@ def get_web_search_query_rewrite_prompt(
     return (templates.get(language, templates["en"])).format(
         user_query=user_query, date=DATE_TIME
     )
+
+
+# =============================== Agentic Rag Related Prompt ===============================
+def get_file_selection_prompt(
+    *, user_query: str, candidate_files: str, language: str = "en"
+) -> str:
+    return {
+        "en": """
+        You are a retrieval selector. Given a user question and a list of candidate files (each with a short summary), choose the files that are most relevant to answering the question.
+
+        <question>
+        {user_query}
+        </question>
+
+        <candidates>
+        The following lines are in the format:
+        fileName | Summary
+
+        {candidate_files}
+        </candidates>
+
+        <rules>
+        - Select up to 5 files that best match the question intent.
+        - Prefer files whose summaries directly cover the entities, concepts, or tasks in the question.
+        - If none are relevant, return an empty result.
+        </rules>
+
+        <output>
+        Return ONLY the file names, one per line. No bullets, numbering, quotes, JSON, or explanations.
+        </output>
+        """,
+        "cn-s": """
+        你是一名检索选择器。根据用户问题与候选文件列表（每行包含简短摘要），选择最有助于回答问题的文件。
+
+        <问题>
+        {user_query}
+        </问题>
+
+        <候选文件>
+        以下各行使用如下格式：
+        fileName | 摘要
+
+        {candidate_files}
+        </候选文件>
+
+        <规则>
+        - 选择最多 5 个最契合问题意图的文件。
+        - 优先选择摘要与问题中的实体、概念或任务直接相关的文件。
+        - 如均不相关，可返回空结果。
+        </规则>
+
+        <输出>
+        仅输出文件名，每行一个。不要使用项目符号、编号、引号、JSON 或任何解释性文字。
+        </输出>
+        """,
+        "cn-t": """
+        你是一名檢索選擇器。根據使用者問題與候選文件清單（每行包含簡短摘要），選出最有助於回答問題的文件。
+
+        <問題>
+        {user_query}
+        </問題>
+
+        <候選文件>
+        下列各行採用以下格式：
+        fileName | 摘要
+
+        {candidate_files}
+        </候選文件>
+
+        <規則>
+        - 至多選擇 5 個最符合問題意圖的文件。
+        - 優先選擇摘要與問題中的實體、概念或任務直接相關的文件。
+        - 若皆不相關，可回傳空結果。
+        </規則>
+
+        <輸出>
+        只輸出檔名，每行一個。不要使用項目符號、編號、引號、JSON 或任何解釋性文字。
+        </輸出>
+        """,
+    }[language].format(user_query=user_query, candidate_files=candidate_files)
+
+
+def get_header_selection_prompt(
+    *, user_query: str, table_of_contents: str, language: str = "en"
+) -> str:
+    return {
+        "en": """
+        You are selecting the most relevant sections (headers) across documents to answer a user question.
+
+        <question>
+        {user_query}
+        </question>
+
+        <tables_of_contents>
+        The following are tables of contents grouped by file. Use them to pick specific headers (section titles):
+
+        {table_of_contents}
+        </tables_of_contents>
+
+        <rules>
+        - Output 3–8 total headers that best help answer the question.
+        - Choose precise, informative headers rather than overly broad ones.
+        - Distribute selections across files if helpful; skip files that are not relevant.
+        </rules>
+
+        <output>
+        Return ONLY lines in the exact format:
+        fileName :: \"header title\"
+        Do not include any other text, bullets, or numbering.
+        </output>
+        """,
+        "cn-s": """
+        你需要在多個文件的目錄（標題）中，選出能回答問題的關鍵標題。
+
+        <問題>
+        {user_query}
+        </問題>
+
+        <目錄列表>
+        下面按文件列出了目錄（標題）。請根據它們選擇具體標題：
+
+        {table_of_contents}
+        </目錄列表>
+
+        <規則>
+        - 總計選擇 3–8 個最有助於回答問題的標題。
+        - 優先選擇精確且信息量高的標題，而非過於寬泛的標題。
+        - 如有需要可分散於多個文件；與問題無關的文件可跳過。
+        </規則>
+
+        <輸出>
+        僅按以下格式逐行輸出：
+        fileName :: \"header title\"
+        不要包含其他文字、項目符號或編號。
+        </輸出>
+        """,
+        "cn-t": """
+        你需要在多個文件的目錄（標題）中，選出能回答問題的關鍵標題。
+
+        <問題>
+        {user_query}
+        </問題>
+
+        <目錄列表>
+        下列為依檔案分組的目錄。請據此選擇具體標題：
+
+        {table_of_contents}
+        </目錄列表>
+
+        <規則>
+        - 總計選擇 3–8 個最有助於回答問題的標題。
+        - 優先選擇精確且資訊量高的標題，而非過於寬泛的標題。
+        - 視需要分散於多個檔案；與問題無關的檔案可略過。
+        </規則>
+
+        <輸出>
+        僅以以下格式逐行輸出：
+        fileName :: \"header title\"
+        請勿包含其他文字、項目符號或編號。
+        </輸出>
+        """,
+    }[language].format(user_query=user_query, table_of_contents=table_of_contents)

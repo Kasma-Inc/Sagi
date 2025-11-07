@@ -4,7 +4,7 @@ from api.schema.chats.request import ReferenceChunkType
 from utils.camel_model import CamelModel
 
 
-class RagSearchToolCallOutputItem(CamelModel):
+class FileToolCallItem(CamelModel):
     fileName: str
     fileUrl: str
     type: str
@@ -12,7 +12,7 @@ class RagSearchToolCallOutputItem(CamelModel):
 
 class RagSearchToolCallOutput(CamelModel):
     type: Literal["ragSearch-output"] = "ragSearch-output"
-    data: List[RagSearchToolCallOutputItem]
+    data: List[FileToolCallItem]
 
 
 class FilterChunkData(CamelModel):
@@ -23,6 +23,28 @@ class FilterChunkData(CamelModel):
 class RagFilterToolCallOutput(CamelModel):
     type: Literal["ragFilter-output"] = "ragFilter-output"
     data: FilterChunkData
+
+
+class RagFileListToolCallOutput(CamelModel):
+    type: Literal["ragFileList-output"] = "ragFileList-output"
+    data: List[FileToolCallItem]
+
+
+class RagFileSelectToolCallOutput(CamelModel):
+    type: Literal["ragFileSelect-output"] = "ragFileSelect-output"
+    response_text: str
+    data: List[FileToolCallItem]
+
+
+class RagHeaderSelectToolCallOutput(CamelModel):
+    type: Literal["ragHeaderSelect-output"] = "ragHeaderSelect-output"
+    response_text: str
+    headers: List[dict]
+
+
+class RagRetrievalToolCallOutput(CamelModel):
+    type: Literal["ragRetrieval-output"] = "ragRetrieval-output"
+    data: List[ReferenceChunkType]
 
 
 class LoadFileToolCallOutput(CamelModel):
