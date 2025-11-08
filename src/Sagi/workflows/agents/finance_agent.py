@@ -1,6 +1,8 @@
 import asyncio
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
+from autogen_agentchat.base import TaskResult
 from autogen_agentchat.messages import ModelClientStreamingChunkEvent, TextMessage
 from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient, UserMessage
@@ -361,11 +363,7 @@ class FinanceAgent:
                         output={
                             "type": "webSearch-output",
                             "module": step.module,
-                            "data": {
-                                "query": query_text,
-                                "answer": "",
-                                "error": "Web search is disabled",
-                            },
+                            "data": [],
                         }
                     )
                 )
@@ -452,11 +450,20 @@ class FinanceAgent:
                                     output={
                                         "type": "webSearch-output",
                                         "module": step.module,
-                                        "data": {
-                                            "query": rewritten_query,
-                                            "answer": web_search_answer,
-                                        },
-                                    }
+                                        "data": [
+                                            {
+                                                "title": item.get("title", ""),
+                                                "url": item.get("url", ""),
+                                                "favicon": item.get("favicon", ""),
+                                                "domain": (
+                                                    urlparse(item.get("url")).netloc
+                                                    if item.get("url")
+                                                    else ""
+                                                ),
+                                            }
+                                            for item in results
+                                        ],
+                                    },
                                 )
                             )
                         except Exception as e:
@@ -468,12 +475,8 @@ class FinanceAgent:
                                     output={
                                         "type": "webSearch-output",
                                         "module": step.module,
-                                        "data": {
-                                            "query": rewritten_query,
-                                            "answer": "",
-                                            "error": str(e),
-                                        },
-                                    }
+                                        "data": [],
+                                    },
                                 )
                             )
                         web_done = True
@@ -524,12 +527,19 @@ class FinanceAgent:
             pass
 
         async def _stream():
+            buf: list[str] = []
             async for chunk in self.model_client.create_stream(
                 messages, cancellation_token=cancellation_token
             ):
                 if isinstance(chunk, str):
+                    buf.append(chunk)
                     yield ModelClientStreamingChunkEvent(
                         content=chunk, source="assistant"
                     )
+
+            # Emit final TaskResult so downstream transformers can expose history_messages
+            yield TaskResult(
+                messages=[TextMessage(content="".join(buf), source="assistant")]
+            )
 
         return _stream()

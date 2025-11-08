@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
+from autogen_agentchat.base import TaskResult
 from autogen_agentchat.messages import ModelClientStreamingChunkEvent, TextMessage
 from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient, UserMessage
@@ -256,12 +257,19 @@ class TemplateAgent:
             pass
 
         async def _stream():
+            buf: list[str] = []
             async for chunk in self.model_client.create_stream(
                 messages, cancellation_token=cancellation_token
             ):
                 if isinstance(chunk, str):
+                    buf.append(chunk)
                     yield ModelClientStreamingChunkEvent(
                         content=chunk, source="assistant"
                     )
+
+            # Emit final TaskResult so downstream transformers can expose history_messages
+            yield TaskResult(
+                messages=[TextMessage(content="".join(buf), source="assistant")]
+            )
 
         return _stream()
