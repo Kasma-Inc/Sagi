@@ -1653,10 +1653,10 @@ def get_finance_data_collection_planning_prompt(
         </规则>
 
         <输出示例>
-        {"steps": [
-          {"module": "公司概览", "description": "最新业务描述、核心产品、市场、管理层概述"},
-          {"module": "财务", "description": "最近收入、利润率、现金流、资产负债表趋势及来源"}
-        ]}
+        {{"steps": [
+          {{"module": "公司概览", "description": "最新业务描述、核心产品、市场、管理层概述"}},
+          {{"module": "财务", "description": "最近收入、利润率、现金流、资产负债表趋势及来源"}}
+        ]}}
         </输出示例>
 
         <数据收集>
