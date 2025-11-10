@@ -2471,6 +2471,15 @@ wheels = [
 ]
 
 [[package]]
+name = "nvidia-ml-py"
+version = "13.580.82"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/dd/6c/4a533f2c0185027c465adb6063086bc3728301e95f483665bfa9ebafb2d3/nvidia_ml_py-13.580.82.tar.gz", hash = "sha256:0c028805dc53a0e2a6985ea801888197765ac2ef8f1c9e29a7bf0d3616a5efc7", size = 47999, upload-time = "2025-09-11T16:44:56.267Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7f/96/d6d25a4c307d6645f4a9b91d620c0151c544ad38b5e371313a87d2761004/nvidia_ml_py-13.580.82-py3-none-any.whl", hash = "sha256:4361db337b0c551e2d101936dae2e9a60f957af26818e8c0c3a1f32b8db8d0a7", size = 49008, upload-time = "2025-09-11T16:44:54.915Z" },
+]
+
+[[package]]
 name = "openai"
 version = "1.61.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4004,6 +4013,7 @@ dependencies = [
     { name = "json-schema-to-pydantic" },
     { name = "mcp" },
     { name = "mypy-extensions" },
+    { name = "nvidia-ml-py" },
     { name = "openai" },
     { name = "opencc" },
     { name = "opentelemetry-api" },
@@ -4071,6 +4081,7 @@ requires-dist = [
     { name = "json-schema-to-pydantic", specifier = "==0.2.4" },
     { name = "mcp", specifier = ">=1.6.0" },
     { name = "mypy-extensions", specifier = ">=1.1.0" },
+    { name = "nvidia-ml-py", specifier = ">=13.580.82" },
     { name = "openai", specifier = "==1.61.0" },
     { name = "opencc", specifier = "==1.1.9" },
     { name = "opentelemetry-api", specifier = "==1.37.0" },
