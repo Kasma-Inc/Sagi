@@ -246,7 +246,6 @@ class FinanceAgent:
                     ToolInputAvailable(
                         input={
                             "type": "ragSearch-input",
-                            "module": step.module,
                             "query": query_text,
                         }
                     )
@@ -278,7 +277,6 @@ class FinanceAgent:
                     ToolInputAvailable(
                         input={
                             "type": "ragSearch-input",
-                            "module": step.module,
                             "query": query_text,
                         }
                     )
@@ -287,7 +285,6 @@ class FinanceAgent:
                     ToolOutputAvailable(
                         output={
                             "type": "ragSearch-output",
-                            "module": step.module,
                             "data": [],
                         }
                     )
@@ -310,7 +307,6 @@ class FinanceAgent:
                         ToolInputAvailable(
                             input={
                                 "type": "webSearch-input",
-                                "module": step.module,
                                 "query": rewritten_query,
                             }
                         )
@@ -353,7 +349,6 @@ class FinanceAgent:
                     ToolInputAvailable(
                         input={
                             "type": "webSearch-input",
-                            "module": step.module,
                             "query": query_text,
                         }
                     )
@@ -362,7 +357,6 @@ class FinanceAgent:
                     ToolOutputAvailable(
                         output={
                             "type": "webSearch-output",
-                            "module": step.module,
                             "data": [],
                         }
                     )
@@ -391,7 +385,6 @@ class FinanceAgent:
                             ToolOutputAvailable(
                                 output={
                                     "type": "ragSearch-output",
-                                    "module": step.module,
                                     "data": items,
                                 }
                             )
@@ -449,13 +442,12 @@ class FinanceAgent:
                                 ToolOutputAvailable(
                                     output={
                                         "type": "webSearch-output",
-                                        "module": step.module,
                                         "data": [
                                             {
                                                 "title": item.get("title", ""),
                                                 "url": item.get("url", ""),
-                                                "favicon": item.get("favicon", ""),
-                                                "domain": (
+                                                "host_logo": item.get("favicon", ""),
+                                                "host_name": (
                                                     urlparse(item.get("url")).netloc
                                                     if item.get("url")
                                                     else ""
@@ -474,7 +466,6 @@ class FinanceAgent:
                                 ToolOutputAvailable(
                                     output={
                                         "type": "webSearch-output",
-                                        "module": step.module,
                                         "data": [],
                                     },
                                 )

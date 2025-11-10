@@ -171,7 +171,6 @@ class TemplateAgent:
                 ToolInputAvailable(
                     input={
                         "type": "ragSearch-input",
-                        "module": step.module,
                         "query": step.description or step.module,
                     }
                 )
@@ -218,7 +217,6 @@ class TemplateAgent:
                 ToolOutputAvailable(
                     output={
                         "type": "ragSearch-output",
-                        "module": step.module,
                         "data": items,
                     }
                 )
