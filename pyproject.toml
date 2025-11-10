@@ -48,6 +48,9 @@ dependencies = [
     "apscheduler==3.11.1",
 ]
 
+[tool.uv]
+exclude-dependencies = ["pynvml"]
+
 [tool.uv.sources]
 hirag-prod = { git = "https://github.com/Kasma-Inc/hirag-prod.git" }
 torch = { index = "pytorch-cpu" }
