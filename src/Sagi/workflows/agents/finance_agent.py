@@ -1,6 +1,8 @@
 import asyncio
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
+from autogen_agentchat.base import TaskResult
 from autogen_agentchat.messages import ModelClientStreamingChunkEvent, TextMessage
 from autogen_core import CancellationToken
 from autogen_core.models import ChatCompletionClient, UserMessage
@@ -244,7 +246,6 @@ class FinanceAgent:
                     ToolInputAvailable(
                         input={
                             "type": "ragSearch-input",
-                            "module": step.module,
                             "query": query_text,
                         }
                     )
@@ -270,26 +271,6 @@ class FinanceAgent:
             else:
                 rag_done = True
                 self.step_chunks[step.module] = []
-                # Emit input-start and input-available even when disabled, so FE has a full pair
-                await queue.put(ToolInputStart(toolName="ragSearch"))
-                await queue.put(
-                    ToolInputAvailable(
-                        input={
-                            "type": "ragSearch-input",
-                            "module": step.module,
-                            "query": query_text,
-                        }
-                    )
-                )
-                await queue.put(
-                    ToolOutputAvailable(
-                        output={
-                            "type": "ragSearch-output",
-                            "module": step.module,
-                            "data": [],
-                        }
-                    )
-                )
 
             if self.enable_web_search:
                 web_search_query_rewrite_task = asyncio.create_task(
@@ -308,7 +289,6 @@ class FinanceAgent:
                         ToolInputAvailable(
                             input={
                                 "type": "webSearch-input",
-                                "module": step.module,
                                 "query": rewritten_query,
                             }
                         )
@@ -345,30 +325,6 @@ class FinanceAgent:
                 self.step_web_search_queries[step.module] = query_text
                 self.step_web_search_snippets[step.module] = []
                 self.step_web_search_results[step.module] = []
-                # Emit input-start and input-available even when disabled
-                await queue.put(ToolInputStart(toolName="webSearch"))
-                await queue.put(
-                    ToolInputAvailable(
-                        input={
-                            "type": "webSearch-input",
-                            "module": step.module,
-                            "query": query_text,
-                        }
-                    )
-                )
-                await queue.put(
-                    ToolOutputAvailable(
-                        output={
-                            "type": "webSearch-output",
-                            "module": step.module,
-                            "data": {
-                                "query": query_text,
-                                "answer": "",
-                                "error": "Web search is disabled",
-                            },
-                        }
-                    )
-                )
             try:
                 active_tasks = {t for t in (rag_task, web_search_task) if t is not None}
                 while active_tasks and not (rag_done and web_done):
@@ -393,7 +349,6 @@ class FinanceAgent:
                             ToolOutputAvailable(
                                 output={
                                     "type": "ragSearch-output",
-                                    "module": step.module,
                                     "data": items,
                                 }
                             )
@@ -451,12 +406,20 @@ class FinanceAgent:
                                 ToolOutputAvailable(
                                     output={
                                         "type": "webSearch-output",
-                                        "module": step.module,
-                                        "data": {
-                                            "query": rewritten_query,
-                                            "answer": web_search_answer,
-                                        },
-                                    }
+                                        "data": [
+                                            {
+                                                "title": item.get("title", ""),
+                                                "url": item.get("url", ""),
+                                                "host_logo": item.get("favicon", ""),
+                                                "host_name": (
+                                                    urlparse(item.get("url")).netloc
+                                                    if item.get("url")
+                                                    else ""
+                                                ),
+                                            }
+                                            for item in results
+                                        ],
+                                    },
                                 )
                             )
                         except Exception as e:
@@ -467,13 +430,8 @@ class FinanceAgent:
                                 ToolOutputAvailable(
                                     output={
                                         "type": "webSearch-output",
-                                        "module": step.module,
-                                        "data": {
-                                            "query": rewritten_query,
-                                            "answer": "",
-                                            "error": str(e),
-                                        },
-                                    }
+                                        "data": [],
+                                    },
                                 )
                             )
                         web_done = True
@@ -524,12 +482,19 @@ class FinanceAgent:
             pass
 
         async def _stream():
+            buf: list[str] = []
             async for chunk in self.model_client.create_stream(
                 messages, cancellation_token=cancellation_token
             ):
                 if isinstance(chunk, str):
+                    buf.append(chunk)
                     yield ModelClientStreamingChunkEvent(
                         content=chunk, source="assistant"
                     )
+
+            # Emit final TaskResult so downstream transformers can expose history_messages
+            yield TaskResult(
+                messages=[TextMessage(content="".join(buf), source="assistant")]
+            )
 
         return _stream()
