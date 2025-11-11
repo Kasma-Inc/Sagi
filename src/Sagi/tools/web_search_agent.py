@@ -28,6 +28,7 @@ from autogen_core.models import (
 )
 from autogen_core.tools import BaseTool, Workbench
 from pydantic import BaseModel
+from utils.safe_json_loader import safe_json_loads
 
 event_logger = logging.getLogger(EVENT_LOGGER_NAME)
 
@@ -313,17 +314,9 @@ class WebSearchAgent(AssistantAgent):
         """Execute a single tool call and return the result."""
         # Load the arguments from the tool call.
         try:
-            arguments = json.loads(tool_call.arguments)
+            arguments = safe_json_loads(tool_call.arguments)
         except json.JSONDecodeError as e:
-            return (
-                tool_call,
-                FunctionExecutionResult(
-                    content=f"Error: {e}",
-                    call_id=tool_call.id,
-                    is_error=True,
-                    name=tool_call.name,
-                ),
-            )
+            raise e
 
         # Check if the tool call is a handoff.
         # TODO: consider creating a combined workbench to handle both handoff and normal tools.
