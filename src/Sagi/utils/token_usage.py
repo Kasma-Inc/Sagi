@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Union
 import tiktoken
 from autogen_core.memory import MemoryContent
 from autogen_core.models import LLMMessage
-from configs.functions import get_llm_provider
+from configs.functions import get_model_provider_by_model_id
 from pydantic import BaseModel
 from transformers import AutoTokenizer
 
@@ -121,7 +121,7 @@ def count_tokens_messages(
         Total number of tokens including message formatting overhead
     """
     total_tokens = 0
-    provider = get_llm_provider(model)
+    provider = get_model_provider_by_model_id(model)
     assert provider is not None, "Provider is not set"
 
     if provider.lower() == "anthropic":

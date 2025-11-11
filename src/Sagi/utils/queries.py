@@ -4,8 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from api.schema import MultiRoundMemory
 from hirag_prod.tracing import traced
-from resources.embedding_client import LocalEmbeddingService
-from resources.functions import get_embedding_service
+from resources.embedding_client import BatchEmbeddingService
 from sqlalchemy import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -24,7 +23,7 @@ async def saveMultiRoundMemory(
 
     # Generate embedding for the content using HiRAG's embedding service
     try:
-        content_embedding = await get_embedding_service().create_embeddings([content])
+        content_embedding = await BatchEmbeddingService().create_embeddings([content])
         # Extract the embedding vector from the response
         embedding = content_embedding[0] if content_embedding else None
     except Exception as e:
@@ -53,11 +52,10 @@ async def saveMultiRoundMemories(
 ):
     # Initialize embedding service once for batch processing
     try:
-        memory_embedding_service = LocalEmbeddingService()
         # Extract all content strings for batch embedding generation
         content_texts = [content_data["content"] for content_data in contents]
         # Generate embeddings in batch for efficiency
-        embeddings = await memory_embedding_service.create_embeddings(content_texts)
+        embeddings = await BatchEmbeddingService().create_embeddings(content_texts)
     except Exception as e:
         print(f"Failed to generate embeddings: {e}")
         embeddings = [None] * len(contents)
@@ -110,7 +108,7 @@ async def getMultiRoundMemory(
     if query_text and context_window and model_name:
         try:
             # Generate embedding for the query text
-            query_embedding = await get_embedding_service().create_embeddings(
+            query_embedding = await BatchEmbeddingService().create_embeddings(
                 [query_text]
             )
             if query_embedding is None or len(query_embedding) == 0:
