@@ -159,9 +159,9 @@ class RagSummaryAgent:
                             language=self.language,
                         )
                     )
-                    self.augmented_user_input = await ChatCompletion(self.model_name).complete(
-                        prompt=memory_augmented_user_input_prompt
-                    )
+                    self.augmented_user_input = await ChatCompletion(
+                        self.model_name
+                    ).complete(prompt=memory_augmented_user_input_prompt)
                     duration_seconds = time.time() - start_time
                     changed = self.augmented_user_input.strip() != user_input.strip()
                     logging.info(
