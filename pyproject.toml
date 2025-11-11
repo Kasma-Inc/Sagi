@@ -21,7 +21,7 @@ dependencies = [
     "openai==1.61.0",
     "python-jose==3.4.0",
     "redis==6.2.0",
-    "sqlalchemy[postgresql-asyncpg]>=2.0.40",
+    "sqlalchemy==2.0.44",
     "sqlmodel==0.0.24",
     "alembic==1.16.5",
     "tiktoken>=0.9.0",
@@ -44,6 +44,8 @@ dependencies = [
     "opencc==1.1.9",
     "sentry-sdk==2.40.0",
     "opentelemetry-api==1.37.0",
+    "tavily-python==0.7.12",
+    "apscheduler==3.11.1",
 ]
 
 [tool.uv.sources]

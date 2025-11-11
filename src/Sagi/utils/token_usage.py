@@ -141,6 +141,8 @@ def count_tokens_messages(
             content_tokens = count_tokens_deepseek(content)
         elif provider.lower().startswith("local"):
             content_tokens = count_tokens_local(content, model, provider.lower())
+        elif provider.lower() == "google":
+            content_tokens = count_tokens_openai(content, model)
         else:
             raise ValueError(f"Unsupported provider: {provider} of model: {model}")
 

@@ -183,7 +183,7 @@ async def get_input_async():
 
 
 async def main_cmd(args: argparse.Namespace):
-    engine = await create_db_engine(os.getenv("POSTGRES_URL_NO_SSL_DEV") or "")
+    engine = await create_db_engine(os.getenv("POSTGRES_URL") or "")
     session_maker = async_sessionmaker(engine, expire_on_commit=False)
     chat_id = str(uuid.uuid4())
     # Save the metadata of the chat
