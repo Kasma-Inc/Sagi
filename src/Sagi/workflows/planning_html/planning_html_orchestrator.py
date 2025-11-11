@@ -50,7 +50,7 @@ from autogen_core.models import (
     UserMessage,
 )
 from pydantic import BaseModel, Field
-from utils.safe_json_loader import safe_json_loads
+from utils.safe_json_loader import safe_model_json_loads
 
 from Sagi.tools.stream_code_executor.stream_code_executor import CodeFileMessage
 from Sagi.utils.hirag_message import hirag_message_to_llm_message
@@ -586,7 +586,7 @@ class PlanningHtmlOrchestrator(BaseGroupChatManager):
         step_triage_response = await self._llm_create(
             self._step_triage_model_client, context, cancellation_token
         )
-        step_triage = safe_json_loads(step_triage_response)
+        step_triage = safe_model_json_loads(step_triage_response)
 
         next_speaker = step_triage["next_speaker"]["answer"]
         logging.info(f"Next Speaker: {next_speaker}")
@@ -754,7 +754,7 @@ class PlanningHtmlOrchestrator(BaseGroupChatManager):
         reflection_response = await self._llm_create(
             self._reflection_model_client, reflection_context, cancellation_token
         )
-        reflection = safe_json_loads(reflection_response)
+        reflection = safe_model_json_loads(reflection_response)
 
         reason = reflection.get("reason", "No reason provided")
         return reflection.get("is_complete", "false") == "true", reason
@@ -784,8 +784,10 @@ class PlanningHtmlOrchestrator(BaseGroupChatManager):
         response = await self._domain_specific_agent.on_messages(
             [message], cancellation_token=cancellation_token
         )
-        tool_response = safe_json_loads(response.chat_message.content)[0].get("text")
-        prompt_dict = safe_json_loads(tool_response)
+        tool_response = safe_model_json_loads(response.chat_message.content)[0].get(
+            "text"
+        )
+        prompt_dict = safe_model_json_loads(tool_response)
         return prompt_dict
 
     async def load_state(self, state: Mapping[str, Any]) -> None:

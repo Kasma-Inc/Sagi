@@ -1,4 +1,3 @@
-import json
 import uuid
 from abc import ABC, abstractmethod
 from collections import OrderedDict
@@ -22,7 +21,7 @@ from autogen_agentchat.messages import (
     UserInputRequestedEvent,
 )
 from pydantic import BaseModel, Field
-from utils.safe_json_loader import safe_json_loads
+from utils.safe_json_loader import ModelJSONDecodeError, safe_model_json_loads
 
 MessageClsDict = {
     "TextMessage": TextMessage,
@@ -427,7 +426,7 @@ class BasePlanManager(ABC):
 
         # Validate and parse response
         self._validate_model_response(model_response)
-        tasks = safe_json_loads(model_response).get("tasks", [])
+        tasks = safe_model_json_loads(model_response).get("tasks", [])
 
         # Create steps using subclass implementation
         steps, task_template_ids, tasks_dict = self._create_steps_from_tasks(tasks)
@@ -996,7 +995,7 @@ class BasePlanManager(ABC):
             ValueError: If response is not valid JSON or has incorrect structure
         """
         try:
-            data = safe_json_loads(model_response)
+            data = safe_model_json_loads(model_response)
             if not isinstance(data, dict):
                 raise ValueError("Model response must be a JSON object")
 
@@ -1017,7 +1016,7 @@ class BasePlanManager(ABC):
                     raise ValueError(
                         f"Task {i} must contain 'name' and 'description' keys"
                     )
-        except json.JSONDecodeError as e:
-            raise json.JSONDecodeError(
+        except ModelJSONDecodeError as e:
+            raise ModelJSONDecodeError(
                 f"Model response is not valid JSON: {str(e)}", model_response, e.pos
             )
