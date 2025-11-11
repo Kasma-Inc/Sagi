@@ -271,24 +271,6 @@ class FinanceAgent:
             else:
                 rag_done = True
                 self.step_chunks[step.module] = []
-                # Emit input-start and input-available even when disabled, so FE has a full pair
-                await queue.put(ToolInputStart(toolName="ragSearch"))
-                await queue.put(
-                    ToolInputAvailable(
-                        input={
-                            "type": "ragSearch-input",
-                            "query": query_text,
-                        }
-                    )
-                )
-                await queue.put(
-                    ToolOutputAvailable(
-                        output={
-                            "type": "ragSearch-output",
-                            "data": [],
-                        }
-                    )
-                )
 
             if self.enable_web_search:
                 web_search_query_rewrite_task = asyncio.create_task(
@@ -343,24 +325,6 @@ class FinanceAgent:
                 self.step_web_search_queries[step.module] = query_text
                 self.step_web_search_snippets[step.module] = []
                 self.step_web_search_results[step.module] = []
-                # Emit input-start and input-available even when disabled
-                await queue.put(ToolInputStart(toolName="webSearch"))
-                await queue.put(
-                    ToolInputAvailable(
-                        input={
-                            "type": "webSearch-input",
-                            "query": query_text,
-                        }
-                    )
-                )
-                await queue.put(
-                    ToolOutputAvailable(
-                        output={
-                            "type": "webSearch-output",
-                            "data": [],
-                        }
-                    )
-                )
             try:
                 active_tasks = {t for t in (rag_task, web_search_task) if t is not None}
                 while active_tasks and not (rag_done and web_done):
