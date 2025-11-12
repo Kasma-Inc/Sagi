@@ -46,7 +46,11 @@ dependencies = [
     "opentelemetry-api==1.37.0",
     "tavily-python==0.7.12",
     "apscheduler==3.11.1",
+    "nvidia-ml-py>=13.580.82",
 ]
+
+[tool.uv]
+exclude-dependencies = ["pynvml"]
 
 [tool.uv.sources]
 hirag-prod = { git = "https://github.com/Kasma-Inc/hirag-prod.git" }
