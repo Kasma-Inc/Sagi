@@ -118,6 +118,10 @@ class RagSummaryAgent:
         knowledge_base_id: str,
         file_ids: Optional[Set[str]] = None,
         cancellation_token: Optional[CancellationToken] = None,
+        *,
+        user_id: Optional[str] = None,
+        chat_id: Optional[str] = None,
+        msg_id: Optional[str] = None,
     ) -> AsyncGenerator[Any, None]:
         """Run a query through the RAG system and prepare the summary agent.
 
@@ -196,6 +200,14 @@ class RagSummaryAgent:
                 "query": self.augmented_user_input,
             }
             function_call_info.update(query_params)
+            if user_id:
+                function_call_info["user_id"] = user_id
+            if workspace_id:
+                function_call_info["workspace_id"] = workspace_id
+            if chat_id:
+                function_call_info["chat_id"] = chat_id
+            if msg_id:
+                function_call_info["msg_id"] = msg_id
             rag_task = asyncio.create_task(
                 execute_remote_function("HI_RAG", function_call_info)
             )
@@ -240,6 +252,10 @@ class RagSummaryAgent:
         workspace_id: str,
         knowledge_base_id: str,
         cancellation_token: Optional[CancellationToken] = None,
+        *,
+        user_id: Optional[str] = None,
+        chat_id: Optional[str] = None,
+        msg_id: Optional[str] = None,
     ) -> AsyncGenerator[Any, None]:
         """Run the filtering step on raw chunks."""
         if cancellation_token and cancellation_token.is_cancelled():
@@ -283,6 +299,9 @@ class RagSummaryAgent:
                         "workspace_id": workspace_id,
                         "knowledge_base_id": knowledge_base_id,
                         "filter_by_clustering": True,
+                        **({"user_id": user_id} if user_id else {}),
+                        **({"chat_id": chat_id} if chat_id else {}),
+                        **({"msg_id": msg_id} if msg_id else {}),
                     },
                 )
             )
