@@ -26,8 +26,8 @@ from autogen_core.models import (
     SystemMessage,
 )
 from autogen_core.tools import BaseTool, Workbench
+from hirag_prod.json_utils import ModelJSONDecodeError, safe_model_json_loads
 from pydantic import BaseModel
-from utils.safe_json_loader import ModelJSONDecodeError, safe_model_json_loads
 
 event_logger = logging.getLogger(EVENT_LOGGER_NAME)
 

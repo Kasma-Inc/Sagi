@@ -2,7 +2,7 @@ import json
 import logging
 
 from autogen_agentchat.messages import ToolCallSummaryMessage
-from utils.safe_json_loader import ModelJSONDecodeError, safe_model_json_loads
+from hirag_prod.json_utils import ModelJSONDecodeError, safe_model_json_loads
 
 
 def extract_texts(content):
