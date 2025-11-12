@@ -2,13 +2,14 @@ import json
 import logging
 
 from autogen_agentchat.messages import ToolCallSummaryMessage
+from utils.safe_json_loader import ModelJSONDecodeError, safe_model_json_loads
 
 
 def extract_texts(content):
     texts = []
     for line in content.strip().split("\n"):
         if line:
-            array = json.loads(line)
+            array = safe_model_json_loads(line)
             for item in array:
                 if item.get("type") == "text" and "text" in item:
                     texts.append(item["text"])
@@ -45,7 +46,7 @@ def hirag_message_to_llm_message(
         chunks, entities, relations, neighbors = [], [], [], []
 
         for text in texts:
-            query_result_json = json.loads(text)
+            query_result_json = safe_model_json_loads(text)
             chunks.extend(query_result_json.get("chunks", []))
             entities.extend(query_result_json.get("entities", []))
             relations.extend(query_result_json.get("relations", []))
@@ -96,6 +97,10 @@ def hirag_message_to_llm_message(
         ]
         message.content = json.dumps(cleaned_message_content)
         return message
+    except ModelJSONDecodeError as e:
+        logging.error(f"JSON decode error in hirag_message_to_llm_message: {e}")
+        raise e
     except Exception as e:
+        # Raise all unexpected errors instead of swallowing them to ensure upstream visibility
         logging.error(f"Error in hirag_message_to_llm_message: {e}")
-        return message
+        raise e
