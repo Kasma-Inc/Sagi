@@ -20,12 +20,12 @@ from Sagi.utils.prompt import (
     get_rag_summary_plus_prompt,
 )
 from Sagi.vercel import (
+    FileToolCallItem,
     FilterChunkData,
     RagFilterToolCallInput,
     RagFilterToolCallOutput,
     RagSearchToolCallInput,
     RagSearchToolCallOutput,
-    RagSearchToolCallOutputItem,
     ToolInputAvailable,
     ToolInputStart,
     ToolOutputAvailable,
@@ -216,7 +216,7 @@ class RagSummaryAgent:
             yield ToolOutputAvailable(
                 output=RagSearchToolCallOutput(
                     data=[
-                        RagSearchToolCallOutputItem(
+                        FileToolCallItem(
                             fileName=chunk_tuple[0],
                             fileUrl=chunk_tuple[1],
                             type=chunk_tuple[1].split(".")[-1],

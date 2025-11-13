@@ -7,21 +7,29 @@ from .tool_call import (
 )
 from .tool_call_input import (
     LoadFileToolCallInput,
+    RagFileListToolCallInput,
+    RagFileSelectToolCallInput,
     RagFilterToolCallInput,
+    RagHeaderSelectToolCallInput,
+    RagRetrievalToolCallInput,
     RagSearchToolCallInput,
 )
 from .tool_call_output import (
+    FileToolCallItem,
     FilterChunkData,
     LoadFileToolCallOutput,
+    RagFileListToolCallOutput,
+    RagFileSelectToolCallOutput,
     RagFilterToolCallOutput,
+    RagHeaderSelectToolCallOutput,
+    RagRetrievalToolCallOutput,
     RagSearchToolCallOutput,
-    RagSearchToolCallOutputItem,
 )
 
 __all__ = [
     "RagSearchToolCallInput",
     "RagSearchToolCallOutput",
-    "RagSearchToolCallOutputItem",
+    "FileToolCallItem",
     "RagFilterToolCallInput",
     "RagFilterToolCallOutput",
     "FilterChunkData",
@@ -32,4 +40,12 @@ __all__ = [
     "ToolInputDelta",
     "ToolInputAvailable",
     "ToolOutputAvailable",
+    "RagFileListToolCallInput",
+    "RagFileListToolCallOutput",
+    "RagFileSelectToolCallInput",
+    "RagFileSelectToolCallOutput",
+    "RagHeaderSelectToolCallInput",
+    "RagHeaderSelectToolCallOutput",
+    "RagRetrievalToolCallInput",
+    "RagRetrievalToolCallOutput",
 ]
