@@ -53,7 +53,7 @@ dependencies = [
 exclude-dependencies = ["pynvml"]
 
 [tool.uv.sources]
-hirag-prod = { git = "https://github.com/Kasma-Inc/hirag-prod.git", rev = "1ddf18574bcbe539e575ea2bcb361e2d9f272834" }
+hirag-prod = { git = "https://github.com/Kasma-Inc/hirag-prod.git", rev = "cc6d1b0ab7acd48c37f8ef9b232b6ef400b01bea" }
 torch = { index = "pytorch-cpu" }
 torchvision = { index = "pytorch-cpu" }
 
