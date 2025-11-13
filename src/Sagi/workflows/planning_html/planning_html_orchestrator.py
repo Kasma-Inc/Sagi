@@ -49,8 +49,8 @@ from autogen_core.models import (
     LLMMessage,
     UserMessage,
 )
+from hirag_prod.json_utils import safe_model_json_loads
 from pydantic import BaseModel, Field
-from utils.safe_json_loader import safe_model_json_loads
 
 from Sagi.tools.stream_code_executor.stream_code_executor import CodeFileMessage
 from Sagi.utils.hirag_message import hirag_message_to_llm_message

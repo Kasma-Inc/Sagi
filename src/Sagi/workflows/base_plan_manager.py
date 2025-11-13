@@ -20,8 +20,8 @@ from autogen_agentchat.messages import (
     ToolCallSummaryMessage,
     UserInputRequestedEvent,
 )
+from hirag_prod.json_utils import ModelJSONDecodeError, safe_model_json_loads
 from pydantic import BaseModel, Field
-from utils.safe_json_loader import ModelJSONDecodeError, safe_model_json_loads
 
 MessageClsDict = {
     "TextMessage": TextMessage,
