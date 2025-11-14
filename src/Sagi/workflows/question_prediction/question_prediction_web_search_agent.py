@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 from typing import (
     Any,
@@ -34,6 +33,7 @@ from autogen_core.models import (
     UserMessage,
 )
 from autogen_core.tools import BaseTool, FunctionTool, StaticWorkbench, Workbench
+from hirag_prod.json_utils import ModelJSONDecodeError, safe_model_json_loads
 from pydantic import BaseModel
 from typing_extensions import Self
 
@@ -293,17 +293,9 @@ Remember to stay in character as a user throughout your response, and follow the
         """Execute a single tool call and return the result."""
         # Load the arguments from the tool call.
         try:
-            arguments = json.loads(tool_call.arguments)
-        except json.JSONDecodeError as e:
-            return (
-                tool_call,
-                FunctionExecutionResult(
-                    content=f"Error: {e}",
-                    call_id=tool_call.id,
-                    is_error=True,
-                    name=tool_call.name,
-                ),
-            )
+            arguments = safe_model_json_loads(tool_call.arguments)
+        except ModelJSONDecodeError as e:
+            raise e
 
         # Check if the tool call is a handoff.
         # TODO: consider creating a combined workbench to handle both handoff and normal tools.

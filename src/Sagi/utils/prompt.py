@@ -1151,8 +1151,37 @@ def get_rag_summary_plus_markdown_prompt(
         {memory_context}
         </memory_context>
         
-        <communication> - Always ensure **only generated document content** are formatted in valid Markdown format with proper fencing and enclosed in markdown code blocks. - Avoid wrapping the entire message in a single code block. The preparation plan and summary should be in plain text, outside of code blocks, while the generated document is fenced in ```markdown`. </communication>
+        <communication> - Always ensure **only generated document content** are formatted in valid Markdown format with proper fencing and enclosed in markdown code blocks. - Avoid wrapping the entire message in a single code block. The preparation plan and summary should be in plain text, outside of code blocks, while the generated document is fenced in ```markdown`. All of your responses must be treated as a "document generation task". Even if the query looks like a simple question, you must follow the complete "preparation plan -> filename -> markdown block -> summary" workflow without omission. </communication>
 
+        <preparation_spec>
+        At the beginning of the response, you should provide a preparation plan on how you will generate the markdown document. Follow the workflow for complex requests; for simple ones, a brief plan and summary suffice. If the query is straightforward, combine the plan and summary into a single short paragraph.
+        Example:
+        User query: Generate a rock song lyrics
+        Response (partial):
+        I will generate rock song lyrics. The lyrics will have a classic rock vibe with verses, a chorus, and a bridge, capturing themes of freedom, rebellion, or energy typical of the genre.
+        filename: rock_lyrics.md
+        ```markdown
+        ### Song: Rebel's Road
+        
+        (Verse 1)
+        ...
+        (summary highlight)
+        ```
+        </preparation_spec>
+        
+        <filename_spec>
+        When generating a Markdown document, you MUST provide a meaningful filename before the ```markdown code block.
+        - Use the format: filename: filename.md
+        - The filename should be concise and clearly reflect the document's topic and content
+        - Keep the filename under 20 characters (excluding the .md extension)
+        - Use English for naming
+        - Avoid special characters; use only letters, numbers, underscores, and hyphens
+        Examples:
+        filename: Python_Tutorial.md
+        filename: Data_Analysis_Report.md
+        filename: Project_Requirements.md
+        </filename_spec>
+        
         <markdown_spec>
         Specific markdown rules:
         - Users love it when you organize your messages using '###' headings and '##' headings. Never use '#' headings as users find them overwhelming.
@@ -1163,17 +1192,6 @@ def get_rag_summary_plus_markdown_prompt(
         - For code examples, use language-specific fencing like ```python
         </markdown_spec>
 
-        <preparation_spec>
-        At the beginning of the response, you should provide a preparation plan on how you will generate the markdown document. Follow the workflow for complex requests; for simple ones, a brief plan and summary suffice. If the query is straightforward, combine the plan and summary into a single short paragraph.
-        Example:
-        User query: Generate a rock song lyrics
-        Response (partial):
-        I will generate rock song lyrics and generate content as if for a file named 'document.md'. The lyrics will have a classic rock vibe with verses, a chorus, and a bridge, capturing themes of freedom, rebellion, or energy typical of the genre.
-        ```markdown
-        content of document.md
-        (summary highlight)
-        ```
-        </preparation_spec>
         <summary_spec>
         At the end of the response, you should provide a summary. Summarize the generated document content and how it aligns with the user's request in a concise manner.
         Use concise bullet points for lists or short paragraphs. Keep the summary short, non-repetitive, and high-signal.
@@ -1196,8 +1214,37 @@ def get_rag_summary_plus_markdown_prompt(
         {memory_context}
         </记忆相关信息>
         
-        <communication> - 始终确保**只有生成的文档内容**使用有效的 Markdown 格式，并用正确的代码围栏包裹在 Markdown 代码块中。- 避免将整个消息包装在单个代码块中。准备计划和摘要应为纯文本，位于代码块之外，而生成的文档则应包含在 ```markdown` 代码块中。</communication>
+        <communication> - 始终确保**只有生成的文档内容**使用有效的 Markdown 格式，并用正确的代码围栏包裹在 Markdown 代码块中。- 避免将整个消息包装在单个代码块中。准备计划和摘要应为纯文本，位于代码块之外，而生成的文档则应包含在 ```markdown` 代码块中。你的所有回答都必须被视为一个“文档生成任务”。即使查询看起来像一个简单的问题，你也必须遵循完整的“准备计划 -> filename -> markdown块 -> 摘要”工作流，不得省略。</communication>
 
+        <preparation_spec>
+        在回应的开头，你应该提供一个关于如何生成 Markdown 文档的准备计划。对于复杂请求，请遵循工作流程；对于简单请求，一个简短的计划和摘要就足够了。如果查询很简单，请将计划和摘要合并成一个简短的段落。
+        示例:
+        用户查询: 生成一首摇滚歌词
+        回应（部分）:
+        我将生成摇滚歌词。歌词将具有经典摇滚风格，包含主歌、副歌和桥段，捕捉该流派典型的自由、反叛或活力的主题。
+        filename: 摇滚歌词.md
+        ```markdown
+        ### 歌曲：反叛之路
+
+        (主歌 1)
+        ...
+        （摘要重点）
+        ```
+        </preparation_spec>
+        
+        <filename_spec>
+        在生成 Markdown 文档时，你必须在 ```markdown 代码块之前提供一个有意义的文件名。
+        - 使用格式: filename: 文件名.md
+        - 文件名应简洁明了，反映文档的主题和内容
+        - 文件名长度不超过20个字符（不包括.md后缀）
+        - 使用简体中文命名
+        - 避免使用特殊字符，只使用中文、字母、数字、下划线和连字符
+        示例:
+        filename: Python入门教程.md
+        filename: 数据分析报告.md
+        filename: 项目需求文档.md
+        </filename_spec>
+        
         <markdown_spec>
         具体的 Markdown 规则:
         - 用户喜欢你使用 '###' 和 '##' 标题来组织消息。请勿使用 '#' 标题，因为用户觉得它们过于醒目。
@@ -1207,18 +1254,7 @@ def get_rag_summary_plus_markdown_prompt(
         - 如果有不太可能被复制粘贴到代码中的数学表达式，请使用行内数学（$$ 和 $$）或块级数学（$$ 和 $$）进行格式化。
         - 对于代码示例，请使用特定语言的代码围栏，例如 ```python
         </markdown_spec>
-
-        <preparation_spec>
-        在回应的开头，你应该提供一个关于如何生成 Markdown 文档的准备计划。对于复杂请求，请遵循工作流程；对于简单请求，一个简短的计划和摘要就足够了。如果查询很简单，请将计划和摘要合并成一个简短的段落。
-        示例:
-        用户查询: 生成一首摇滚歌词
-        回应（部分）:
-        我将生成摇滚歌词，并为名为 'document.md' 的文件生成内容。歌词将具有经典摇滚风格，包含主歌、副歌和桥段，捕捉该流派典型的自由、反叛或活力的主题。
-        ```markdown
-        document.md 的内容
-        (摘要重点)
-        ```
-        </preparation_spec>
+        
         <summary_spec>
         在回应的末尾，你应该提供一个摘要。简明扼要地总结生成的文档内容及其与用户请求的契合度。
         使用简洁的项目符号列表或短段落。保持摘要简短、不重复且信息量大。
@@ -1241,8 +1277,38 @@ def get_rag_summary_plus_markdown_prompt(
         {memory_context}
         </記憶相關信息>
         
-        <communication> - 始終確保**只有生成的文件內容**使用有效的 Markdown 格式，並用正確的代碼圍欄包裹在 Markdown 代碼塊中。- 避免將整個消息包裝在單個代碼塊中。準備計劃和摘要應為純文本，位於代碼塊之外，而生成的文件則應包含在 ```markdown` 代碼塊中。</communication>
+        <communication> - 始終確保**只有生成的文件內容**使用有效的 Markdown 格式，並用正確的代碼圍欄包裹在 Markdown 代碼塊中。- 避免將整個消息包裝在單個代碼塊中。準備計劃和摘要應為純文本，位於代碼塊之外，而生成的文件則應包含在 ```markdown` 代碼塊中。你的所有回覆都必須被視為一個「文件生成任務」。即使查詢看起來像一個簡單的問題，你也必須遵循完整的「準備計劃 -> filename -> markdown塊 -> 摘要」工作流程，不得省略。</communication>
 
+
+        <preparation_spec>
+        在回應的開頭，你應該提供一個關於如何生成 Markdown 文件的準備計劃。對於複雜請求，請遵循工作流程；對於簡單請求，一個簡短的計劃和摘要就足夠了。如果查詢很簡單，請將計劃和摘要合併成一個簡短的段落。
+        示例:
+        用戶查詢: 生成一首搖滾歌詞
+        回應（部分）:
+        我將生成搖滾歌詞。歌詞將具有經典搖滾風格，包含主歌、副歌和橋段，捕捉該流派典型的自由、反叛或活力的主題。
+        filename: 搖滾歌詞.md
+        ```markdown
+        ### 歌曲：反叛之路
+
+        (主歌 1)
+        ...
+        （摘要重點）
+        ```
+        </preparation_spec>
+        
+        <filename_spec>
+        在生成 Markdown 文件時，你必須在 ```markdown 程式碼區塊之前提供一個有意義的檔案名稱。
+        - 使用格式: filename: 檔案名稱.md
+        - 檔案名稱應簡潔明瞭，反映文件的主題和內容
+        - 檔案名稱長度不超過20個字元（不包括.md後綴）
+        - 使用繁體中文命名
+        - 避免使用特殊字元，只使用中文、字母、數字、底線和連字符
+        範例:
+        filename: Python入門教學.md
+        filename: 資料分析報告.md
+        filename: 專案需求文件.md
+        </filename_spec>
+        
         <markdown_spec>
         具體的 Markdown 規則:
         - 用戶喜歡你使用 '###' 和 '##' 標題來組織消息。請勿使用 '#' 標題，因為用戶覺得它們過於醒目。
@@ -1252,18 +1318,7 @@ def get_rag_summary_plus_markdown_prompt(
         - 如果有不太可能被複製貼上到代碼中的數學表達式，請使用行內數學（$$ 和 $$）或區塊級數學（$$ 和 $$）進行格式化。
         - 對於代碼示例，請使用特定語言的代碼圍欄，例如 ```python
         </markdown_spec>
-
-        <preparation_spec>
-        在回應的開頭，你應該提供一個關於如何生成 Markdown 文件的準備計劃。對於複雜請求，請遵循工作流程；對於簡單請求，一個簡短的計劃和摘要就足夠了。如果查詢很簡單，請將計劃和摘要合併成一個簡短的段落。
-        示例:
-        用戶查詢: 生成一首搖滾歌詞
-        回應（部分）:
-        我將生成搖滾歌詞，並為名為 'document.md' 的文件生成內容。歌詞將具有經典搖滾風格，包含主歌、副歌和橋段，捕捉該流派典型的自由、反叛或活力的主題。
-        ```markdown
-        document.md 的內容
-        (摘要重點)
-        ```
-        </preparation_spec>
+        
         <summary_spec>
         在回應的末尾，你應該提供一個摘要。簡明扼要地總結生成的文件內容及其與用戶請求的契合度。
         使用簡潔的項目符號列表或短段落。保持摘要簡短、不重複且資訊量大。
