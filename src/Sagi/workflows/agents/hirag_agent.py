@@ -6,10 +6,10 @@ from typing import Any, AsyncGenerator, Dict, Optional, Set
 from api.ui.utils import chunks_to_reference_chunks
 from autogen_agentchat.agents import AssistantAgent
 from autogen_core import CancellationToken
-from autogen_core.models import ChatCompletionClient
-from configs.functions import get_config_manager, get_llm_config
+from configs.functions import get_config_manager
 from hirag_prod.tracing import traced, traced_async_gen
-from resources.functions import get_chat_service
+from resources.llm_client import ChatCompletion
+from resources.model_client_wrapper import ModelClientWrapper
 from resources.remote_function_executor import execute_remote_function
 
 from Sagi.utils.chat_template import format_memory_to_string
@@ -44,13 +44,15 @@ class RagSummaryAgent:
 
     def __init__(
         self,
-        model_client: ChatCompletionClient,
+        model_name: str,
+        model_client: ModelClientWrapper,
         memory: SagiMemory,
         language: str,
         gdb_path: str,
         model_client_stream: bool = True,
         markdown_output: bool = False,
     ):
+        self.model_name = model_name
         self.memory = memory
         self.language = language
         self.system_prompt = None
@@ -71,7 +73,8 @@ class RagSummaryAgent:
     @traced(record_args=[])
     async def create(
         cls,
-        model_client: ChatCompletionClient,
+        model_name: str,
+        model_client: ModelClientWrapper,
         memory: SagiMemory,
         language: str,
         gdb_path: str,
@@ -79,6 +82,7 @@ class RagSummaryAgent:
         markdown_output: bool = False,
     ):
         self = cls(
+            model_name=model_name,
             model_client=model_client,
             memory=memory,
             language=language,
@@ -155,10 +159,9 @@ class RagSummaryAgent:
                             language=self.language,
                         )
                     )
-                    self.augmented_user_input = await get_chat_service().complete(
-                        prompt=memory_augmented_user_input_prompt,
-                        model=get_llm_config().model_name,
-                    )
+                    self.augmented_user_input = await ChatCompletion(
+                        self.model_name
+                    ).complete(prompt=memory_augmented_user_input_prompt)
                     duration_seconds = time.time() - start_time
                     changed = self.augmented_user_input.strip() != user_input.strip()
                     logging.info(
@@ -324,9 +327,8 @@ class RagSummaryAgent:
                         user_query=self.augmented_user_input or "",
                         chunks_data=chunks_string,
                     )
-                    judge_res = await get_chat_service().complete(
+                    judge_res = await ChatCompletion(self.model_name).complete(
                         prompt=judge_prompt,
-                        model=get_llm_config().model_name,
                     )
                     need_memory = (judge_res or "").strip().lower().startswith("y")
                 except Exception as e:

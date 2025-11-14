@@ -11,7 +11,7 @@ from autogen_core.memory import (
 )
 from autogen_core.model_context import ChatCompletionContext
 from autogen_core.models import SystemMessage
-from configs.functions import get_llm_context_window
+from configs.functions import get_model_context_window_by_model_id
 from hirag_prod.tracing import traced
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -91,7 +91,7 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
         # 2. If the number of tokens is less than the max tokens, add the memory to the context
         memory_to_add = []
         # memories = memory_query_result.results
-        context_window = get_llm_context_window(self.model_name)
+        context_window = get_model_context_window_by_model_id(self.model_name)
         assert context_window is not None, "Context window is not set"
 
         if total_tokens < context_window - CONTEXT_WINDOW_BUFFER:
@@ -177,7 +177,7 @@ class SagiMemory(Memory, Component[SagiMemoryConfig]):
                 # Extract text for query, and we don't use it for now
                 query_text = self._extract_text(query)
 
-                context_window = get_llm_context_window(self.model_name)
+                context_window = get_model_context_window_by_model_id(self.model_name)
                 assert context_window is not None, "Context window is not set"
 
                 # Get memories from the database via similarity search with the query and not exceed the context window
