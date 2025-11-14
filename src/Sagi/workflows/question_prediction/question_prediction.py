@@ -111,9 +111,9 @@ class QuestionPredictionWorkflow:
             extra_kwargs["cancellation_token"] = token
         return self.team.run_stream(task=user_input, **extra_kwargs)
 
-    def set_model(self, model_name: str) -> None:
+    def set_model(self, model_id: str) -> None:
         for model_client in self.model_client_dict.values():
-            model_client.set_model_client(model_name=model_name)
+            model_client.set_model_client(model_id=model_id)
 
     def reset(self):
         return self.team.reset()
